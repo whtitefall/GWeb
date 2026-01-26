@@ -1,0 +1,62 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;600&display=swap');
+
+:root {
+  color-scheme: light;
+  --ink: #1b2b2f;
+  --ink-soft: #304246;
+  --accent: #ff784e;
+  --accent-strong: #ff5b2b;
+  --accent-2: #2bb7a9;
+  --paper: #f6f1e9;
+  --panel: #ffffff;
+  --panel-warm: #fff4e8;
+  --stroke: rgba(27, 43, 47, 0.2);
+  --muted: #6b7b7f;
+  --shadow: 0 12px 30px rgba(27, 43, 47, 0.16);
+  --radius: 18px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Space Grotesk', 'Spline Sans', sans-serif;
+  background: radial-gradient(circle at top, #fdf8f2 0%, #f6f1e9 45%, #f7e9dc 100%);
+  color: var(--ink);
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+}
+
+button {
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+input {
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: #fff;
+}
+
+input:focus {
+  outline: 2px solid rgba(255, 120, 78, 0.35);
+  border-color: rgba(255, 120, 78, 0.6);
+}
