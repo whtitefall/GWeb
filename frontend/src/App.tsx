@@ -29,6 +29,7 @@ import ReactFlow, {
   type ReactFlowInstance,
 } from 'reactflow'
 import ForceGraph3D from 'react-force-graph-3d'
+import { AxesHelper } from 'three'
 import 'reactflow/dist/style.css'
 import './App.css'
 import { createGraph, deleteGraph, fetchGraph, listGraphs, saveGraph } from './api'
@@ -449,6 +450,20 @@ const isLightColor = (hex: string) => {
   return luminance > 0.6
 }
 
+const isValidColor = (value: string) => {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return false
+  }
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(trimmed)) {
+    return true
+  }
+  if (/^(rgb|rgba|hsl|hsla)\(/i.test(trimmed)) {
+    return true
+  }
+  return false
+}
+
 const resolveAuthName = (session: {
   user?: { user_metadata?: { full_name?: string }; email?: string }
 } | null) => {
@@ -517,6 +532,7 @@ function Graph3DView({
   onToolbarDragStart,
   accentSeed,
 }: Graph3DViewProps & { accentSeed: string }) {
+  const graphRef = useRef<any>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   useEffect(() => {
@@ -545,6 +561,20 @@ function Graph3DView({
     })
   }, [setNodes, nodes.length])
 
+  useEffect(() => {
+    const instance = graphRef.current
+    if (!instance?.scene) {
+      return
+    }
+    const scene = instance.scene()
+    const axes = new AxesHelper(120)
+    axes.name = 'axes-helper'
+    scene.add(axes)
+    return () => {
+      scene.remove(axes)
+    }
+  }, [])
+
   const graphData = useMemo(() => {
     return {
       nodes: nodes.map((node, index) => {
@@ -567,11 +597,22 @@ function Graph3DView({
   }, [nodes, edges])
 
   const colors = useMemo(() => {
+    const fallback = {
+      node: '#2d3f9b',
+      accent: '#5b7cfa',
+      edge: '#cfd6e4',
+    }
+    if (typeof window === 'undefined') {
+      return fallback
+    }
     const styles = getComputedStyle(document.documentElement)
+    const nodeColor = styles.getPropertyValue('--node-fill').trim()
+    const accentColor = styles.getPropertyValue('--accent').trim()
+    const edgeColor = styles.getPropertyValue('--edge').trim()
     return {
-      node: styles.getPropertyValue('--node-fill').trim() || '#2d3f9b',
-      accent: styles.getPropertyValue('--accent').trim() || '#5b7cfa',
-      edge: styles.getPropertyValue('--edge').trim() || '#cfd6e4',
+      node: isValidColor(nodeColor) ? nodeColor : fallback.node,
+      accent: isValidColor(accentColor) ? accentColor : fallback.accent,
+      edge: isValidColor(edgeColor) ? edgeColor : fallback.edge,
     }
   }, [accentSeed])
 
@@ -647,13 +688,14 @@ function Graph3DView({
   return (
     <div className="graph-3d">
       <ForceGraph3D
+        ref={graphRef}
         graphData={graphData}
         nodeLabel="name"
         nodeColor={(node) => (selectedIds.includes(String(node.id)) ? colors.accent : colors.node)}
         linkColor={() => colors.edge}
         linkOpacity={0.7}
         linkWidth={1.5}
-        backgroundColor="transparent"
+        backgroundColor="rgba(0,0,0,0)"
         showNavInfo={false}
         onNodeClick={handleNodeClick}
         onBackgroundClick={() => setSelectedIds([])}
