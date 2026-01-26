@@ -437,6 +437,8 @@ Rules:
 - Provide position.x and position.y for each node.
 - Use type="group" for containers and set child nodes' parentNode to the group id.
 - Include items/notes only if they add value; otherwise use empty arrays.
+- Always include all fields in the schema; use null for optional fields when unused (parentNode, extent, style, position3d).
+- Use edge type "smoothstep".
 - Edges must reference existing node ids.`,
 		maxNodes,
 	)
@@ -472,18 +474,19 @@ func graphSchema() map[string]any {
 							"required": []string{"x", "y"},
 						},
 						"parentNode": map[string]any{
-							"type": "string",
+							"type": []string{"string", "null"},
 						},
 						"extent": map[string]any{
-							"type": "string",
+							"type": []string{"string", "null"},
 						},
 						"style": map[string]any{
-							"type":                 "object",
+							"type":                 []string{"object", "null"},
 							"additionalProperties": false,
 							"properties": map[string]any{
 								"width":  map[string]any{"type": "number"},
 								"height": map[string]any{"type": "number"},
 							},
+							"required": []string{"width", "height"},
 						},
 						"data": map[string]any{
 							"type":                 "object",
@@ -491,7 +494,7 @@ func graphSchema() map[string]any {
 							"properties": map[string]any{
 								"label": map[string]any{"type": "string"},
 								"position3d": map[string]any{
-									"type":                 "object",
+									"type":                 []string{"object", "null"},
 									"additionalProperties": false,
 									"properties": map[string]any{
 										"x": map[string]any{"type": "number"},
@@ -517,17 +520,18 @@ func graphSchema() map[string]any {
 														"id":    map[string]any{"type": "string"},
 														"title": map[string]any{"type": "string"},
 													},
+													"required": []string{"id", "title"},
 												},
 											},
 										},
-										"required": []string{"title", "notes"},
+										"required": []string{"id", "title", "notes"},
 									},
 								},
 							},
-							"required": []string{"label", "items"},
+							"required": []string{"label", "position3d", "items"},
 						},
 					},
-					"required": []string{"id", "position", "data"},
+					"required": []string{"id", "type", "position", "parentNode", "extent", "style", "data"},
 				},
 			},
 			"edges": map[string]any{
@@ -541,7 +545,7 @@ func graphSchema() map[string]any {
 						"target": map[string]any{"type": "string"},
 						"type":   map[string]any{"type": "string"},
 					},
-					"required": []string{"source", "target"},
+					"required": []string{"id", "source", "target", "type"},
 				},
 			},
 		},

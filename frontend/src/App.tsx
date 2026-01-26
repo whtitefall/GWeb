@@ -464,6 +464,14 @@ const isValidColor = (value: string) => {
   return false
 }
 
+const isGreeting = (value: string) => {
+  const trimmed = value.trim().toLowerCase()
+  if (trimmed.length > 24) {
+    return false
+  }
+  return /^(hi|hello|hey|yo|sup|good morning|good afternoon|good evening)(!|\.)?$/.test(trimmed)
+}
+
 const resolveAuthName = (session: {
   user?: { user_metadata?: { full_name?: string }; email?: string }
 } | null) => {
@@ -1816,8 +1824,20 @@ export default function App() {
       }
       setChatMessages((current) => current.concat(userMessage))
       setChatInput('')
-      setChatLoading(true)
       setChatError('')
+
+      if (isGreeting(trimmed)) {
+        setChatMessages((current) =>
+          current.concat({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: 'Hi! Tell me what graph you want and I can build it for you.',
+          }),
+        )
+        return
+      }
+
+      setChatLoading(true)
 
       try {
         const payload = await generateGraph(trimmed)
