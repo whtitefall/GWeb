@@ -42,7 +42,7 @@ const SIDEBAR_MIN = 200
 const SIDEBAR_MAX = 420
 const SIDEBAR_COLLAPSED = 64
 const DRAWER_MIN = 280
-const DRAWER_MAX = 760
+const DRAWER_MAX = 900
 
 type ThemePreference = 'dark' | 'light' | 'system'
 type ViewMode = 'graph' | 'facts'

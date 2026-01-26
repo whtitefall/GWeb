@@ -1,6 +1,7 @@
 
 .app {
   min-height: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -137,6 +138,7 @@
   position: relative;
   min-height: 0;
   min-width: 0;
+  height: 100%;
 }
 
 .graph-list {
@@ -151,6 +153,7 @@
   position: relative;
   overflow: hidden;
   min-width: 0;
+  height: 100%;
 }
 
 .graph-list__header {
@@ -211,8 +214,7 @@
   flex-direction: column;
   gap: 8px;
   min-height: 0;
-  margin-right: -16px;
-  padding-right: 16px;
+  padding-right: 6px;
   scrollbar-gutter: stable;
 }
 
@@ -254,6 +256,7 @@
 
 .graph-list__cta {
   margin-top: auto;
+  flex: 0 0 auto;
 }
 
 .graph-list__resizer {
@@ -281,10 +284,17 @@
 
 .graph-list--collapsed .graph-list__header {
   justify-content: center;
+  width: 100%;
 }
 
 .graph-list--collapsed .graph-list__header > div:first-child {
   display: none;
+}
+
+.graph-list--collapsed .graph-list__expand {
+  width: 36px;
+  height: 36px;
+  font-size: 1rem;
 }
 
 .graph-list--collapsed .graph-list__title,
@@ -429,8 +439,7 @@
   overflow-y: auto;
   min-height: 0;
   flex: 1;
-  margin-right: -8px;
-  padding-right: 8px;
+  padding-right: 6px;
 }
 
 .drawer__header {
@@ -515,8 +524,7 @@
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;
-  margin-right: -16px;
-  padding-right: 16px;
+  padding-right: 6px;
   scrollbar-gutter: stable;
   flex: 1;
   min-height: 0;
