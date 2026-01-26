@@ -5,9 +5,15 @@ export type Note = {
   title: string
 }
 
+export type Item = {
+  id: string
+  title: string
+  notes: Note[]
+}
+
 export type NodeData = {
   label: string
-  notes: Note[]
+  items: Item[]
 }
 
 export type GraphNode = Node<NodeData>

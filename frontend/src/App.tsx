@@ -1,5 +1,14 @@
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type FormEvent as ReactFormEvent,
+} from 'react'
 import ReactFlow, {
   addEdge,
   Background,
@@ -18,7 +27,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import './App.css'
 import { createGraph, fetchGraph, listGraphs, saveGraph } from './api'
-import type { GraphNode, GraphPayload, GraphSummary, NodeData, Note } from './graphTypes'
+import type { GraphNode, GraphPayload, GraphSummary, Item, NodeData, Note } from './graphTypes'
 
 const STORAGE_GRAPH_PREFIX = 'gweb.graph.data.v1.'
 const STORAGE_LIST_KEY = 'gweb.graph.list.v1'
@@ -28,6 +37,9 @@ const THEME_KEY = 'gweb.theme.v1'
 const GROUP_PADDING = 48
 const DEFAULT_GROUP_SIZE = { width: 360, height: 220 }
 const DEFAULT_NODE_SIZE = { width: 180, height: 64 }
+const SIDEBAR_MIN = 200
+const SIDEBAR_MAX = 420
+const SIDEBAR_COLLAPSED = 64
 
 type ThemePreference = 'dark' | 'light' | 'system'
 type ViewMode = 'graph' | 'facts'
@@ -41,7 +53,7 @@ const defaultGraph: GraphPayload = {
       position: { x: 140, y: 120 },
       data: {
         label: 'Core Cluster',
-        notes: [],
+        items: [],
       },
       style: {
         width: 360,
@@ -56,9 +68,17 @@ const defaultGraph: GraphPayload = {
       extent: 'parent' as const,
       data: {
         label: 'Launch Plan',
-        notes: [
-          { id: 'note-1', title: 'Finalize visual theme' },
-          { id: 'note-2', title: 'Prep demo flow' },
+        items: [
+          {
+            id: 'item-1',
+            title: 'Visual theme',
+            notes: [{ id: 'note-1', title: 'Finalize palette' }],
+          },
+          {
+            id: 'item-2',
+            title: 'Demo flow',
+            notes: [{ id: 'note-2', title: 'Storyboard walkthrough' }],
+          },
         ],
       },
     },
@@ -70,7 +90,13 @@ const defaultGraph: GraphPayload = {
       extent: 'parent' as const,
       data: {
         label: 'User Research',
-        notes: [{ id: 'note-3', title: 'Schedule 3 interviews' }],
+        items: [
+          {
+            id: 'item-3',
+            title: 'Interviews',
+            notes: [{ id: 'note-3', title: 'Schedule 3 sessions' }],
+          },
+        ],
       },
     },
     {
@@ -79,9 +105,17 @@ const defaultGraph: GraphPayload = {
       position: { x: 560, y: 200 },
       data: {
         label: 'Prototype Sprint',
-        notes: [
-          { id: 'note-4', title: 'Map interactions' },
-          { id: 'note-5', title: 'Storyboard flow' },
+        items: [
+          {
+            id: 'item-4',
+            title: 'Interaction map',
+            notes: [{ id: 'note-4', title: 'Map interactions' }],
+          },
+          {
+            id: 'item-5',
+            title: 'Storyboard',
+            notes: [{ id: 'note-5', title: 'Storyboard flow' }],
+          },
         ],
       },
     },
@@ -152,6 +186,33 @@ const ensureNotes = (value: unknown): Note[] => {
     }))
 }
 
+const ensureItems = (value: unknown, fallbackNotes: unknown): Item[] => {
+  if (Array.isArray(value)) {
+    const items = value
+      .filter((item) => item && typeof (item as Item).title === 'string')
+      .map((item) => ({
+        id: typeof (item as Item).id === 'string' ? (item as Item).id : crypto.randomUUID(),
+        title: String((item as Item).title),
+        notes: ensureNotes((item as Item).notes),
+      }))
+    if (items.length > 0) {
+      return items
+    }
+  }
+
+  if (Array.isArray(fallbackNotes)) {
+    return fallbackNotes
+      .filter((note) => note && typeof (note as Note).title === 'string')
+      .map((note) => ({
+        id: typeof (note as Note).id === 'string' ? (note as Note).id : crypto.randomUUID(),
+        title: String((note as Note).title),
+        notes: [],
+      }))
+  }
+
+  return []
+}
+
 const coerceNumber = (value: unknown, fallback: number): number => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value
@@ -176,7 +237,7 @@ const normalizeGraph = (payload: GraphPayload | null): GraphPayload => {
       : 'Untitled Graph'
 
   const nodes = (payload.nodes as GraphNode[]).map((node, index) => {
-    const rawData = (node as GraphNode).data ?? { label: `Node ${index + 1}`, notes: [] }
+    const rawData = (node as GraphNode).data ?? { label: `Node ${index + 1}`, items: [] }
     const label =
       typeof rawData.label === 'string' && rawData.label.trim().length > 0
         ? rawData.label
@@ -200,7 +261,7 @@ const normalizeGraph = (payload: GraphPayload | null): GraphPayload => {
       extent: node.parentNode ? ('parent' as const) : node.extent,
       data: {
         label,
-        notes: ensureNotes(rawData.notes),
+        items: ensureItems((rawData as NodeData).items, (rawData as { notes?: Note[] }).notes),
       },
       style,
     }
@@ -320,13 +381,30 @@ export default function App() {
   const [activeGraphId, setActiveGraphId] = useState<string | null>(null)
   const [graphName, setGraphName] = useState(defaultGraph.name)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
-  const [noteTitle, setNoteTitle] = useState('')
+  const [itemTitle, setItemTitle] = useState('')
+  const [itemModal, setItemModal] = useState<{ nodeId: string; itemId: string } | null>(null)
+  const [itemNoteTitle, setItemNoteTitle] = useState('')
   const [saveState, setSaveState] = useState<keyof typeof statusLabels>('idle')
   const [hydrated, setHydrated] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('graph')
   const [chatOpen, setChatOpen] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window === 'undefined') {
+      return 260
+    }
+    const stored = window.localStorage.getItem('gweb.sidebar.width')
+    const parsed = stored ? Number(stored) : 260
+    return Number.isFinite(parsed) ? parsed : 260
+  })
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [contextMenu, setContextMenu] = useState<
+    | { kind: 'node'; id: string; x: number; y: number }
+    | { kind: 'edge'; id: string; x: number; y: number }
+    | null
+  >(null)
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [authError, setAuthError] = useState('')
   const [authName, setAuthName] = useState('')
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
@@ -347,6 +425,8 @@ export default function App() {
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null)
   const spawnIndex = useRef(0)
   const pendingGraphRef = useRef<{ id: string; payload: GraphPayload } | null>(null)
+  const sidebarRef = useRef<HTMLDivElement | null>(null)
+  const resizingRef = useRef(false)
 
   const nodeTypes = useMemo(() => ({ group: GroupNode }), [])
 
@@ -371,6 +451,45 @@ export default function App() {
       window.localStorage.setItem(THEME_KEY, themePreference)
     }
   }, [themePreference])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('gweb.sidebar.width', String(sidebarWidth))
+    }
+  }, [sidebarWidth])
+
+  useEffect(() => {
+    const handleMove = (event: MouseEvent) => {
+      if (!resizingRef.current || !sidebarRef.current) {
+        return
+      }
+      const rect = sidebarRef.current.getBoundingClientRect()
+      const nextWidth = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, event.clientX - rect.left))
+      setSidebarWidth(nextWidth)
+    }
+
+    const handleUp = () => {
+      resizingRef.current = false
+    }
+
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setContextMenu(null)
+        setItemModal(null)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [])
 
   useEffect(() => {
     let isMounted = true
@@ -440,7 +559,9 @@ export default function App() {
     }
     setHydrated(false)
     setSelectedNodeId(null)
-    setNoteTitle('')
+    setItemTitle('')
+    setItemModal(null)
+    setItemNoteTitle('')
     let isMounted = true
 
     const loadGraph = async () => {
@@ -561,6 +682,17 @@ export default function App() {
     }
   }, [nodes, selectedNodeId])
 
+  useEffect(() => {
+    if (!itemModal) {
+      return
+    }
+    const node = nodes.find((itemNode) => itemNode.id === itemModal.nodeId)
+    const item = node?.data.items.find((entry) => entry.id === itemModal.itemId)
+    if (!node || !item) {
+      setItemModal(null)
+    }
+  }, [itemModal, nodes])
+
   const activeNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId],
@@ -626,24 +758,56 @@ export default function App() {
     [setNodes],
   )
 
-  const addNote = useCallback(
+  const addItem = useCallback(
     (nodeId: string, title: string) => {
       const trimmed = title.trim()
       if (!trimmed) return
 
       updateNodeData(nodeId, (data) => ({
         ...data,
-        notes: [...data.notes, { id: crypto.randomUUID(), title: trimmed }],
+        items: [...data.items, { id: crypto.randomUUID(), title: trimmed, notes: [] }],
       }))
     },
     [updateNodeData],
   )
 
-  const removeNote = useCallback(
-    (nodeId: string, noteId: string) => {
+  const removeItem = useCallback(
+    (nodeId: string, itemId: string) => {
       updateNodeData(nodeId, (data) => ({
         ...data,
-        notes: data.notes.filter((note) => note.id !== noteId),
+        items: data.items.filter((item) => item.id !== itemId),
+      }))
+      setItemModal((current) => (current?.itemId === itemId ? null : current))
+    },
+    [updateNodeData],
+  )
+
+  const addItemNote = useCallback(
+    (nodeId: string, itemId: string, title: string) => {
+      const trimmed = title.trim()
+      if (!trimmed) return
+
+      updateNodeData(nodeId, (data) => ({
+        ...data,
+        items: data.items.map((item) =>
+          item.id === itemId
+            ? { ...item, notes: [...item.notes, { id: crypto.randomUUID(), title: trimmed }] }
+            : item,
+        ),
+      }))
+    },
+    [updateNodeData],
+  )
+
+  const removeItemNote = useCallback(
+    (nodeId: string, itemId: string, noteId: string) => {
+      updateNodeData(nodeId, (data) => ({
+        ...data,
+        items: data.items.map((item) =>
+          item.id === itemId
+            ? { ...item, notes: item.notes.filter((note) => note.id !== noteId) }
+            : item,
+        ),
       }))
     },
     [updateNodeData],
@@ -666,7 +830,7 @@ export default function App() {
       position: centerPosition,
       data: {
         label: 'New node',
-        notes: [],
+        items: [],
       },
     }
 
@@ -691,7 +855,7 @@ export default function App() {
       position: centerPosition,
       data: {
         label: 'New group',
-        notes: [],
+        items: [],
       },
       style: {
         width: DEFAULT_GROUP_SIZE.width,
@@ -778,7 +942,7 @@ export default function App() {
           position: groupPosition,
           data: {
             label: 'Group',
-            notes: [],
+            items: [],
           },
           style: {
             width: groupWidth,
@@ -870,6 +1034,58 @@ export default function App() {
     }
   }, [edges, nodes, selectedNodeId, setEdges, setNodes])
 
+  const detachFromGroup = useCallback(
+    (nodeId: string) => {
+      setNodes((current) => {
+        const nodeMap = new Map(current.map((node) => [node.id, node]))
+        const target = nodeMap.get(nodeId)
+        if (!target || !target.parentNode) {
+          return current
+        }
+        const absolute = getAbsolutePosition(target, nodeMap)
+        return current.map((node) =>
+          node.id === nodeId
+            ? { ...node, parentNode: undefined, extent: undefined, position: absolute }
+            : node,
+        )
+      })
+    },
+    [setNodes],
+  )
+
+  const ungroupChildren = useCallback(
+    (groupId: string) => {
+      setNodes((current) => {
+        const group = current.find((node) => node.id === groupId)
+        if (!group) {
+          return current
+        }
+        return current.map((node) => {
+          if (node.parentNode !== groupId) {
+            return node
+          }
+          return {
+            ...node,
+            parentNode: undefined,
+            extent: undefined,
+            position: {
+              x: node.position.x + group.position.x,
+              y: node.position.y + group.position.y,
+            },
+          }
+        })
+      })
+    },
+    [setNodes],
+  )
+
+  const removeEdgeById = useCallback(
+    (edgeId: string) => {
+      setEdges((current) => current.filter((edge) => edge.id !== edgeId))
+    },
+    [setEdges],
+  )
+
   const handleCreateGraph = useCallback(async () => {
     const payload = createEmptyGraphPayload(`New Graph ${graphList.length + 1}`)
     try {
@@ -894,17 +1110,45 @@ export default function App() {
   const selectionCount =
     nodes.filter((node) => node.selected).length + edges.filter((edge) => edge.selected).length
 
+  const sidebarWidthValue = sidebarCollapsed ? SIDEBAR_COLLAPSED : sidebarWidth
+  const workspaceStyle = useMemo(
+    () => ({ ['--sidebar-width' as string]: `${sidebarWidthValue}px` } as CSSProperties),
+    [sidebarWidthValue],
+  )
+
+  const handleResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (sidebarCollapsed) {
+      setSidebarCollapsed(false)
+    }
+    resizingRef.current = true
+  }
+
   const handleOpenAuth = (mode: 'login' | 'register') => {
     setAuthMode(mode)
     setAuthOpen(true)
+    setAuthError('')
   }
 
-  const handleAuthSubmit = (event: React.FormEvent) => {
+  const handleAuthSubmit = (event: ReactFormEvent) => {
     event.preventDefault()
-    const displayName =
-      authMode === 'register'
-        ? authName.trim() || 'Graph Maker'
-        : authEmail.split('@')[0] || 'Graph Maker'
+    const trimmedEmail = authEmail.trim()
+    const trimmedPassword = authPassword.trim()
+    if (!trimmedEmail || !trimmedPassword) {
+      setAuthError('Enter both email and password to continue.')
+      return
+    }
+
+    let displayName = 'Graph Maker'
+    if (authMode === 'login' && trimmedEmail === 'admin' && trimmedPassword === 'admin123!') {
+      displayName = 'admin'
+    } else if (authMode === 'register') {
+      displayName = authName.trim() || trimmedEmail.split('@')[0] || 'Graph Maker'
+    } else {
+      displayName = trimmedEmail.split('@')[0] || 'Graph Maker'
+    }
+
     setUserName(displayName)
     setIsLoggedIn(true)
     setAuthOpen(false)
@@ -912,6 +1156,7 @@ export default function App() {
     setAuthName('')
     setAuthEmail('')
     setAuthPassword('')
+    setAuthError('')
   }
 
   const handleLogout = () => {
@@ -920,11 +1165,53 @@ export default function App() {
     setSettingsOpen(false)
   }
 
+  const handleOAuthLogin = (provider: 'google' | 'github') => {
+    const displayName = provider === 'google' ? 'Google User' : 'GitHub User'
+    setUserName(displayName)
+    setIsLoggedIn(true)
+    setAuthOpen(false)
+    setSettingsOpen(true)
+    setAuthError('')
+  }
+
   const changeView = (mode: ViewMode) => {
     setViewMode(mode)
     setSelectedNodeId(null)
     setChatOpen(false)
   }
+
+  const contextNode = useMemo(
+    () => (contextMenu?.kind === 'node' ? nodes.find((node) => node.id === contextMenu.id) ?? null : null),
+    [contextMenu, nodes],
+  )
+  const contextEdge = useMemo(
+    () => (contextMenu?.kind === 'edge' ? edges.find((edge) => edge.id === contextMenu.id) ?? null : null),
+    [contextMenu, edges],
+  )
+  const menuPosition = useMemo(() => {
+    if (!contextMenu || typeof window === 'undefined') {
+      return null
+    }
+    const menuWidth = 200
+    const menuHeight = 180
+    const x = Math.min(contextMenu.x, window.innerWidth - menuWidth - 12)
+    const y = Math.min(contextMenu.y, window.innerHeight - menuHeight - 12)
+    return { x, y }
+  }, [contextMenu])
+
+  const itemModalNode = useMemo(() => {
+    if (!itemModal) {
+      return null
+    }
+    return nodes.find((node) => node.id === itemModal.nodeId) ?? null
+  }, [itemModal, nodes])
+
+  const itemModalItem = useMemo(() => {
+    if (!itemModalNode || !itemModal) {
+      return null
+    }
+    return itemModalNode.data.items.find((item) => item.id === itemModal.itemId) ?? null
+  }, [itemModal, itemModalNode])
 
     return (
     <div className="app">
@@ -992,16 +1279,32 @@ export default function App() {
         </div>
       </header>
 
-      <main className={`workspace ${viewMode === 'facts' ? 'workspace--facts' : ''}`}>
-        <aside className="graph-list">
+      <main
+        className={`workspace ${viewMode === 'facts' ? 'workspace--facts' : ''}`}
+        style={workspaceStyle}
+      >
+        <aside
+          className={`graph-list ${sidebarCollapsed ? 'graph-list--collapsed' : ''}`}
+          ref={sidebarRef}
+        >
           <div className="graph-list__header">
             <div>
               <div className="graph-list__title">Your Graphs</div>
               <div className="graph-list__subtitle">{graphList.length} saved</div>
+              <div className="graph-list__mini">Graphs</div>
             </div>
-            <button className="icon-btn" type="button" onClick={handleCreateGraph}>
-              +
-            </button>
+            <div className="graph-list__actions">
+              <button className="icon-btn" type="button" onClick={handleCreateGraph}>
+                +
+              </button>
+              <button
+                className="icon-btn"
+                type="button"
+                onClick={() => setSidebarCollapsed((current) => !current)}
+              >
+                {sidebarCollapsed ? '>' : '<'}
+              </button>
+            </div>
           </div>
 
           <label className="graph-list__field">
@@ -1035,6 +1338,7 @@ export default function App() {
           <button className="btn btn--primary graph-list__cta" type="button" onClick={handleCreateGraph}>
             New Graph
           </button>
+          <div className="graph-list__resizer" onMouseDown={handleResizeStart} />
         </aside>
 
         <section className="flow-shell">
@@ -1079,9 +1383,36 @@ export default function App() {
                 }}
                 onNodeClick={(_, node) => {
                   setChatOpen(false)
+                  setContextMenu(null)
                   setSelectedNodeId(node.id)
                 }}
-                onPaneClick={() => setSelectedNodeId(null)}
+                onNodeContextMenu={(event, node) => {
+                  event.preventDefault()
+                  setSelectedNodeId(node.id)
+                  setContextMenu({
+                    kind: 'node',
+                    id: node.id,
+                    x: event.clientX,
+                    y: event.clientY,
+                  })
+                }}
+                onEdgeContextMenu={(event, edge) => {
+                  event.preventDefault()
+                  setContextMenu({
+                    kind: 'edge',
+                    id: edge.id,
+                    x: event.clientX,
+                    y: event.clientY,
+                  })
+                }}
+                onPaneClick={() => {
+                  setSelectedNodeId(null)
+                  setContextMenu(null)
+                }}
+                onPaneContextMenu={(event) => {
+                  event.preventDefault()
+                  setContextMenu(null)
+                }}
                 fitView
                 fitViewOptions={{ padding: 0.2 }}
                 deleteKeyCode={['Backspace', 'Delete']}
@@ -1103,6 +1434,60 @@ export default function App() {
                   position="bottom-left"
                 />
               </ReactFlow>
+              {contextMenu && menuPosition ? (
+                <div
+                  className="context-menu"
+                  style={{ top: menuPosition.y, left: menuPosition.x }}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {contextMenu.kind === 'node' && contextNode ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          removeNode(contextNode.id)
+                          setContextMenu(null)
+                        }}
+                      >
+                        Delete Node
+                      </button>
+                      {contextNode.parentNode ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            detachFromGroup(contextNode.id)
+                            setContextMenu(null)
+                          }}
+                        >
+                          Remove from Group
+                        </button>
+                      ) : null}
+                      {contextNode.type === 'group' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            ungroupChildren(contextNode.id)
+                            setContextMenu(null)
+                          }}
+                        >
+                          Ungroup Children
+                        </button>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {contextMenu.kind === 'edge' && contextEdge ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        removeEdgeById(contextEdge.id)
+                        setContextMenu(null)
+                      }}
+                    >
+                      Delete Edge
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </>
           ) : (
             <div className="facts">
@@ -1141,6 +1526,15 @@ export default function App() {
                   >
                     Close
                   </button>
+                  {activeNode.parentNode ? (
+                    <button
+                      className="btn btn--ghost"
+                      type="button"
+                      onClick={() => detachFromGroup(activeNode.id)}
+                    >
+                      Remove from Group
+                    </button>
+                  ) : null}
                   <button
                     className="btn btn--danger"
                     type="button"
@@ -1165,19 +1559,29 @@ export default function App() {
                 />
               </label>
 
-              <div className="notes">
-                <div className="notes__header">
-                  <h3>Notes</h3>
-                  <span>{activeNode.data.notes.length} items</span>
+              <div className="items">
+                <div className="items__header">
+                  <h3>Items</h3>
+                  <span>{activeNode.data.items.length} items</span>
                 </div>
-                <ul className="notes__list">
-                  {activeNode.data.notes.map((note) => (
-                    <li key={note.id} className="notes__item">
-                      <span>{note.title}</span>
+                <ul className="items__list">
+                  {activeNode.data.items.map((item) => (
+                    <li key={item.id} className="items__item">
                       <button
-                        className="notes__remove"
+                        className="items__button"
                         type="button"
-                        onClick={() => removeNote(activeNode.id, note.id)}
+                        onClick={() => {
+                          setItemModal({ nodeId: activeNode.id, itemId: item.id })
+                          setItemNoteTitle('')
+                        }}
+                      >
+                        <span>{item.title}</span>
+                        <span className="items__meta">{item.notes.length} notes</span>
+                      </button>
+                      <button
+                        className="items__remove"
+                        type="button"
+                        onClick={() => removeItem(activeNode.id, item.id)}
                       >
                         Remove
                       </button>
@@ -1185,21 +1589,21 @@ export default function App() {
                   ))}
                 </ul>
                 <form
-                  className="notes__form"
+                  className="items__form"
                   onSubmit={(event) => {
                     event.preventDefault()
-                    addNote(activeNode.id, noteTitle)
-                    setNoteTitle('')
+                    addItem(activeNode.id, itemTitle)
+                    setItemTitle('')
                   }}
                 >
                   <input
                     type="text"
-                    placeholder="Add a note title..."
-                    value={noteTitle}
-                    onChange={(event) => setNoteTitle(event.target.value)}
+                    placeholder="Add an item..."
+                    value={itemTitle}
+                    onChange={(event) => setItemTitle(event.target.value)}
                   />
                   <button className="btn btn--primary" type="submit">
-                    Add Note
+                    Add Item
                   </button>
                 </form>
               </div>
@@ -1257,6 +1661,23 @@ export default function App() {
             </div>
             <h2>{authMode === 'register' ? 'Create your account' : 'Welcome back'}</h2>
             <p className="modal__subtitle">Authentication is a reserved feature for now.</p>
+            <div className="oauth">
+              <button
+                className="btn btn--oauth"
+                type="button"
+                onClick={() => handleOAuthLogin('google')}
+              >
+                Continue with Google
+              </button>
+              <button
+                className="btn btn--oauth"
+                type="button"
+                onClick={() => handleOAuthLogin('github')}
+              >
+                Continue with GitHub
+              </button>
+            </div>
+            <div className="oauth__divider">or</div>
             <form className="modal__form" onSubmit={handleAuthSubmit}>
               {authMode === 'register' ? (
                 <label className="field">
@@ -1270,12 +1691,12 @@ export default function App() {
                 </label>
               ) : null}
               <label className="field">
-                <span>Email</span>
+                <span>{authMode === 'login' ? 'Email or username' : 'Email'}</span>
                 <input
-                  type="email"
+                  type={authMode === 'login' ? 'text' : 'email'}
                   value={authEmail}
                   onChange={(event) => setAuthEmail(event.target.value)}
-                  placeholder="you@example.com"
+                  placeholder={authMode === 'login' ? 'email or admin' : 'you@example.com'}
                 />
               </label>
               <label className="field">
@@ -1287,6 +1708,7 @@ export default function App() {
                   placeholder="••••••••"
                 />
               </label>
+              {authError ? <div className="auth-error">{authError}</div> : null}
               <div className="modal__actions">
                 <button className="btn btn--ghost" type="button" onClick={() => setAuthOpen(false)}>
                   Cancel
@@ -1295,6 +1717,59 @@ export default function App() {
                   {authMode === 'register' ? 'Register' : 'Login'}
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {itemModal && itemModalNode && itemModalItem ? (
+        <div className="modal-overlay" onClick={() => setItemModal(null)}>
+          <div className="modal item-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="item-modal__header">
+              <div>
+                <div className="item-modal__eyebrow">Item Notes</div>
+                <h2>{itemModalItem.title}</h2>
+              </div>
+              <button className="btn btn--ghost" type="button" onClick={() => setItemModal(null)}>
+                Close
+              </button>
+            </div>
+            <div className="item-modal__count">{itemModalItem.notes.length} notes</div>
+            {itemModalItem.notes.length === 0 ? (
+              <div className="item-modal__empty">No notes yet. Add the first one below.</div>
+            ) : (
+              <ul className="item-modal__list">
+                {itemModalItem.notes.map((note) => (
+                  <li key={note.id} className="item-modal__item">
+                    <span>{note.title}</span>
+                    <button
+                      className="item-modal__remove"
+                      type="button"
+                      onClick={() => removeItemNote(itemModalNode.id, itemModalItem.id, note.id)}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <form
+              className="item-modal__form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                addItemNote(itemModalNode.id, itemModalItem.id, itemNoteTitle)
+                setItemNoteTitle('')
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Add a note..."
+                value={itemNoteTitle}
+                onChange={(event) => setItemNoteTitle(event.target.value)}
+              />
+              <button className="btn btn--primary" type="submit">
+                Add Note
+              </button>
             </form>
           </div>
         </div>

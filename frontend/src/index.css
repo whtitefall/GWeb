@@ -93,7 +93,7 @@ button {
 
 input {
   border: 1px solid var(--stroke);
-  border-radius: 12px;
+  border-radius: 4px;
   padding: 10px 12px;
   font-size: 0.95rem;
   color: var(--ink);
