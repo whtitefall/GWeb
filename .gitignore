@@ -1,3 +1,4 @@
 backend/.env
 backend/*.exe
 frontend/.env
+PRIVATE_NOTES.md

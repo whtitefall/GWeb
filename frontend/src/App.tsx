@@ -32,7 +32,7 @@ import ForceGraph3D from 'react-force-graph-3d'
 import { AxesHelper } from 'three'
 import 'reactflow/dist/style.css'
 import './App.css'
-import { createGraph, deleteGraph, fetchGraph, listGraphs, saveGraph } from './api'
+import { createGraph, deleteGraph, fetchGraph, generateGraph, listGraphs, saveGraph } from './api'
 import type { GraphNode, GraphPayload, GraphSummary, Item, NodeData, Note } from './graphTypes'
 import { supabase } from './supabaseClient'
 
@@ -745,6 +745,8 @@ export default function App() {
   const [activeFactKey, setActiveFactKey] = useState<FactKey | null>(QUICK_FACTS[0]?.key ?? null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const [chatError, setChatError] = useState('')
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window === 'undefined') {
       return 260
@@ -1796,9 +1798,12 @@ export default function App() {
   }
 
   const handleChatSend = useCallback(
-    (event?: ReactFormEvent) => {
+    async (event?: ReactFormEvent) => {
       if (event) {
         event.preventDefault()
+      }
+      if (chatLoading) {
+        return
       }
       const trimmed = chatInput.trim()
       if (!trimmed) {
@@ -1809,15 +1814,41 @@ export default function App() {
         role: 'user',
         content: trimmed,
       }
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: 'Thanks! The AI backend is on hold, but I saved your prompt for later.',
-      }
-      setChatMessages((current) => current.concat(userMessage, assistantMessage))
+      setChatMessages((current) => current.concat(userMessage))
       setChatInput('')
+      setChatLoading(true)
+      setChatError('')
+
+      try {
+        const payload = await generateGraph(trimmed)
+        const normalized = normalizeGraph(payload)
+        setGraphName(normalized.name)
+        setNodes(normalized.nodes)
+        setEdges(normalized.edges)
+        setHydrated(true)
+        setChatMessages((current) =>
+          current.concat({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: 'Graph generated and applied to the canvas.',
+          }),
+        )
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unable to generate a graph right now.'
+        setChatError(message)
+        setChatMessages((current) =>
+          current.concat({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: 'Sorry, I could not generate a graph from that description.',
+          }),
+        )
+      } finally {
+        setChatLoading(false)
+      }
     },
-    [chatInput],
+    [chatInput, chatLoading, setEdges, setGraphName, setHydrated, setNodes],
   )
 
   const handleExport = useCallback(() => {
@@ -2513,9 +2544,9 @@ export default function App() {
                 </div>
                 <div className="chat-panel__body">
                   <p className="chat-panel__note">
-                    This panel is reserved for the upcoming AI experience. Soon you will be able to
-                    describe the structure and we will sketch it instantly.
+                    Describe the structure and the AI will sketch it instantly.
                   </p>
+                  {chatError ? <div className="chat-panel__error">{chatError}</div> : null}
                   {chatMessages.length > 0 ? (
                     <div className="chat-panel__messages">
                       {chatMessages.map((message) => (
@@ -2538,9 +2569,10 @@ export default function App() {
                     placeholder="Tell us about your graph..."
                     value={chatInput}
                     onChange={(event) => setChatInput(event.target.value)}
+                    disabled={chatLoading}
                   />
-                  <button className="btn btn--ghost" type="submit">
-                    Send
+                  <button className="btn btn--ghost" type="submit" disabled={chatLoading}>
+                    {chatLoading ? 'Sending...' : 'Send'}
                   </button>
                 </form>
               </aside>

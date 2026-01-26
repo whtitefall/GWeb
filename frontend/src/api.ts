@@ -57,3 +57,20 @@ export async function deleteGraph(graphId: string): Promise<void> {
     throw new Error(`Failed to delete graph: ${response.status}`)
   }
 }
+
+export async function generateGraph(prompt: string, maxNodes = 28): Promise<GraphPayload> {
+  const response = await fetch(`${API_URL}/api/ai/graph`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ prompt, maxNodes }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to generate graph: ${response.status}`)
+  }
+
+  const data = (await response.json()) as { graph: GraphPayload }
+  return data.graph
+}

@@ -674,6 +674,15 @@
   margin: 0;
 }
 
+.chat-panel__error {
+  font-size: 0.8rem;
+  color: var(--danger);
+  background: rgba(255, 82, 82, 0.08);
+  border: 1px solid rgba(255, 82, 82, 0.35);
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+
 .chat-panel__placeholder {
   display: flex;
   flex-direction: column;
