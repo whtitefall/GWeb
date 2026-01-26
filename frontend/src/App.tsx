@@ -28,21 +28,25 @@ import 'reactflow/dist/style.css'
 import './App.css'
 import { createGraph, fetchGraph, listGraphs, saveGraph } from './api'
 import type { GraphNode, GraphPayload, GraphSummary, Item, NodeData, Note } from './graphTypes'
+import { supabase } from './supabaseClient'
 
 const STORAGE_GRAPH_PREFIX = 'gweb.graph.data.v1.'
 const STORAGE_LIST_KEY = 'gweb.graph.list.v1'
 const STORAGE_ACTIVE_KEY = 'gweb.graph.active.v1'
 const THEME_KEY = 'gweb.theme.v1'
 
-const GROUP_PADDING = 48
-const DEFAULT_GROUP_SIZE = { width: 360, height: 220 }
-const DEFAULT_NODE_SIZE = { width: 180, height: 64 }
+const GROUP_PADDING = 32
+const DEFAULT_GROUP_SIZE = { width: 300, height: 180 }
+const DEFAULT_NODE_SIZE = { width: 150, height: 52 }
 const SIDEBAR_MIN = 200
 const SIDEBAR_MAX = 420
 const SIDEBAR_COLLAPSED = 64
+const DRAWER_MIN = 280
+const DRAWER_MAX = 520
 
 type ThemePreference = 'dark' | 'light' | 'system'
 type ViewMode = 'graph' | 'facts'
+type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string }
 
 const defaultGraph: GraphPayload = {
   name: 'Starter Graph',
@@ -56,14 +60,14 @@ const defaultGraph: GraphPayload = {
         items: [],
       },
       style: {
-        width: 360,
-        height: 220,
+        width: 300,
+        height: 180,
       },
     },
     {
       id: 'node-1',
       type: 'default',
-      position: { x: 36, y: 52 },
+      position: { x: 24, y: 36 },
       parentNode: 'group-1',
       extent: 'parent' as const,
       data: {
@@ -85,7 +89,7 @@ const defaultGraph: GraphPayload = {
     {
       id: 'node-2',
       type: 'default',
-      position: { x: 200, y: 120 },
+      position: { x: 140, y: 90 },
       parentNode: 'group-1',
       extent: 'parent' as const,
       data: {
@@ -338,6 +342,17 @@ const formatUpdatedAt = (value: string) => {
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+const resolveAuthName = (session: {
+  user?: { user_metadata?: { full_name?: string }; email?: string }
+} | null) => {
+  const fullName = session?.user?.user_metadata?.full_name?.trim()
+  if (fullName) {
+    return fullName
+  }
+  const email = session?.user?.email
+  return email ? email.split('@')[0] || 'Graph Maker' : 'Graph Maker'
+}
+
 const createEmptyGraphPayload = (name: string): GraphPayload => ({
   name,
   nodes: [],
@@ -388,6 +403,8 @@ export default function App() {
   const [hydrated, setHydrated] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('graph')
   const [chatOpen, setChatOpen] = useState(false)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatInput, setChatInput] = useState('')
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window === 'undefined') {
       return 260
@@ -405,6 +422,7 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [authError, setAuthError] = useState('')
+  const [authNotice, setAuthNotice] = useState('')
   const [authName, setAuthName] = useState('')
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
@@ -425,8 +443,13 @@ export default function App() {
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null)
   const spawnIndex = useRef(0)
   const pendingGraphRef = useRef<{ id: string; payload: GraphPayload } | null>(null)
-  const sidebarRef = useRef<HTMLDivElement | null>(null)
+  const sidebarRef = useRef<HTMLElement | null>(null)
   const resizingRef = useRef(false)
+  const flowShellRef = useRef<HTMLElement | null>(null)
+  const drawerRef = useRef<HTMLElement | null>(null)
+  const drawerResizingRef = useRef(false)
+  const chatEndRef = useRef<HTMLDivElement | null>(null)
+  const [drawerWidth, setDrawerWidth] = useState(340)
 
   const nodeTypes = useMemo(() => ({ group: GroupNode }), [])
 
@@ -453,6 +476,35 @@ export default function App() {
   }, [themePreference])
 
   useEffect(() => {
+    let isMounted = true
+    supabase.auth.getSession().then(({ data }) => {
+      if (!isMounted) return
+      if (data.session) {
+        setIsLoggedIn(true)
+        setUserName(resolveAuthName(data.session))
+      }
+    })
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isMounted) return
+      if (session) {
+        setIsLoggedIn(true)
+        setUserName(resolveAuthName(session))
+      } else {
+        setIsLoggedIn(false)
+        setUserName('')
+      }
+    })
+
+    return () => {
+      isMounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('gweb.sidebar.width', String(sidebarWidth))
     }
@@ -460,16 +512,22 @@ export default function App() {
 
   useEffect(() => {
     const handleMove = (event: MouseEvent) => {
-      if (!resizingRef.current || !sidebarRef.current) {
-        return
+      if (resizingRef.current && sidebarRef.current) {
+        const rect = sidebarRef.current.getBoundingClientRect()
+        const nextWidth = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, event.clientX - rect.left))
+        setSidebarWidth(nextWidth)
       }
-      const rect = sidebarRef.current.getBoundingClientRect()
-      const nextWidth = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, event.clientX - rect.left))
-      setSidebarWidth(nextWidth)
+
+      if (drawerResizingRef.current && drawerRef.current) {
+        const rect = drawerRef.current.getBoundingClientRect()
+        const nextWidth = Math.min(DRAWER_MAX, Math.max(DRAWER_MIN, rect.right - event.clientX))
+        setDrawerWidth(nextWidth)
+      }
     }
 
     const handleUp = () => {
       resizingRef.current = false
+      drawerResizingRef.current = false
     }
 
     window.addEventListener('mousemove', handleMove)
@@ -490,6 +548,12 @@ export default function App() {
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  }, [chatMessages])
 
   useEffect(() => {
     let isMounted = true
@@ -1115,6 +1179,11 @@ export default function App() {
     () => ({ ['--sidebar-width' as string]: `${sidebarWidthValue}px` } as CSSProperties),
     [sidebarWidthValue],
   )
+  const drawerWidthValue = Math.min(DRAWER_MAX, Math.max(DRAWER_MIN, drawerWidth))
+  const drawerStyle = useMemo(
+    () => ({ ['--drawer-width' as string]: `${drawerWidthValue}px` } as CSSProperties),
+    [drawerWidthValue],
+  )
 
   const handleResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -1125,54 +1194,141 @@ export default function App() {
     resizingRef.current = true
   }
 
+  const handleDrawerResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    drawerResizingRef.current = true
+  }
+
   const handleOpenAuth = (mode: 'login' | 'register') => {
     setAuthMode(mode)
     setAuthOpen(true)
     setAuthError('')
+    setAuthNotice('')
   }
 
-  const handleAuthSubmit = (event: ReactFormEvent) => {
+  const handleAuthSubmit = async (event: ReactFormEvent) => {
     event.preventDefault()
     const trimmedEmail = authEmail.trim()
     const trimmedPassword = authPassword.trim()
+    setAuthError('')
+    setAuthNotice('')
     if (!trimmedEmail || !trimmedPassword) {
       setAuthError('Enter both email and password to continue.')
       return
     }
 
-    let displayName = 'Graph Maker'
     if (authMode === 'login' && trimmedEmail === 'admin' && trimmedPassword === 'admin123!') {
-      displayName = 'admin'
-    } else if (authMode === 'register') {
-      displayName = authName.trim() || trimmedEmail.split('@')[0] || 'Graph Maker'
-    } else {
-      displayName = trimmedEmail.split('@')[0] || 'Graph Maker'
+      setUserName('admin')
+      setIsLoggedIn(true)
+      setAuthOpen(false)
+      setSettingsOpen(true)
+      setAuthName('')
+      setAuthEmail('')
+      setAuthPassword('')
+      return
     }
 
-    setUserName(displayName)
-    setIsLoggedIn(true)
-    setAuthOpen(false)
-    setSettingsOpen(true)
-    setAuthName('')
-    setAuthEmail('')
-    setAuthPassword('')
-    setAuthError('')
+    try {
+      if (authMode === 'register') {
+        const { data, error } = await supabase.auth.signUp({
+          email: trimmedEmail,
+          password: trimmedPassword,
+          options: {
+            data: { full_name: authName.trim() || undefined },
+            emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+          },
+        })
+        if (error) {
+          throw error
+        }
+        if (data.session) {
+          setUserName(resolveAuthName(data.session))
+          setIsLoggedIn(true)
+          setAuthOpen(false)
+          setSettingsOpen(true)
+          setAuthName('')
+          setAuthEmail('')
+          setAuthPassword('')
+        } else {
+          setAuthNotice('Check your email to confirm your account before logging in.')
+        }
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: trimmedEmail,
+          password: trimmedPassword,
+        })
+        if (error) {
+          throw error
+        }
+        if (data.session) {
+          setUserName(resolveAuthName(data.session))
+          setIsLoggedIn(true)
+          setAuthOpen(false)
+          setSettingsOpen(true)
+          setAuthName('')
+          setAuthEmail('')
+          setAuthPassword('')
+        }
+      }
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Unable to authenticate right now.')
+    }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (userName !== 'admin') {
+      try {
+        await supabase.auth.signOut()
+      } catch {
+        // Ignore sign-out errors for now; local state still clears.
+      }
+    }
     setIsLoggedIn(false)
     setUserName('')
     setSettingsOpen(false)
   }
 
-  const handleOAuthLogin = (provider: 'google' | 'github') => {
-    const displayName = provider === 'google' ? 'Google User' : 'GitHub User'
-    setUserName(displayName)
-    setIsLoggedIn(true)
-    setAuthOpen(false)
-    setSettingsOpen(true)
+  const handleOAuthLogin = async (provider: 'google' | 'github') => {
     setAuthError('')
+    setAuthNotice('')
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+      },
+    })
+    if (error) {
+      setAuthError(error.message)
+      return
+    }
+    setAuthOpen(false)
   }
+
+  const handleChatSend = useCallback(
+    (event?: ReactFormEvent) => {
+      if (event) {
+        event.preventDefault()
+      }
+      const trimmed = chatInput.trim()
+      if (!trimmed) {
+        return
+      }
+      const userMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: trimmed,
+      }
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: 'Thanks! The AI backend is on hold, but I saved your prompt for later.',
+      }
+      setChatMessages((current) => current.concat(userMessage, assistantMessage))
+      setChatInput('')
+    },
+    [chatInput],
+  )
 
   const changeView = (mode: ViewMode) => {
     setViewMode(mode)
@@ -1189,13 +1345,19 @@ export default function App() {
     [contextMenu, edges],
   )
   const menuPosition = useMemo(() => {
-    if (!contextMenu || typeof window === 'undefined') {
+    if (!contextMenu) {
       return null
     }
     const menuWidth = 200
     const menuHeight = 180
-    const x = Math.min(contextMenu.x, window.innerWidth - menuWidth - 12)
-    const y = Math.min(contextMenu.y, window.innerHeight - menuHeight - 12)
+    const rect = flowShellRef.current?.getBoundingClientRect()
+    if (!rect) {
+      return { x: contextMenu.x, y: contextMenu.y }
+    }
+    const maxX = Math.max(8, rect.width - menuWidth - 8)
+    const maxY = Math.max(8, rect.height - menuHeight - 8)
+    const x = Math.max(8, Math.min(contextMenu.x, maxX))
+    const y = Math.max(8, Math.min(contextMenu.y, maxY))
     return { x, y }
   }, [contextMenu])
 
@@ -1270,8 +1432,14 @@ export default function App() {
             className="btn btn--ai"
             type="button"
             onClick={() => {
-              setChatOpen(true)
-              setSelectedNodeId(null)
+              setChatOpen((open) => {
+                const next = !open
+                if (next) {
+                  setSelectedNodeId(null)
+                  setContextMenu(null)
+                }
+                return next
+              })
             }}
           >
             AI
@@ -1291,20 +1459,31 @@ export default function App() {
             <div>
               <div className="graph-list__title">Your Graphs</div>
               <div className="graph-list__subtitle">{graphList.length} saved</div>
-              <div className="graph-list__mini">Graphs</div>
             </div>
-            <div className="graph-list__actions">
-              <button className="icon-btn" type="button" onClick={handleCreateGraph}>
-                +
-              </button>
+            {sidebarCollapsed ? (
               <button
-                className="icon-btn"
+                className="icon-btn graph-list__expand"
                 type="button"
-                onClick={() => setSidebarCollapsed((current) => !current)}
+                aria-label="Expand sidebar"
+                onClick={() => setSidebarCollapsed(false)}
               >
-                {sidebarCollapsed ? '>' : '<'}
+                &gt;
               </button>
-            </div>
+            ) : (
+              <div className="graph-list__actions">
+                <button className="icon-btn" type="button" onClick={handleCreateGraph}>
+                  +
+                </button>
+                <button
+                  className="icon-btn"
+                  type="button"
+                  aria-label="Collapse sidebar"
+                  onClick={() => setSidebarCollapsed(true)}
+                >
+                  &lt;
+                </button>
+              </div>
+            )}
           </div>
 
           <label className="graph-list__field">
@@ -1341,7 +1520,7 @@ export default function App() {
           <div className="graph-list__resizer" onMouseDown={handleResizeStart} />
         </aside>
 
-        <section className="flow-shell">
+        <section className="flow-shell" ref={flowShellRef}>
           {viewMode === 'graph' ? (
             <>
               <div className="toolbar">
@@ -1389,20 +1568,26 @@ export default function App() {
                 onNodeContextMenu={(event, node) => {
                   event.preventDefault()
                   setSelectedNodeId(node.id)
+                  const rect = flowShellRef.current?.getBoundingClientRect()
+                  const x = rect ? event.clientX - rect.left : event.clientX
+                  const y = rect ? event.clientY - rect.top : event.clientY
                   setContextMenu({
                     kind: 'node',
                     id: node.id,
-                    x: event.clientX,
-                    y: event.clientY,
+                    x,
+                    y,
                   })
                 }}
                 onEdgeContextMenu={(event, edge) => {
                   event.preventDefault()
+                  const rect = flowShellRef.current?.getBoundingClientRect()
+                  const x = rect ? event.clientX - rect.left : event.clientX
+                  const y = rect ? event.clientY - rect.top : event.clientY
                   setContextMenu({
                     kind: 'edge',
                     id: edge.id,
-                    x: event.clientX,
-                    y: event.clientY,
+                    x,
+                    y,
                   })
                 }}
                 onPaneClick={() => {
@@ -1510,9 +1695,16 @@ export default function App() {
           )}
         </section>
 
-        <aside className={`drawer ${activeNode ? 'drawer--open' : ''}`} aria-hidden={!activeNode}>
+        <aside
+          className={`drawer ${activeNode ? 'drawer--open' : ''}`}
+          aria-hidden={!activeNode}
+          ref={drawerRef}
+          style={drawerStyle}
+        >
           {activeNode ? (
-            <div className="drawer__content">
+            <>
+              <div className="drawer__resizer" onMouseDown={handleDrawerResizeStart} />
+              <div className="drawer__content">
               <div className="drawer__header">
                 <div>
                   <div className="drawer__eyebrow">Node Settings</div>
@@ -1608,6 +1800,7 @@ export default function App() {
                 </form>
               </div>
             </div>
+            </>
           ) : null}
         </aside>
 
@@ -1626,17 +1819,33 @@ export default function App() {
               This panel is reserved for the upcoming AI experience. Soon you will be able to
               describe the structure and we will sketch it instantly.
             </p>
-            <div className="chat-panel__placeholder">
-              <div className="chip">Example: “Group nodes by theme and connect milestones.”</div>
-              <div className="chip">Example: “Create a hub and spoke layout with 6 clusters.”</div>
-            </div>
+            {chatMessages.length > 0 ? (
+              <div className="chat-panel__messages">
+                {chatMessages.map((message) => (
+                  <div key={message.id} className={`chat-message chat-message--${message.role}`}>
+                    {message.content}
+                  </div>
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+            ) : (
+              <div className="chat-panel__placeholder">
+                <div className="chip">Example: “Group nodes by theme and connect milestones.”</div>
+                <div className="chip">Example: “Create a hub and spoke layout with 6 clusters.”</div>
+              </div>
+            )}
           </div>
-          <div className="chat-panel__input">
-            <input type="text" placeholder="Tell us about your graph..." disabled />
-            <button className="btn btn--ghost" type="button" disabled>
+          <form className="chat-panel__input" onSubmit={handleChatSend}>
+            <input
+              type="text"
+              placeholder="Tell us about your graph..."
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+            />
+            <button className="btn btn--ghost" type="submit">
               Send
             </button>
-          </div>
+          </form>
         </aside>
       </main>
 
@@ -1709,6 +1918,7 @@ export default function App() {
                 />
               </label>
               {authError ? <div className="auth-error">{authError}</div> : null}
+              {authNotice ? <div className="auth-notice">{authNotice}</div> : null}
               <div className="modal__actions">
                 <button className="btn btn--ghost" type="button" onClick={() => setAuthOpen(false)}>
                   Cancel

@@ -68,6 +68,12 @@ body {
   background: radial-gradient(circle at top, rgba(86, 216, 163, 0.08), transparent 55%),
     var(--app-bg);
   color: var(--ink);
+  overflow: hidden;
+}
+
+#root {
+  width: 100%;
+  overflow: hidden;
 }
 
 h1,
