@@ -1,19 +1,53 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap');
 
 :root {
+  color-scheme: dark;
+  --app-bg: #15161a;
+  --app-bg-soft: #1c1f24;
+  --panel: #1f232a;
+  --panel-elevated: #272c35;
+  --panel-contrast: #111318;
+  --ink: #f5f6f8;
+  --ink-soft: #c7cbd3;
+  --muted: #8a919b;
+  --accent: #56d8a3;
+  --accent-strong: #33c58a;
+  --danger: #ff6b6b;
+  --stroke: rgba(255, 255, 255, 0.08);
+  --edge: rgba(223, 227, 233, 0.78);
+  --grid: rgba(255, 255, 255, 0.06);
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  --node-fill: #242932;
+  --node-border: rgba(255, 255, 255, 0.16);
+  --group-fill: rgba(255, 255, 255, 0.03);
+  --group-border: rgba(255, 255, 255, 0.14);
+  --minimap-node: #5e6570;
+  --minimap-mask: rgba(15, 17, 20, 0.6);
+}
+
+:root[data-theme='light'] {
   color-scheme: light;
-  --ink: #1b2b2f;
-  --ink-soft: #304246;
-  --accent: #ff784e;
-  --accent-strong: #ff5b2b;
-  --accent-2: #2bb7a9;
-  --paper: #f6f1e9;
+  --app-bg: #f5f6f8;
+  --app-bg-soft: #ffffff;
   --panel: #ffffff;
-  --panel-warm: #fff4e8;
-  --stroke: rgba(27, 43, 47, 0.2);
-  --muted: #6b7b7f;
-  --shadow: 0 12px 30px rgba(27, 43, 47, 0.16);
-  --radius: 18px;
+  --panel-elevated: #f4f6f8;
+  --panel-contrast: #eef1f5;
+  --ink: #1d2229;
+  --ink-soft: #2f3741;
+  --muted: #6e7885;
+  --accent: #1da46a;
+  --accent-strong: #128353;
+  --danger: #d94f5c;
+  --stroke: rgba(27, 31, 35, 0.12);
+  --edge: rgba(63, 68, 78, 0.6);
+  --grid: rgba(30, 41, 59, 0.08);
+  --shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  --node-fill: #ffffff;
+  --node-border: rgba(28, 32, 39, 0.18);
+  --group-fill: rgba(15, 23, 42, 0.04);
+  --group-border: rgba(20, 29, 38, 0.16);
+  --minimap-node: #a4acb7;
+  --minimap-mask: rgba(233, 236, 240, 0.75);
 }
 
 *,
@@ -30,9 +64,18 @@ body,
 
 body {
   margin: 0;
-  font-family: 'Space Grotesk', 'Spline Sans', sans-serif;
-  background: radial-gradient(circle at top, #fdf8f2 0%, #f6f1e9 45%, #f7e9dc 100%);
+  font-family: 'Manrope', system-ui, sans-serif;
+  background: radial-gradient(circle at top, rgba(86, 216, 163, 0.08), transparent 55%),
+    var(--app-bg);
   color: var(--ink);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: 'Sora', sans-serif;
+  margin: 0;
 }
 
 button,
@@ -45,6 +88,7 @@ button {
   border: none;
   background: none;
   cursor: pointer;
+  color: inherit;
 }
 
 input {
@@ -53,10 +97,14 @@ input {
   padding: 10px 12px;
   font-size: 0.95rem;
   color: var(--ink);
-  background: #fff;
+  background: var(--panel-elevated);
+}
+
+input::placeholder {
+  color: var(--muted);
 }
 
 input:focus {
-  outline: 2px solid rgba(255, 120, 78, 0.35);
-  border-color: rgba(255, 120, 78, 0.6);
+  outline: 2px solid rgba(86, 216, 163, 0.3);
+  border-color: rgba(86, 216, 163, 0.6);
 }

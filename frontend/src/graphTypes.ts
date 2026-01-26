@@ -13,6 +13,13 @@ export type NodeData = {
 export type GraphNode = Node<NodeData>
 
 export type GraphPayload = {
+  name: string
   nodes: GraphNode[]
   edges: Edge[]
+}
+
+export type GraphSummary = {
+  id: string
+  name: string
+  updatedAt: string
 }
