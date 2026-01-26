@@ -100,7 +100,7 @@ func (s *server) withCORS(next http.Handler) http.Handler {
 		if allowed := matchOrigin(origin, s.corsOrigins); allowed != "" {
 			w.Header().Set("Access-Control-Allow-Origin", allowed)
 		}
-		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
 		if r.Method == http.MethodOptions {
@@ -235,6 +235,8 @@ func (s *server) handleGraphByID(w http.ResponseWriter, r *http.Request) {
 		s.handleGetGraphByID(w, r, id)
 	case http.MethodPut:
 		s.handlePutGraphByID(w, r, id)
+	case http.MethodDelete:
+		s.handleDeleteGraphByID(w, r, id)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -395,6 +397,25 @@ func (s *server) handlePutGraphByID(w http.ResponseWriter, r *http.Request, id s
 	if err != nil {
 		log.Printf("failed to save graph: %v", err)
 		http.Error(w, "failed to save graph", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *server) handleDeleteGraphByID(w http.ResponseWriter, r *http.Request, id string) {
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	cmd, err := s.pool.Exec(ctx, "DELETE FROM graphs WHERE id=$1", id)
+	if err != nil {
+		log.Printf("failed to delete graph: %v", err)
+		http.Error(w, "failed to delete graph", http.StatusInternalServerError)
+		return
+	}
+
+	if cmd.RowsAffected() == 0 {
+		http.Error(w, "graph not found", http.StatusNotFound)
 		return
 	}
 

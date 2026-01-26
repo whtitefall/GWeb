@@ -27,7 +27,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import './App.css'
-import { createGraph, fetchGraph, listGraphs, saveGraph } from './api'
+import { createGraph, deleteGraph, fetchGraph, listGraphs, saveGraph } from './api'
 import type { GraphNode, GraphPayload, GraphSummary, Item, NodeData, Note } from './graphTypes'
 import { supabase } from './supabaseClient'
 
@@ -1289,6 +1289,76 @@ export default function App() {
     }
   }, [graphList.length])
 
+  const handleDeleteGraph = useCallback(
+    async (graphId: string) => {
+      if (!graphId) {
+        return
+      }
+      if (typeof window !== 'undefined') {
+        const confirmed = window.confirm('Delete this graph? This cannot be undone.')
+        if (!confirmed) {
+          return
+        }
+      }
+
+      const currentList = graphList
+      const updatedList = currentList.filter((graph) => graph.id !== graphId)
+
+      if (graphId.startsWith('local-')) {
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem(`${STORAGE_GRAPH_PREFIX}${graphId}`)
+        }
+      } else {
+        try {
+          await deleteGraph(graphId)
+        } catch (error) {
+          setImportError(error instanceof Error ? error.message : 'Failed to delete graph.')
+          return
+        }
+      }
+
+      setGraphList(updatedList)
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(STORAGE_LIST_KEY, JSON.stringify(updatedList))
+      }
+
+      if (activeGraphId === graphId) {
+        if (updatedList.length > 0) {
+          setActiveGraphId(updatedList[0].id)
+        } else {
+          const payload = createEmptyGraphPayload('New Graph 1')
+          try {
+            const summary = await createGraph(payload)
+            pendingGraphRef.current = { id: summary.id, payload }
+            setGraphList([summary])
+            setActiveGraphId(summary.id)
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem(STORAGE_LIST_KEY, JSON.stringify([summary]))
+            }
+          } catch {
+            const localId = `local-${crypto.randomUUID()}`
+            const summary: GraphSummary = {
+              id: localId,
+              name: payload.name,
+              updatedAt: new Date().toISOString(),
+            }
+            pendingGraphRef.current = { id: localId, payload }
+            setGraphList([summary])
+            setActiveGraphId(localId)
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem(STORAGE_LIST_KEY, JSON.stringify([summary]))
+              window.localStorage.setItem(
+                `${STORAGE_GRAPH_PREFIX}${localId}`,
+                JSON.stringify(payload),
+              )
+            }
+          }
+        }
+      }
+    },
+    [activeGraphId, graphList],
+  )
+
   const selectionCount =
     nodes.filter((node) => node.selected).length + edges.filter((edge) => edge.selected).length
 
@@ -1905,42 +1975,52 @@ export default function App() {
               ref={sidebarRef}
             >
               <div className="graph-list__widget">
-                <div className="graph-list__summary">
-                  <div className="graph-list__title">Your Graphs</div>
-                  <div className="graph-list__subtitle">{graphList.length} saved</div>
-                  <div className="graph-list__active">Active: {graphName || 'Untitled'}</div>
-                </div>
-                <div className="graph-list__actions">
-                  {!sidebarCollapsed ? (
-                    <button className="icon-btn" type="button" onClick={handleCreateGraph}>
-                      +
-                    </button>
-                  ) : null}
-                  {!sidebarCollapsed ? (
-                    <button className="icon-btn" type="button" onClick={handleExport} title="Export JSON">
-                      ⤓
-                    </button>
-                  ) : null}
-                  {!sidebarCollapsed ? (
-                    <button
-                      className="icon-btn"
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      title="Import JSON"
-                    >
-                      ⤒
-                    </button>
-                  ) : null}
+              <div className="graph-list__summary">
+                <div className="graph-list__title">Your Graphs</div>
+                <div className="graph-list__subtitle">{graphList.length} saved</div>
+                <div className="graph-list__active">Active: {graphName || 'Untitled'}</div>
+              </div>
+              <div className="graph-list__actions">
+                {!sidebarCollapsed ? (
+                  <button className="icon-btn" type="button" onClick={handleCreateGraph}>
+                    +
+                  </button>
+                ) : null}
+                {!sidebarCollapsed ? (
+                  <button className="icon-btn" type="button" onClick={handleExport} title="Export JSON">
+                    ⤓
+                  </button>
+                ) : null}
+                {!sidebarCollapsed ? (
                   <button
                     className="icon-btn"
                     type="button"
-                    aria-label={sidebarCollapsed ? 'Expand graphs panel' : 'Collapse graphs panel'}
-                    onClick={() => setSidebarCollapsed((current) => !current)}
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Import JSON"
                   >
-                    {sidebarCollapsed ? '>' : '<'}
+                    ⤒
                   </button>
-                </div>
+                ) : null}
+                {!sidebarCollapsed && activeGraphId ? (
+                  <button
+                    className="icon-btn graph-list__delete"
+                    type="button"
+                    onClick={() => handleDeleteGraph(activeGraphId)}
+                    title="Delete graph"
+                  >
+                    ×
+                  </button>
+                ) : null}
+                <button
+                  className="icon-btn"
+                  type="button"
+                  aria-label={sidebarCollapsed ? 'Expand graphs panel' : 'Collapse graphs panel'}
+                  onClick={() => setSidebarCollapsed((current) => !current)}
+                >
+                  {sidebarCollapsed ? '>' : '<'}
+                </button>
               </div>
+            </div>
               <input
                 ref={fileInputRef}
                 className="graph-list__file"
@@ -1965,19 +2045,19 @@ export default function App() {
                     {graphList.length === 0 ? (
                       <div className="graph-list__empty">Create your first graph.</div>
                     ) : (
-                      graphList.map((graph) => (
-                        <button
-                          key={graph.id}
-                          type="button"
-                          className={`graph-list__item ${graph.id === activeGraphId ? 'is-active' : ''}`}
-                          onClick={() => setActiveGraphId(graph.id)}
-                        >
-                          <div className="graph-list__name">{graph.name}</div>
-                          <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
-                        </button>
-                      ))
-                    )}
-                  </div>
+                    graphList.map((graph) => (
+                      <button
+                        key={graph.id}
+                        type="button"
+                        className={`graph-list__item ${graph.id === activeGraphId ? 'is-active' : ''}`}
+                        onClick={() => setActiveGraphId(graph.id)}
+                      >
+                        <div className="graph-list__name">{graph.name}</div>
+                        <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
 
                   <button className="btn btn--primary graph-list__cta" type="button" onClick={handleCreateGraph}>
                     New Graph

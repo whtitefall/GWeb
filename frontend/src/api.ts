@@ -47,3 +47,13 @@ export async function saveGraph(graphId: string, payload: GraphPayload): Promise
     throw new Error(`Failed to save graph: ${response.status}`)
   }
 }
+
+export async function deleteGraph(graphId: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/graphs/${graphId}`, {
+    method: 'DELETE',
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete graph: ${response.status}`)
+  }
+}
