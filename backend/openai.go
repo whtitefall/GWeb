@@ -444,7 +444,8 @@ Rules:
 
 func graphSchema() map[string]any {
 	return map[string]any{
-		"type": "object",
+		"type":                 "object",
+		"additionalProperties": false,
 		"properties": map[string]any{
 			"name": map[string]any{
 				"type": "string",
@@ -452,7 +453,8 @@ func graphSchema() map[string]any {
 			"nodes": map[string]any{
 				"type": "array",
 				"items": map[string]any{
-					"type": "object",
+					"type":                 "object",
+					"additionalProperties": false,
 					"properties": map[string]any{
 						"id": map[string]any{
 							"type": "string",
@@ -461,7 +463,8 @@ func graphSchema() map[string]any {
 							"type": "string",
 						},
 						"position": map[string]any{
-							"type": "object",
+							"type":                 "object",
+							"additionalProperties": false,
 							"properties": map[string]any{
 								"x": map[string]any{"type": "number"},
 								"y": map[string]any{"type": "number"},
@@ -475,18 +478,21 @@ func graphSchema() map[string]any {
 							"type": "string",
 						},
 						"style": map[string]any{
-							"type": "object",
+							"type":                 "object",
+							"additionalProperties": false,
 							"properties": map[string]any{
 								"width":  map[string]any{"type": "number"},
 								"height": map[string]any{"type": "number"},
 							},
 						},
 						"data": map[string]any{
-							"type": "object",
+							"type":                 "object",
+							"additionalProperties": false,
 							"properties": map[string]any{
 								"label": map[string]any{"type": "string"},
 								"position3d": map[string]any{
-									"type": "object",
+									"type":                 "object",
+									"additionalProperties": false,
 									"properties": map[string]any{
 										"x": map[string]any{"type": "number"},
 										"y": map[string]any{"type": "number"},
@@ -497,14 +503,16 @@ func graphSchema() map[string]any {
 								"items": map[string]any{
 									"type": "array",
 									"items": map[string]any{
-										"type": "object",
+										"type":                 "object",
+										"additionalProperties": false,
 										"properties": map[string]any{
 											"id":    map[string]any{"type": "string"},
 											"title": map[string]any{"type": "string"},
 											"notes": map[string]any{
 												"type": "array",
 												"items": map[string]any{
-													"type": "object",
+													"type":                 "object",
+													"additionalProperties": false,
 													"properties": map[string]any{
 														"id":    map[string]any{"type": "string"},
 														"title": map[string]any{"type": "string"},
@@ -525,7 +533,8 @@ func graphSchema() map[string]any {
 			"edges": map[string]any{
 				"type": "array",
 				"items": map[string]any{
-					"type": "object",
+					"type":                 "object",
+					"additionalProperties": false,
 					"properties": map[string]any{
 						"id":     map[string]any{"type": "string"},
 						"source": map[string]any{"type": "string"},
