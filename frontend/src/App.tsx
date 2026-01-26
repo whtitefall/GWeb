@@ -6,6 +6,9 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
   type MouseEvent as ReactMouseEvent,
   type FormEvent as ReactFormEvent,
   type ChangeEvent as ReactChangeEvent,
@@ -47,7 +50,7 @@ const DRAWER_MIN = 280
 const DRAWER_MAX = 900
 
 type ThemePreference = 'dark' | 'light' | 'system'
-type ViewMode = 'graph' | 'facts'
+type ViewMode = 'graph' | 'graph3d' | 'facts'
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string }
 type FactKey = (typeof QUICK_FACTS)[number]['key']
 
@@ -95,6 +98,7 @@ const defaultGraph: GraphPayload = {
       position: { x: 140, y: 120 },
       data: {
         label: 'Core Cluster',
+        position3d: { x: 60, y: 40, z: -40 },
         items: [],
       },
       style: {
@@ -110,6 +114,7 @@ const defaultGraph: GraphPayload = {
       extent: 'parent' as const,
       data: {
         label: 'Launch Plan',
+        position3d: { x: -40, y: -20, z: 40 },
         items: [
           {
             id: 'item-1',
@@ -132,6 +137,7 @@ const defaultGraph: GraphPayload = {
       extent: 'parent' as const,
       data: {
         label: 'User Research',
+        position3d: { x: 40, y: 20, z: -20 },
         items: [
           {
             id: 'item-3',
@@ -147,6 +153,7 @@ const defaultGraph: GraphPayload = {
       position: { x: 560, y: 200 },
       data: {
         label: 'Prototype Sprint',
+        position3d: { x: 120, y: 60, z: 60 },
         items: [
           {
             id: 'item-4',
@@ -280,6 +287,25 @@ const coerceNumber = (value: unknown, fallback: number): number => {
   return fallback
 }
 
+const resolvePosition3d = (value: unknown, fallback: { x: number; y: number }, index: number) => {
+  if (value && typeof value === 'object') {
+    const maybe = value as { x?: unknown; y?: unknown; z?: unknown }
+    const x = coerceNumber(maybe.x, NaN)
+    const y = coerceNumber(maybe.y, NaN)
+    const z = coerceNumber(maybe.z, NaN)
+    if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
+      return { x, y, z }
+    }
+  }
+
+  const offset = (index % 5) - 2
+  return {
+    x: fallback.x * 0.6,
+    y: fallback.y * 0.6,
+    z: offset * 60,
+  }
+}
+
 const normalizeGraph = (payload: GraphPayload | null): GraphPayload => {
   if (!payload || !Array.isArray(payload.nodes) || !Array.isArray(payload.edges)) {
     return defaultGraph
@@ -308,14 +334,18 @@ const normalizeGraph = (payload: GraphPayload | null): GraphPayload => {
           }
         : node.style
 
+    const basePosition = node.position ?? { x: 0, y: 0 }
+    const position3d = resolvePosition3d((rawData as NodeData).position3d, basePosition, index)
+
     return {
       ...node,
       type: node.type ?? 'default',
-      position: node.position ?? { x: 0, y: 0 },
+      position: basePosition,
       extent: node.parentNode ? ('parent' as const) : node.extent,
       data: {
         label,
         items: ensureItems((rawData as NodeData).items, (rawData as { notes?: Note[] }).notes),
+        position3d,
       },
       style,
     }
@@ -462,6 +492,347 @@ function GroupNode({ data, selected }: NodeProps<NodeData>) {
       </div>
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
+    </div>
+  )
+}
+
+type Graph3DViewProps = {
+  nodes: GraphNode[]
+  edges: Edge[]
+  setNodes: Dispatch<SetStateAction<GraphNode[]>>
+  setEdges: Dispatch<SetStateAction<Edge[]>>
+  toolbarStyle: CSSProperties
+  toolbarRef: RefObject<HTMLDivElement | null>
+  onToolbarDragStart: (event: ReactMouseEvent<HTMLDivElement>) => void
+}
+
+function Graph3DView({
+  nodes,
+  edges,
+  setNodes,
+  setEdges,
+  toolbarStyle,
+  toolbarRef,
+  onToolbarDragStart,
+}: Graph3DViewProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [size, setSize] = useState({ width: 0, height: 0 })
+  const [rotation, setRotation] = useState({ x: 0.35, y: -0.45 })
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const projectedRef = useRef(new Map<string, { x: number; y: number; r: number }>())
+  const draggingRef = useRef(false)
+  const dragStartRef = useRef({ x: 0, y: 0 })
+  const rotationStartRef = useRef({ x: 0, y: 0 })
+  const movedRef = useRef(false)
+
+  useEffect(() => {
+    if (!containerRef.current) {
+      return
+    }
+    const element = containerRef.current
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect
+        setSize({ width, height })
+      }
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    setNodes((current) => {
+      let changed = false
+      const updated = current.map((node, index) => {
+        const existing = node.data.position3d
+        if (
+          existing &&
+          Number.isFinite(existing.x) &&
+          Number.isFinite(existing.y) &&
+          Number.isFinite(existing.z)
+        ) {
+          return node
+        }
+        changed = true
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            position3d: resolvePosition3d(node.data.position3d, node.position ?? { x: 0, y: 0 }, index),
+          },
+        }
+      })
+      return changed ? updated : current
+    })
+  }, [setNodes, nodes.length])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) {
+      return
+    }
+    canvas.width = size.width * window.devicePixelRatio
+    canvas.height = size.height * window.devicePixelRatio
+  }, [size])
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas || size.width === 0 || size.height === 0) {
+      return
+    }
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      return
+    }
+    const pixelRatio = window.devicePixelRatio || 1
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
+    ctx.clearRect(0, 0, size.width, size.height)
+
+    const center = { x: size.width / 2, y: size.height / 2 }
+    const positions = nodes.map((node, index) => ({
+      id: node.id,
+      type: node.type,
+      label: node.data.label,
+      position: resolvePosition3d(node.data.position3d, node.position ?? { x: 0, y: 0 }, index),
+    }))
+
+    const avg = positions.reduce(
+      (acc, item) => ({
+        x: acc.x + item.position.x,
+        y: acc.y + item.position.y,
+        z: acc.z + item.position.z,
+      }),
+      { x: 0, y: 0, z: 0 },
+    )
+    const count = positions.length || 1
+    const offset = { x: avg.x / count, y: avg.y / count, z: avg.z / count }
+
+    const cosY = Math.cos(rotation.y)
+    const sinY = Math.sin(rotation.y)
+    const cosX = Math.cos(rotation.x)
+    const sinX = Math.sin(rotation.x)
+    const fov = 520
+
+    projectedRef.current.clear()
+
+    const project = (pos: { x: number; y: number; z: number }) => {
+      const dx = pos.x - offset.x
+      const dy = pos.y - offset.y
+      const dz = pos.z - offset.z
+      const xz = dx * cosY + dz * sinY
+      const zz = -dx * sinY + dz * cosY
+      const yz = dy * cosX - zz * sinX
+      const zz2 = dy * sinX + zz * cosX
+      const scale = fov / (fov + zz2 + 200)
+      return {
+        x: center.x + xz * scale,
+        y: center.y + yz * scale,
+        scale,
+      }
+    }
+
+    ctx.lineCap = 'round'
+    ctx.lineWidth = 2
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--edge').trim() || '#cfd6e4'
+    edges.forEach((edge) => {
+      const source = positions.find((node) => node.id === edge.source)
+      const target = positions.find((node) => node.id === edge.target)
+      if (!source || !target) {
+        return
+      }
+      const sp = project(source.position)
+      const tp = project(target.position)
+      ctx.beginPath()
+      ctx.moveTo(sp.x, sp.y)
+      ctx.lineTo(tp.x, tp.y)
+      ctx.stroke()
+    })
+
+    positions.forEach((node) => {
+      const projected = project(node.position)
+      const radius = 10 * projected.scale + (node.type === 'group' ? 4 : 0)
+      projectedRef.current.set(node.id, { x: projected.x, y: projected.y, r: radius })
+      const nodeFill =
+        getComputedStyle(document.documentElement).getPropertyValue('--node-fill').trim() || '#2d3f9b'
+      const nodeBorder =
+        getComputedStyle(document.documentElement).getPropertyValue('--node-border').trim() ||
+        'rgba(91, 124, 250, 0.55)'
+      ctx.fillStyle = nodeFill
+      ctx.strokeStyle = nodeBorder
+      ctx.lineWidth = selectedIds.includes(node.id) ? 3 : 2
+      ctx.beginPath()
+      ctx.arc(projected.x, projected.y, radius, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.stroke()
+
+      ctx.fillStyle =
+        getComputedStyle(document.documentElement).getPropertyValue('--node-text').trim() || '#f5f6f8'
+      ctx.font = `600 ${Math.max(10, 10 * projected.scale + 6)}px Manrope`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(node.label, projected.x, projected.y - radius - 10)
+    })
+  }, [edges, nodes, rotation, selectedIds, size])
+
+  useEffect(() => {
+    draw()
+  }, [draw])
+
+  const handlePointerDown = (event: ReactMouseEvent<HTMLCanvasElement>) => {
+    draggingRef.current = true
+    movedRef.current = false
+    dragStartRef.current = { x: event.clientX, y: event.clientY }
+    rotationStartRef.current = { ...rotation }
+  }
+
+  const handlePointerMove = (event: ReactMouseEvent<HTMLCanvasElement>) => {
+    if (!draggingRef.current) {
+      return
+    }
+    const dx = event.clientX - dragStartRef.current.x
+    const dy = event.clientY - dragStartRef.current.y
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+      movedRef.current = true
+    }
+    setRotation({
+      x: rotationStartRef.current.x + dy * 0.005,
+      y: rotationStartRef.current.y + dx * 0.005,
+    })
+  }
+
+  const handlePointerUp = () => {
+    draggingRef.current = false
+  }
+
+  const handleCanvasClick = (event: ReactMouseEvent<HTMLCanvasElement>) => {
+    if (movedRef.current) {
+      movedRef.current = false
+      return
+    }
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+    let pickedId: string | null = null
+    let bestDist = Number.POSITIVE_INFINITY
+    projectedRef.current.forEach((value, id) => {
+      const dx = value.x - x
+      const dy = value.y - y
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      if (dist <= value.r + 6) {
+        if (dist < bestDist) {
+          bestDist = dist
+          pickedId = id
+        }
+      }
+    })
+    if (pickedId) {
+      const selectedId = pickedId
+      setSelectedIds((current) => {
+        if (event.shiftKey) {
+          return current.includes(selectedId)
+            ? current.filter((id) => id !== selectedId)
+            : [...current, selectedId]
+        }
+        return [selectedId]
+      })
+    } else {
+      setSelectedIds([])
+    }
+  }
+
+  const handleAddNode = () => {
+    const id = crypto.randomUUID()
+    const offset = nodes.length * 20
+    const position3d = {
+      x: (Math.random() - 0.5) * 240,
+      y: (Math.random() - 0.5) * 200,
+      z: (Math.random() - 0.5) * 200,
+    }
+    const newNode: GraphNode = {
+      id,
+      type: 'default',
+      position: { x: 200 + offset, y: 200 + offset },
+      data: {
+        label: `Node ${nodes.length + 1}`,
+        items: [],
+        position3d,
+      },
+    }
+    setNodes((current) => current.concat(newNode))
+    setSelectedIds([id])
+  }
+
+  const handleDeleteNode = () => {
+    if (selectedIds.length === 0) {
+      return
+    }
+    const selectedSet = new Set(selectedIds)
+    setNodes((current) => current.filter((node) => !selectedSet.has(node.id)))
+    setEdges((current) =>
+      current.filter((edge) => !selectedSet.has(edge.source) && !selectedSet.has(edge.target)),
+    )
+    setSelectedIds([])
+  }
+
+  const handleConnectNodes = () => {
+    if (selectedIds.length < 2) {
+      return
+    }
+    const [source, target] = selectedIds
+    const existing = edges.some(
+      (edge) =>
+        (edge.source === source && edge.target === target) ||
+        (edge.source === target && edge.target === source),
+    )
+    if (existing) {
+      return
+    }
+    setEdges((current) =>
+      current.concat({
+        id: crypto.randomUUID(),
+        source,
+        target,
+        type: 'smoothstep',
+      }),
+    )
+  }
+
+  return (
+    <div className="graph-3d" ref={containerRef}>
+      <canvas
+        ref={canvasRef}
+        onMouseDown={handlePointerDown}
+        onMouseMove={handlePointerMove}
+        onMouseUp={handlePointerUp}
+        onMouseLeave={handlePointerUp}
+        onClick={handleCanvasClick}
+      />
+      <div className="toolbar toolbar--3d" style={toolbarStyle} ref={toolbarRef}>
+        <div className="toolbar__label" onMouseDown={onToolbarDragStart}>
+          3D Actions
+        </div>
+        <button className="btn btn--primary" type="button" onClick={handleAddNode}>
+          Add Node
+        </button>
+        <button
+          className="btn btn--danger"
+          type="button"
+          onClick={handleDeleteNode}
+          disabled={selectedIds.length === 0}
+        >
+          Delete Node
+        </button>
+        <button
+          className="btn btn--ghost"
+          type="button"
+          onClick={handleConnectNodes}
+          disabled={selectedIds.length < 2}
+        >
+          Connect Nodes
+        </button>
+        <div className="toolbar__hint">{selectedIds.length} selected (shift-click to multi)</div>
+      </div>
     </div>
   )
 }
@@ -1013,6 +1384,11 @@ export default function App() {
       data: {
         label: 'New node',
         items: [],
+        position3d: {
+          x: (centerPosition.x - 200) * 0.6,
+          y: (centerPosition.y - 200) * 0.6,
+          z: (spawnIndex.current % 5) * 40 - 80,
+        },
       },
     }
 
@@ -1038,6 +1414,11 @@ export default function App() {
       data: {
         label: 'New group',
         items: [],
+        position3d: {
+          x: (centerPosition.x - 200) * 0.6,
+          y: (centerPosition.y - 200) * 0.6,
+          z: (spawnIndex.current % 5) * 40 - 80,
+        },
       },
       style: {
         width: DEFAULT_GROUP_SIZE.width,
@@ -1751,6 +2132,13 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={`nav-btn ${viewMode === 'graph3d' ? 'is-active' : ''}`}
+            onClick={() => changeView('graph3d')}
+          >
+            3D Graph
+          </button>
+          <button
+            type="button"
             className={`nav-btn ${viewMode === 'facts' ? 'is-active' : ''}`}
             onClick={() => changeView('facts')}
           >
@@ -1934,6 +2322,16 @@ export default function App() {
                 </div>
               ) : null}
             </>
+          ) : viewMode === 'graph3d' ? (
+            <Graph3DView
+              nodes={nodes}
+              edges={edges}
+              setNodes={setNodes}
+              setEdges={setEdges}
+              toolbarStyle={toolbarStyle}
+              toolbarRef={toolbarRef}
+              onToolbarDragStart={handleToolbarDragStart}
+            />
           ) : (
             <div className="facts">
               <div className="facts__header">
@@ -1969,7 +2367,7 @@ export default function App() {
             </div>
           )}
 
-          {viewMode === 'graph' ? (
+          {viewMode !== 'facts' ? (
             <aside
               className={`graph-list ${sidebarCollapsed ? 'graph-list--collapsed' : ''}`}
               ref={sidebarRef}

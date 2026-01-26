@@ -14,6 +14,11 @@ export type Item = {
 export type NodeData = {
   label: string
   items: Item[]
+  position3d?: {
+    x: number
+    y: number
+    z: number
+  }
 }
 
 export type GraphNode = Node<NodeData>
