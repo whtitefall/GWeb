@@ -28,6 +28,7 @@ import ReactFlow, {
   type NodeProps,
   type ReactFlowInstance,
 } from 'reactflow'
+import ForceGraph3D from 'react-force-graph-3d'
 import 'reactflow/dist/style.css'
 import './App.css'
 import { createGraph, deleteGraph, fetchGraph, listGraphs, saveGraph } from './api'
@@ -514,32 +515,9 @@ function Graph3DView({
   toolbarStyle,
   toolbarRef,
   onToolbarDragStart,
-}: Graph3DViewProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const [size, setSize] = useState({ width: 0, height: 0 })
-  const [rotation, setRotation] = useState({ x: 0.35, y: -0.45 })
+  accentSeed,
+}: Graph3DViewProps & { accentSeed: string }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const projectedRef = useRef(new Map<string, { x: number; y: number; r: number }>())
-  const draggingRef = useRef(false)
-  const dragStartRef = useRef({ x: 0, y: 0 })
-  const rotationStartRef = useRef({ x: 0, y: 0 })
-  const movedRef = useRef(false)
-
-  useEffect(() => {
-    if (!containerRef.current) {
-      return
-    }
-    const element = containerRef.current
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect
-        setSize({ width, height })
-      }
-    })
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
 
   useEffect(() => {
     setNodes((current) => {
@@ -567,183 +545,51 @@ function Graph3DView({
     })
   }, [setNodes, nodes.length])
 
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) {
-      return
-    }
-    canvas.width = size.width * window.devicePixelRatio
-    canvas.height = size.height * window.devicePixelRatio
-  }, [size])
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas || size.width === 0 || size.height === 0) {
-      return
-    }
-    const ctx = canvas.getContext('2d')
-    if (!ctx) {
-      return
-    }
-    const pixelRatio = window.devicePixelRatio || 1
-    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
-    ctx.clearRect(0, 0, size.width, size.height)
-
-    const center = { x: size.width / 2, y: size.height / 2 }
-    const positions = nodes.map((node, index) => ({
-      id: node.id,
-      type: node.type,
-      label: node.data.label,
-      position: resolvePosition3d(node.data.position3d, node.position ?? { x: 0, y: 0 }, index),
-    }))
-
-    const avg = positions.reduce(
-      (acc, item) => ({
-        x: acc.x + item.position.x,
-        y: acc.y + item.position.y,
-        z: acc.z + item.position.z,
+  const graphData = useMemo(() => {
+    return {
+      nodes: nodes.map((node, index) => {
+        const pos = resolvePosition3d(node.data.position3d, node.position ?? { x: 0, y: 0 }, index)
+        return {
+          id: node.id,
+          name: node.data.label,
+          type: node.type,
+          x: pos.x,
+          y: pos.y,
+          z: pos.z,
+        }
       }),
-      { x: 0, y: 0, z: 0 },
-    )
-    const count = positions.length || 1
-    const offset = { x: avg.x / count, y: avg.y / count, z: avg.z / count }
-
-    const cosY = Math.cos(rotation.y)
-    const sinY = Math.sin(rotation.y)
-    const cosX = Math.cos(rotation.x)
-    const sinX = Math.sin(rotation.x)
-    const fov = 520
-
-    projectedRef.current.clear()
-
-    const project = (pos: { x: number; y: number; z: number }) => {
-      const dx = pos.x - offset.x
-      const dy = pos.y - offset.y
-      const dz = pos.z - offset.z
-      const xz = dx * cosY + dz * sinY
-      const zz = -dx * sinY + dz * cosY
-      const yz = dy * cosX - zz * sinX
-      const zz2 = dy * sinX + zz * cosX
-      const scale = fov / (fov + zz2 + 200)
-      return {
-        x: center.x + xz * scale,
-        y: center.y + yz * scale,
-        scale,
-      }
+      links: edges.map((edge) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+      })),
     }
+  }, [nodes, edges])
 
-    ctx.lineCap = 'round'
-    ctx.lineWidth = 2
-    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--edge').trim() || '#cfd6e4'
-    edges.forEach((edge) => {
-      const source = positions.find((node) => node.id === edge.source)
-      const target = positions.find((node) => node.id === edge.target)
-      if (!source || !target) {
-        return
-      }
-      const sp = project(source.position)
-      const tp = project(target.position)
-      ctx.beginPath()
-      ctx.moveTo(sp.x, sp.y)
-      ctx.lineTo(tp.x, tp.y)
-      ctx.stroke()
-    })
+  const colors = useMemo(() => {
+    const styles = getComputedStyle(document.documentElement)
+    return {
+      node: styles.getPropertyValue('--node-fill').trim() || '#2d3f9b',
+      accent: styles.getPropertyValue('--accent').trim() || '#5b7cfa',
+      edge: styles.getPropertyValue('--edge').trim() || '#cfd6e4',
+    }
+  }, [accentSeed])
 
-    positions.forEach((node) => {
-      const projected = project(node.position)
-      const radius = 10 * projected.scale + (node.type === 'group' ? 4 : 0)
-      projectedRef.current.set(node.id, { x: projected.x, y: projected.y, r: radius })
-      const nodeFill =
-        getComputedStyle(document.documentElement).getPropertyValue('--node-fill').trim() || '#2d3f9b'
-      const nodeBorder =
-        getComputedStyle(document.documentElement).getPropertyValue('--node-border').trim() ||
-        'rgba(91, 124, 250, 0.55)'
-      ctx.fillStyle = nodeFill
-      ctx.strokeStyle = nodeBorder
-      ctx.lineWidth = selectedIds.includes(node.id) ? 3 : 2
-      ctx.beginPath()
-      ctx.arc(projected.x, projected.y, radius, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.stroke()
-
-      ctx.fillStyle =
-        getComputedStyle(document.documentElement).getPropertyValue('--node-text').trim() || '#f5f6f8'
-      ctx.font = `600 ${Math.max(10, 10 * projected.scale + 6)}px Manrope`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(node.label, projected.x, projected.y - radius - 10)
-    })
-  }, [edges, nodes, rotation, selectedIds, size])
-
-  useEffect(() => {
-    draw()
-  }, [draw])
-
-  const handlePointerDown = (event: ReactMouseEvent<HTMLCanvasElement>) => {
-    draggingRef.current = true
-    movedRef.current = false
-    dragStartRef.current = { x: event.clientX, y: event.clientY }
-    rotationStartRef.current = { ...rotation }
-  }
-
-  const handlePointerMove = (event: ReactMouseEvent<HTMLCanvasElement>) => {
-    if (!draggingRef.current) {
+  const handleNodeClick = (node: { id?: string | number }, event?: MouseEvent) => {
+    if (!node?.id) {
       return
     }
-    const dx = event.clientX - dragStartRef.current.x
-    const dy = event.clientY - dragStartRef.current.y
-    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
-      movedRef.current = true
-    }
-    setRotation({
-      x: rotationStartRef.current.x + dy * 0.005,
-      y: rotationStartRef.current.y + dx * 0.005,
-    })
-  }
-
-  const handlePointerUp = () => {
-    draggingRef.current = false
-  }
-
-  const handleCanvasClick = (event: ReactMouseEvent<HTMLCanvasElement>) => {
-    if (movedRef.current) {
-      movedRef.current = false
-      return
-    }
-    const rect = event.currentTarget.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
-    let pickedId: string | null = null
-    let bestDist = Number.POSITIVE_INFINITY
-    projectedRef.current.forEach((value, id) => {
-      const dx = value.x - x
-      const dy = value.y - y
-      const dist = Math.sqrt(dx * dx + dy * dy)
-      if (dist <= value.r + 6) {
-        if (dist < bestDist) {
-          bestDist = dist
-          pickedId = id
-        }
+    const id = String(node.id)
+    setSelectedIds((current) => {
+      if (event?.shiftKey) {
+        return current.includes(id) ? current.filter((value) => value !== id) : [...current, id]
       }
+      return [id]
     })
-    if (pickedId) {
-      const selectedId = pickedId
-      setSelectedIds((current) => {
-        if (event.shiftKey) {
-          return current.includes(selectedId)
-            ? current.filter((id) => id !== selectedId)
-            : [...current, selectedId]
-        }
-        return [selectedId]
-      })
-    } else {
-      setSelectedIds([])
-    }
   }
 
   const handleAddNode = () => {
     const id = crypto.randomUUID()
-    const offset = nodes.length * 20
     const position3d = {
       x: (Math.random() - 0.5) * 240,
       y: (Math.random() - 0.5) * 200,
@@ -752,7 +598,7 @@ function Graph3DView({
     const newNode: GraphNode = {
       id,
       type: 'default',
-      position: { x: 200 + offset, y: 200 + offset },
+      position: { x: 200 + nodes.length * 20, y: 200 + nodes.length * 20 },
       data: {
         label: `Node ${nodes.length + 1}`,
         items: [],
@@ -764,7 +610,7 @@ function Graph3DView({
   }
 
   const handleDeleteNode = () => {
-    if (selectedIds.length === 0) {
+    if (selectedIds.length == 0) {
       return
     }
     const selectedSet = new Set(selectedIds)
@@ -780,12 +626,12 @@ function Graph3DView({
       return
     }
     const [source, target] = selectedIds
-    const existing = edges.some(
+    const exists = edges.some(
       (edge) =>
         (edge.source === source && edge.target === target) ||
         (edge.source === target && edge.target === source),
     )
-    if (existing) {
+    if (exists) {
       return
     }
     setEdges((current) =>
@@ -799,14 +645,18 @@ function Graph3DView({
   }
 
   return (
-    <div className="graph-3d" ref={containerRef}>
-      <canvas
-        ref={canvasRef}
-        onMouseDown={handlePointerDown}
-        onMouseMove={handlePointerMove}
-        onMouseUp={handlePointerUp}
-        onMouseLeave={handlePointerUp}
-        onClick={handleCanvasClick}
+    <div className="graph-3d">
+      <ForceGraph3D
+        graphData={graphData}
+        nodeLabel="name"
+        nodeColor={(node) => (selectedIds.includes(String(node.id)) ? colors.accent : colors.node)}
+        linkColor={() => colors.edge}
+        linkOpacity={0.7}
+        linkWidth={1.5}
+        backgroundColor="transparent"
+        showNavInfo={false}
+        onNodeClick={handleNodeClick}
+        onBackgroundClick={() => setSelectedIds([])}
       />
       <div className="toolbar toolbar--3d" style={toolbarStyle} ref={toolbarRef}>
         <div className="toolbar__label" onMouseDown={onToolbarDragStart}>
@@ -2331,6 +2181,7 @@ export default function App() {
               toolbarStyle={toolbarStyle}
               toolbarRef={toolbarRef}
               onToolbarDragStart={handleToolbarDragStart}
+              accentSeed={accentChoice}
             />
           ) : (
             <div className="facts">
@@ -2367,7 +2218,7 @@ export default function App() {
             </div>
           )}
 
-          {viewMode !== 'facts' ? (
+          {viewMode === 'graph' ? (
             <aside
               className={`graph-list ${sidebarCollapsed ? 'graph-list--collapsed' : ''}`}
               ref={sidebarRef}
