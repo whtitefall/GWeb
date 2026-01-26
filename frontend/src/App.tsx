@@ -42,7 +42,7 @@ const SIDEBAR_MIN = 200
 const SIDEBAR_MAX = 420
 const SIDEBAR_COLLAPSED = 64
 const DRAWER_MIN = 280
-const DRAWER_MAX = 520
+const DRAWER_MAX = 760
 
 type ThemePreference = 'dark' | 'light' | 'system'
 type ViewMode = 'graph' | 'facts'
@@ -1971,9 +1971,9 @@ export default function App() {
                 setItemNoteTitle('')
               }}
             >
-              <input
-                type="text"
-                placeholder="Add a note..."
+              <textarea
+                className="item-modal__textarea"
+                placeholder="Add a note description..."
                 value={itemNoteTitle}
                 onChange={(event) => setItemNoteTitle(event.target.value)}
               />
