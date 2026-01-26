@@ -8,6 +8,7 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type FormEvent as ReactFormEvent,
+  type ChangeEvent as ReactChangeEvent,
 } from 'react'
 import ReactFlow, {
   addEdge,
@@ -34,19 +35,56 @@ const STORAGE_GRAPH_PREFIX = 'gweb.graph.data.v1.'
 const STORAGE_LIST_KEY = 'gweb.graph.list.v1'
 const STORAGE_ACTIVE_KEY = 'gweb.graph.active.v1'
 const THEME_KEY = 'gweb.theme.v1'
+const ACCENT_KEY = 'gweb.accent.v1'
 
 const GROUP_PADDING = 32
 const DEFAULT_GROUP_SIZE = { width: 300, height: 180 }
 const DEFAULT_NODE_SIZE = { width: 150, height: 52 }
 const SIDEBAR_MIN = 200
 const SIDEBAR_MAX = 420
-const SIDEBAR_COLLAPSED = 64
+const SIDEBAR_COLLAPSED = 220
 const DRAWER_MIN = 280
 const DRAWER_MAX = 900
 
 type ThemePreference = 'dark' | 'light' | 'system'
 type ViewMode = 'graph' | 'facts'
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string }
+type FactKey = (typeof QUICK_FACTS)[number]['key']
+
+const ACCENT_OPTIONS = [
+  {
+    id: 'blue',
+    label: 'Blue',
+    accent: '#5b7cfa',
+    accentStrong: '#3f65f0',
+    nodeFill: '#2d3f9b',
+    nodeBorder: 'rgba(91, 124, 250, 0.55)',
+  },
+  {
+    id: 'teal',
+    label: 'Teal',
+    accent: '#2ec4ff',
+    accentStrong: '#1a9fd6',
+    nodeFill: '#1a3b4a',
+    nodeBorder: 'rgba(46, 196, 255, 0.5)',
+  },
+  {
+    id: 'purple',
+    label: 'Purple',
+    accent: '#8b5cf6',
+    accentStrong: '#6d3df0',
+    nodeFill: '#3a2a6d',
+    nodeBorder: 'rgba(139, 92, 246, 0.5)',
+  },
+  {
+    id: 'orange',
+    label: 'Orange',
+    accent: '#f59f5a',
+    accentStrong: '#e07d33',
+    nodeFill: '#5a3721',
+    nodeBorder: 'rgba(245, 159, 90, 0.5)',
+  },
+] as const
 
 const defaultGraph: GraphPayload = {
   name: 'Starter Graph',
@@ -142,30 +180,42 @@ const defaultGraph: GraphPayload = {
 
 const QUICK_FACTS = [
   {
+    key: 'vertices',
     title: 'Vertices + Edges',
     detail: 'A graph is made of vertices (nodes) and edges (links) that connect them.',
+    long: 'Vertices represent entities and edges represent relationships. Once you know the set of vertices and how they connect, you can analyze structure, reachability, and flow through the network.',
   },
   {
+    key: 'directed',
     title: 'Directed vs Undirected',
     detail: 'Directed graphs have arrows on edges, undirected graphs do not.',
+    long: 'Directed graphs encode one-way relationships (like followers or prerequisites). Undirected graphs encode mutual relationships (like friendships). The choice impacts traversal and connectivity.',
   },
   {
+    key: 'trees',
     title: 'Trees',
     detail: 'A tree is a connected, acyclic graph with exactly n-1 edges.',
+    long: 'Trees are hierarchical graphs with no cycles. They are efficient for representing parent-child relationships and allow unique paths between any two nodes.',
   },
   {
+    key: 'shortest',
     title: 'Shortest Paths',
     detail: 'BFS solves unweighted shortest paths; Dijkstra handles weighted edges.',
+    long: 'Shortest-path algorithms find the minimal-cost route between nodes. BFS works in layers for unweighted graphs, while Dijkstra expands outward using cumulative weights.',
   },
   {
+    key: 'coloring',
     title: 'Graph Coloring',
     detail: 'Coloring assigns labels so adjacent nodes never share the same color.',
+    long: 'Graph coloring is used to minimize conflicts, such as scheduling tasks without overlaps or assigning frequencies to radio towers to avoid interference.',
   },
   {
+    key: 'planar',
     title: 'Planar Graphs',
     detail: 'Planar graphs can be drawn without any edges crossing.',
+    long: 'A planar graph can be embedded in the plane without edge intersections. Planarity matters for circuit design, map coloring, and layout readability.',
   },
-]
+] as const
 
 const statusLabels = {
   idle: 'Idle',
@@ -342,6 +392,32 @@ const formatUpdatedAt = (value: string) => {
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+const hexToRgb = (hex: string) => {
+  const cleaned = hex.replace('#', '')
+  if (cleaned.length !== 6) {
+    return null
+  }
+  const num = Number.parseInt(cleaned, 16)
+  if (Number.isNaN(num)) {
+    return null
+  }
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255,
+  }
+}
+
+const isLightColor = (hex: string) => {
+  const rgb = hexToRgb(hex)
+  if (!rgb) {
+    return false
+  }
+  const { r, g, b } = rgb
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+  return luminance > 0.6
+}
+
 const resolveAuthName = (session: {
   user?: { user_metadata?: { full_name?: string }; email?: string }
 } | null) => {
@@ -403,6 +479,7 @@ export default function App() {
   const [hydrated, setHydrated] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('graph')
   const [chatOpen, setChatOpen] = useState(false)
+  const [activeFactKey, setActiveFactKey] = useState<FactKey | null>(QUICK_FACTS[0]?.key ?? null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -429,6 +506,14 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [userName, setUserName] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [accentChoice, setAccentChoice] = useState(() => {
+    if (typeof window === 'undefined') {
+      return 'blue'
+    }
+    const stored = window.localStorage.getItem(ACCENT_KEY)
+    return stored ?? 'blue'
+  })
+  const [importError, setImportError] = useState('')
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => {
     if (typeof window === 'undefined') {
       return 'dark'
@@ -450,6 +535,12 @@ export default function App() {
   const drawerResizingRef = useRef(false)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
   const [drawerWidth, setDrawerWidth] = useState(340)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const toolbarRef = useRef<HTMLDivElement | null>(null)
+  const toolbarDragRef = useRef(false)
+  const toolbarOffsetRef = useRef({ x: 0, y: 0 })
+  const toolbarMovedRef = useRef(false)
+  const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number } | null>(null)
 
   const nodeTypes = useMemo(() => ({ group: GroupNode }), [])
 
@@ -474,6 +565,19 @@ export default function App() {
       window.localStorage.setItem(THEME_KEY, themePreference)
     }
   }, [themePreference])
+
+  useEffect(() => {
+    const selected = ACCENT_OPTIONS.find((option) => option.id === accentChoice) ?? ACCENT_OPTIONS[0]
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(ACCENT_KEY, selected.id)
+      const root = document.documentElement
+      root.style.setProperty('--accent', selected.accent)
+      root.style.setProperty('--accent-strong', selected.accentStrong)
+      root.style.setProperty('--node-fill', selected.nodeFill)
+      root.style.setProperty('--node-border', selected.nodeBorder)
+      root.style.setProperty('--node-text', isLightColor(selected.accent) ? '#0f1114' : '#f5f6f8')
+    }
+  }, [accentChoice])
 
   useEffect(() => {
     let isMounted = true
@@ -523,11 +627,25 @@ export default function App() {
         const nextWidth = Math.min(DRAWER_MAX, Math.max(DRAWER_MIN, rect.right - event.clientX))
         setDrawerWidth(nextWidth)
       }
+
+      if (toolbarDragRef.current && flowShellRef.current && toolbarRef.current) {
+        const rect = flowShellRef.current.getBoundingClientRect()
+        const toolbarRect = toolbarRef.current.getBoundingClientRect()
+        const nextX = event.clientX - rect.left - toolbarOffsetRef.current.x
+        const nextY = event.clientY - rect.top - toolbarOffsetRef.current.y
+        const maxX = Math.max(16, rect.width - toolbarRect.width - 16)
+        const maxY = Math.max(16, rect.height - toolbarRect.height - 16)
+        setToolbarPos({
+          x: Math.min(Math.max(16, nextX), maxX),
+          y: Math.min(Math.max(16, nextY), maxY),
+        })
+      }
     }
 
     const handleUp = () => {
       resizingRef.current = false
       drawerResizingRef.current = false
+      toolbarDragRef.current = false
     }
 
     window.addEventListener('mousemove', handleMove)
@@ -1179,6 +1297,14 @@ export default function App() {
     () => ({ ['--sidebar-width' as string]: `${sidebarWidthValue}px` } as CSSProperties),
     [sidebarWidthValue],
   )
+  const toolbarStyle = useMemo(
+    () => {
+      const fallback = { x: sidebarWidthValue + 24, y: 16 }
+      const position = toolbarPos ?? fallback
+      return { left: `${position.x}px`, top: `${position.y}px` } as CSSProperties
+    },
+    [sidebarWidthValue, toolbarPos],
+  )
   const drawerWidthValue = Math.min(DRAWER_MAX, Math.max(DRAWER_MIN, drawerWidth))
   const drawerStyle = useMemo(
     () => ({ ['--drawer-width' as string]: `${drawerWidthValue}px` } as CSSProperties),
@@ -1199,6 +1325,27 @@ export default function App() {
     event.stopPropagation()
     drawerResizingRef.current = true
   }
+
+  const handleToolbarDragStart = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!toolbarRef.current || !flowShellRef.current) {
+      return
+    }
+    const rect = toolbarRef.current.getBoundingClientRect()
+    toolbarOffsetRef.current = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    }
+    toolbarDragRef.current = true
+    toolbarMovedRef.current = true
+  }
+
+  useEffect(() => {
+    if (!toolbarMovedRef.current) {
+      setToolbarPos({ x: sidebarWidthValue + 24, y: 16 })
+    }
+  }, [sidebarWidthValue])
 
   const handleOpenAuth = (mode: 'login' | 'register') => {
     setAuthMode(mode)
@@ -1330,6 +1477,49 @@ export default function App() {
     [chatInput],
   )
 
+  const handleExport = useCallback(() => {
+    const payload: GraphPayload = { name: graphName, nodes, edges }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    const safeName = (graphName || 'graph').replace(/[^a-z0-9_-]+/gi, '_')
+    link.href = url
+    link.download = `${safeName}.json`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }, [edges, graphName, nodes])
+
+  const handleImportFile = useCallback(
+    (file: File) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        try {
+          const raw = JSON.parse(String(reader.result || '{}')) as GraphPayload
+          const normalized = normalizeGraph(raw)
+          setGraphName(normalized.name)
+          setNodes(normalized.nodes)
+          setEdges(normalized.edges)
+          setImportError('')
+          setHydrated(true)
+        } catch (error) {
+          setImportError(error instanceof Error ? error.message : 'Unable to parse JSON.')
+        }
+      }
+      reader.readAsText(file)
+    },
+    [setEdges, setNodes],
+  )
+
+  const handleImportChange = (event: ReactChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      handleImportFile(file)
+    }
+    event.target.value = ''
+  }
+
   const changeView = (mode: ViewMode) => {
     setViewMode(mode)
     setSelectedNodeId(null)
@@ -1360,6 +1550,101 @@ export default function App() {
     const y = Math.max(8, Math.min(contextMenu.y, maxY))
     return { x, y }
   }, [contextMenu])
+
+  const activeFact = useMemo(
+    () => QUICK_FACTS.find((fact) => fact.key === activeFactKey) ?? QUICK_FACTS[0],
+    [activeFactKey],
+  )
+
+  const renderFactDiagram = (key: string) => {
+    switch (key) {
+      case 'directed':
+        return (
+          <svg viewBox="0 0 240 140" role="img" aria-label="Directed graph illustration">
+            <defs>
+              <marker
+                id="arrow"
+                markerWidth="8"
+                markerHeight="8"
+                refX="6"
+                refY="4"
+                orient="auto"
+              >
+                <path d="M0,0 L8,4 L0,8 Z" fill="var(--accent)" />
+              </marker>
+            </defs>
+            <line x1="40" y1="70" x2="120" y2="40" stroke="var(--edge)" strokeWidth="3" markerEnd="url(#arrow)" />
+            <line x1="120" y1="40" x2="200" y2="70" stroke="var(--edge)" strokeWidth="3" markerEnd="url(#arrow)" />
+            <circle cx="40" cy="70" r="14" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="120" cy="40" r="14" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="200" cy="70" r="14" fill="var(--node-fill)" stroke="var(--node-border)" />
+          </svg>
+        )
+      case 'trees':
+        return (
+          <svg viewBox="0 0 240 140" role="img" aria-label="Tree graph illustration">
+            <line x1="120" y1="30" x2="60" y2="80" stroke="var(--edge)" strokeWidth="3" />
+            <line x1="120" y1="30" x2="180" y2="80" stroke="var(--edge)" strokeWidth="3" />
+            <line x1="60" y1="80" x2="40" y2="120" stroke="var(--edge)" strokeWidth="3" />
+            <line x1="60" y1="80" x2="80" y2="120" stroke="var(--edge)" strokeWidth="3" />
+            <circle cx="120" cy="30" r="14" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="60" cy="80" r="14" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="180" cy="80" r="14" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="40" cy="120" r="12" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="80" cy="120" r="12" fill="var(--node-fill)" stroke="var(--node-border)" />
+          </svg>
+        )
+      case 'shortest':
+        return (
+          <svg viewBox="0 0 240 140" role="img" aria-label="Shortest path illustration">
+            <line x1="40" y1="70" x2="120" y2="30" stroke="var(--edge)" strokeWidth="2" />
+            <line x1="120" y1="30" x2="200" y2="70" stroke="var(--edge)" strokeWidth="2" />
+            <line x1="40" y1="70" x2="120" y2="110" stroke="var(--edge)" strokeWidth="2" />
+            <line x1="120" y1="110" x2="200" y2="70" stroke="var(--edge)" strokeWidth="2" />
+            <line x1="40" y1="70" x2="200" y2="70" stroke="var(--accent)" strokeWidth="4" />
+            <circle cx="40" cy="70" r="12" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="120" cy="30" r="12" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="120" cy="110" r="12" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="200" cy="70" r="12" fill="var(--node-fill)" stroke="var(--node-border)" />
+          </svg>
+        )
+      case 'coloring':
+        return (
+          <svg viewBox="0 0 240 140" role="img" aria-label="Graph coloring illustration">
+            <line x1="60" y1="70" x2="120" y2="40" stroke="var(--edge)" strokeWidth="3" />
+            <line x1="120" y1="40" x2="180" y2="70" stroke="var(--edge)" strokeWidth="3" />
+            <line x1="60" y1="70" x2="180" y2="70" stroke="var(--edge)" strokeWidth="3" />
+            <circle cx="60" cy="70" r="14" fill="#f59f5a" stroke="var(--node-border)" />
+            <circle cx="120" cy="40" r="14" fill="#5b7cfa" stroke="var(--node-border)" />
+            <circle cx="180" cy="70" r="14" fill="#8b5cf6" stroke="var(--node-border)" />
+          </svg>
+        )
+      case 'planar':
+        return (
+          <svg viewBox="0 0 240 140" role="img" aria-label="Planar graph illustration">
+            <line x1="40" y1="40" x2="200" y2="40" stroke="var(--edge)" strokeWidth="2" />
+            <line x1="40" y1="100" x2="200" y2="100" stroke="var(--edge)" strokeWidth="2" />
+            <line x1="40" y1="40" x2="40" y2="100" stroke="var(--edge)" strokeWidth="2" />
+            <line x1="200" y1="40" x2="200" y2="100" stroke="var(--edge)" strokeWidth="2" />
+            <line x1="40" y1="40" x2="200" y2="100" stroke="var(--accent)" strokeWidth="3" />
+            <circle cx="40" cy="40" r="10" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="200" cy="40" r="10" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="40" cy="100" r="10" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="200" cy="100" r="10" fill="var(--node-fill)" stroke="var(--node-border)" />
+          </svg>
+        )
+      default:
+        return (
+          <svg viewBox="0 0 240 140" role="img" aria-label="Graph illustration">
+            <line x1="50" y1="70" x2="120" y2="40" stroke="var(--edge)" strokeWidth="3" />
+            <line x1="120" y1="40" x2="190" y2="70" stroke="var(--edge)" strokeWidth="3" />
+            <circle cx="50" cy="70" r="14" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="120" cy="40" r="14" fill="var(--node-fill)" stroke="var(--node-border)" />
+            <circle cx="190" cy="70" r="14" fill="var(--node-fill)" stroke="var(--node-border)" />
+          </svg>
+        )
+    }
+  }
 
   const itemModalNode = useMemo(() => {
     if (!itemModal) {
@@ -1451,104 +1736,9 @@ export default function App() {
         className={`workspace ${viewMode === 'facts' ? 'workspace--facts' : ''}`}
         style={workspaceStyle}
       >
-        <aside
-          className={`graph-list ${sidebarCollapsed ? 'graph-list--collapsed' : ''}`}
-          ref={sidebarRef}
-        >
-          <div className="graph-list__header">
-            <div>
-              <div className="graph-list__title">Your Graphs</div>
-              <div className="graph-list__subtitle">{graphList.length} saved</div>
-            </div>
-            {sidebarCollapsed ? (
-              <button
-                className="icon-btn graph-list__expand"
-                type="button"
-                aria-label="Expand sidebar"
-                onClick={() => setSidebarCollapsed(false)}
-              >
-                &gt;
-              </button>
-            ) : (
-              <div className="graph-list__actions">
-                <button className="icon-btn" type="button" onClick={handleCreateGraph}>
-                  +
-                </button>
-                <button
-                  className="icon-btn"
-                  type="button"
-                  aria-label="Collapse sidebar"
-                  onClick={() => setSidebarCollapsed(true)}
-                >
-                  &lt;
-                </button>
-              </div>
-            )}
-          </div>
-
-          <label className="graph-list__field">
-            <span>Active graph</span>
-            <input
-              type="text"
-              value={graphName}
-              onChange={(event) => setGraphName(event.target.value)}
-              placeholder="Graph name"
-            />
-          </label>
-
-          <div className="graph-list__items">
-            {graphList.length === 0 ? (
-              <div className="graph-list__empty">Create your first graph.</div>
-            ) : (
-              graphList.map((graph) => (
-                <button
-                  key={graph.id}
-                  type="button"
-                  className={`graph-list__item ${graph.id === activeGraphId ? 'is-active' : ''}`}
-                  onClick={() => setActiveGraphId(graph.id)}
-                >
-                  <div className="graph-list__name">{graph.name}</div>
-                  <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
-                </button>
-              ))
-            )}
-          </div>
-
-          <button className="btn btn--primary graph-list__cta" type="button" onClick={handleCreateGraph}>
-            New Graph
-          </button>
-          <div className="graph-list__resizer" onMouseDown={handleResizeStart} />
-        </aside>
-
         <section className="flow-shell" ref={flowShellRef}>
           {viewMode === 'graph' ? (
             <>
-              <div className="toolbar">
-                <div className="toolbar__label">Actions</div>
-                <button className="btn btn--primary" type="button" onClick={addNode}>
-                  Add Node
-                </button>
-                <button className="btn btn--ghost" type="button" onClick={addGroup}>
-                  Add Group
-                </button>
-                <button
-                  className="btn btn--ghost"
-                  type="button"
-                  onClick={groupSelected}
-                  disabled={nodes.filter((node) => node.selected).length === 0}
-                >
-                  Group Selected
-                </button>
-                <button
-                  className="btn btn--danger"
-                  type="button"
-                  onClick={deleteSelected}
-                  disabled={selectionCount === 0}
-                >
-                  Delete Selected
-                </button>
-              </div>
-
               <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -1682,171 +1872,310 @@ export default function App() {
               </div>
               <div className="facts__grid">
                 {QUICK_FACTS.map((fact) => (
-                  <article key={fact.title} className="facts__card">
+                  <button
+                    key={fact.key}
+                    type="button"
+                    className={`facts__card ${fact.key === activeFact?.key ? 'is-active' : ''}`}
+                    onClick={() => setActiveFactKey(fact.key)}
+                  >
                     <h3>{fact.title}</h3>
                     <p>{fact.detail}</p>
-                  </article>
+                  </button>
                 ))}
               </div>
+              {activeFact ? (
+                <div className="facts__detail">
+                  <div className="facts__detail-text">
+                    <div className="facts__detail-label">Deep Dive</div>
+                    <h3>{activeFact.title}</h3>
+                    <p>{activeFact.long}</p>
+                  </div>
+                  <div className="facts__detail-graph">{renderFactDiagram(activeFact.key)}</div>
+                </div>
+              ) : null}
               <div className="facts__footer">
                 Want more? Try describing your ideal layout in the AI panel.
               </div>
             </div>
           )}
-        </section>
 
-        <aside
-          className={`drawer ${activeNode ? 'drawer--open' : ''}`}
-          aria-hidden={!activeNode}
-          ref={drawerRef}
-          style={drawerStyle}
-        >
-          {activeNode ? (
-            <>
-              <div className="drawer__resizer" onMouseDown={handleDrawerResizeStart} />
-              <div className="drawer__content">
-              <div className="drawer__header">
-                <div>
-                  <div className="drawer__eyebrow">Node Settings</div>
-                  <h2>{activeNode.data.label}</h2>
+          {viewMode === 'graph' ? (
+            <aside
+              className={`graph-list ${sidebarCollapsed ? 'graph-list--collapsed' : ''}`}
+              ref={sidebarRef}
+            >
+              <div className="graph-list__widget">
+                <div className="graph-list__summary">
+                  <div className="graph-list__title">Your Graphs</div>
+                  <div className="graph-list__subtitle">{graphList.length} saved</div>
+                  <div className="graph-list__active">Active: {graphName || 'Untitled'}</div>
                 </div>
-                <div className="drawer__actions">
-                  <button
-                    className="btn btn--ghost"
-                    type="button"
-                    onClick={() => setSelectedNodeId(null)}
-                  >
-                    Close
-                  </button>
-                  {activeNode.parentNode ? (
+                <div className="graph-list__actions">
+                  {!sidebarCollapsed ? (
+                    <button className="icon-btn" type="button" onClick={handleCreateGraph}>
+                      +
+                    </button>
+                  ) : null}
+                  {!sidebarCollapsed ? (
+                    <button className="icon-btn" type="button" onClick={handleExport} title="Export JSON">
+                      ⤓
+                    </button>
+                  ) : null}
+                  {!sidebarCollapsed ? (
                     <button
-                      className="btn btn--ghost"
+                      className="icon-btn"
                       type="button"
-                      onClick={() => detachFromGroup(activeNode.id)}
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Import JSON"
                     >
-                      Remove from Group
+                      ⤒
                     </button>
                   ) : null}
                   <button
-                    className="btn btn--danger"
+                    className="icon-btn"
                     type="button"
-                    onClick={() => removeNode(activeNode.id)}
+                    aria-label={sidebarCollapsed ? 'Expand graphs panel' : 'Collapse graphs panel'}
+                    onClick={() => setSidebarCollapsed((current) => !current)}
                   >
-                    Remove
+                    {sidebarCollapsed ? '>' : '<'}
                   </button>
                 </div>
               </div>
+              <input
+                ref={fileInputRef}
+                className="graph-list__file"
+                type="file"
+                accept="application/json"
+                onChange={handleImportChange}
+              />
 
-              <label className="field">
-                <span>Title</span>
-                <input
-                  type="text"
-                  value={activeNode.data.label}
-                  onChange={(event) =>
-                    updateNodeData(activeNode.id, (data) => ({
-                      ...data,
-                      label: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+              {!sidebarCollapsed ? (
+                <>
+                  <label className="graph-list__field">
+                    <span>Active graph</span>
+                    <input
+                      type="text"
+                      value={graphName}
+                      onChange={(event) => setGraphName(event.target.value)}
+                      placeholder="Graph name"
+                    />
+                  </label>
 
-              <div className="items">
-                <div className="items__header">
-                  <h3>Items</h3>
-                  <span>{activeNode.data.items.length} items</span>
+                  <div className="graph-list__items">
+                    {graphList.length === 0 ? (
+                      <div className="graph-list__empty">Create your first graph.</div>
+                    ) : (
+                      graphList.map((graph) => (
+                        <button
+                          key={graph.id}
+                          type="button"
+                          className={`graph-list__item ${graph.id === activeGraphId ? 'is-active' : ''}`}
+                          onClick={() => setActiveGraphId(graph.id)}
+                        >
+                          <div className="graph-list__name">{graph.name}</div>
+                          <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+
+                  <button className="btn btn--primary graph-list__cta" type="button" onClick={handleCreateGraph}>
+                    New Graph
+                  </button>
+                  {importError ? <div className="graph-list__error">{importError}</div> : null}
+                  <div className="graph-list__resizer" onMouseDown={handleResizeStart} />
+                </>
+              ) : null}
+            </aside>
+          ) : null}
+
+          {viewMode === 'graph' ? (
+            <div className="toolbar" style={toolbarStyle} ref={toolbarRef}>
+              <div className="toolbar__label" onMouseDown={handleToolbarDragStart}>
+                Actions
+              </div>
+              <button className="btn btn--primary" type="button" onClick={addNode}>
+                Add Node
+              </button>
+              <button className="btn btn--ghost" type="button" onClick={addGroup}>
+                Add Group
+              </button>
+              <button
+                className="btn btn--ghost"
+                type="button"
+                onClick={groupSelected}
+                disabled={nodes.filter((node) => node.selected).length === 0}
+              >
+                Group Selected
+              </button>
+              <button
+                className="btn btn--danger"
+                type="button"
+                onClick={deleteSelected}
+                disabled={selectionCount === 0}
+              >
+                Delete Selected
+              </button>
+            </div>
+          ) : null}
+
+          {viewMode === 'graph' ? (
+            <>
+              <aside
+                className={`drawer ${activeNode ? 'drawer--open' : ''}`}
+                aria-hidden={!activeNode}
+                ref={drawerRef}
+                style={drawerStyle}
+              >
+                {activeNode ? (
+                  <>
+                    <div className="drawer__resizer" onMouseDown={handleDrawerResizeStart} />
+                    <div className="drawer__content">
+                      <div className="drawer__header">
+                        <div>
+                          <div className="drawer__eyebrow">Node Settings</div>
+                          <h2>{activeNode.data.label}</h2>
+                        </div>
+                        <div className="drawer__actions">
+                          <button
+                            className="btn btn--ghost"
+                            type="button"
+                            onClick={() => setSelectedNodeId(null)}
+                          >
+                            Close
+                          </button>
+                          {activeNode.parentNode ? (
+                            <button
+                              className="btn btn--ghost"
+                              type="button"
+                              onClick={() => detachFromGroup(activeNode.id)}
+                            >
+                              Remove from Group
+                            </button>
+                          ) : null}
+                          <button
+                            className="btn btn--danger"
+                            type="button"
+                            onClick={() => removeNode(activeNode.id)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+
+                      <label className="field">
+                        <span>Title</span>
+                        <input
+                          type="text"
+                          value={activeNode.data.label}
+                          onChange={(event) =>
+                            updateNodeData(activeNode.id, (data) => ({
+                              ...data,
+                              label: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <div className="items">
+                        <div className="items__header">
+                          <h3>Items</h3>
+                          <span>{activeNode.data.items.length} items</span>
+                        </div>
+                        <ul className="items__list">
+                          {activeNode.data.items.map((item) => (
+                            <li key={item.id} className="items__item">
+                              <button
+                                className="items__button"
+                                type="button"
+                                onClick={() => {
+                                  setItemModal({ nodeId: activeNode.id, itemId: item.id })
+                                  setItemNoteTitle('')
+                                }}
+                              >
+                                <span>{item.title}</span>
+                                <span className="items__meta">{item.notes.length} notes</span>
+                              </button>
+                              <button
+                                className="items__remove"
+                                type="button"
+                                onClick={() => removeItem(activeNode.id, item.id)}
+                              >
+                                Remove
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        <form
+                          className="items__form"
+                          onSubmit={(event) => {
+                            event.preventDefault()
+                            addItem(activeNode.id, itemTitle)
+                            setItemTitle('')
+                          }}
+                        >
+                          <input
+                            type="text"
+                            placeholder="Add an item..."
+                            value={itemTitle}
+                            onChange={(event) => setItemTitle(event.target.value)}
+                          />
+                          <button className="btn btn--primary" type="submit">
+                            Add Item
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+              </aside>
+
+              <aside className={`chat-panel ${chatOpen ? 'chat-panel--open' : ''}`} aria-hidden={!chatOpen}>
+                <div className="chat-panel__header">
+                  <div>
+                    <div className="chat-panel__eyebrow">AI Assistant</div>
+                    <h2>Describe your graph</h2>
+                  </div>
+                  <button className="btn btn--ghost" type="button" onClick={() => setChatOpen(false)}>
+                    Close
+                  </button>
                 </div>
-                <ul className="items__list">
-                  {activeNode.data.items.map((item) => (
-                    <li key={item.id} className="items__item">
-                      <button
-                        className="items__button"
-                        type="button"
-                        onClick={() => {
-                          setItemModal({ nodeId: activeNode.id, itemId: item.id })
-                          setItemNoteTitle('')
-                        }}
-                      >
-                        <span>{item.title}</span>
-                        <span className="items__meta">{item.notes.length} notes</span>
-                      </button>
-                      <button
-                        className="items__remove"
-                        type="button"
-                        onClick={() => removeItem(activeNode.id, item.id)}
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <form
-                  className="items__form"
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    addItem(activeNode.id, itemTitle)
-                    setItemTitle('')
-                  }}
-                >
+                <div className="chat-panel__body">
+                  <p className="chat-panel__note">
+                    This panel is reserved for the upcoming AI experience. Soon you will be able to
+                    describe the structure and we will sketch it instantly.
+                  </p>
+                  {chatMessages.length > 0 ? (
+                    <div className="chat-panel__messages">
+                      {chatMessages.map((message) => (
+                        <div key={message.id} className={`chat-message chat-message--${message.role}`}>
+                          {message.content}
+                        </div>
+                      ))}
+                      <div ref={chatEndRef} />
+                    </div>
+                  ) : (
+                    <div className="chat-panel__placeholder">
+                      <div className="chip">Example: “Group nodes by theme and connect milestones.”</div>
+                      <div className="chip">Example: “Create a hub and spoke layout with 6 clusters.”</div>
+                    </div>
+                  )}
+                </div>
+                <form className="chat-panel__input" onSubmit={handleChatSend}>
                   <input
                     type="text"
-                    placeholder="Add an item..."
-                    value={itemTitle}
-                    onChange={(event) => setItemTitle(event.target.value)}
+                    placeholder="Tell us about your graph..."
+                    value={chatInput}
+                    onChange={(event) => setChatInput(event.target.value)}
                   />
-                  <button className="btn btn--primary" type="submit">
-                    Add Item
+                  <button className="btn btn--ghost" type="submit">
+                    Send
                   </button>
                 </form>
-              </div>
-            </div>
+              </aside>
             </>
           ) : null}
-        </aside>
-
-        <aside className={`chat-panel ${chatOpen ? 'chat-panel--open' : ''}`} aria-hidden={!chatOpen}>
-          <div className="chat-panel__header">
-            <div>
-              <div className="chat-panel__eyebrow">AI Assistant</div>
-              <h2>Describe your graph</h2>
-            </div>
-            <button className="btn btn--ghost" type="button" onClick={() => setChatOpen(false)}>
-              Close
-            </button>
-          </div>
-          <div className="chat-panel__body">
-            <p className="chat-panel__note">
-              This panel is reserved for the upcoming AI experience. Soon you will be able to
-              describe the structure and we will sketch it instantly.
-            </p>
-            {chatMessages.length > 0 ? (
-              <div className="chat-panel__messages">
-                {chatMessages.map((message) => (
-                  <div key={message.id} className={`chat-message chat-message--${message.role}`}>
-                    {message.content}
-                  </div>
-                ))}
-                <div ref={chatEndRef} />
-              </div>
-            ) : (
-              <div className="chat-panel__placeholder">
-                <div className="chip">Example: “Group nodes by theme and connect milestones.”</div>
-                <div className="chip">Example: “Create a hub and spoke layout with 6 clusters.”</div>
-              </div>
-            )}
-          </div>
-          <form className="chat-panel__input" onSubmit={handleChatSend}>
-            <input
-              type="text"
-              placeholder="Tell us about your graph..."
-              value={chatInput}
-              onChange={(event) => setChatInput(event.target.value)}
-            />
-            <button className="btn btn--ghost" type="submit">
-              Send
-            </button>
-          </form>
-        </aside>
+        </section>
       </main>
 
       {authOpen ? (
@@ -1990,33 +2319,49 @@ export default function App() {
           <div className="modal modal--compact" onClick={(event) => event.stopPropagation()}>
             <h2>Settings</h2>
             <p className="modal__subtitle">Tune the workspace to your style.</p>
-            <div className="modal__section">
-              <div className="modal__label">Theme</div>
-              <div className="mode-toggle">
-                <button
-                  type="button"
-                  className={`mode-toggle__btn ${themePreference === 'dark' ? 'is-active' : ''}`}
-                  onClick={() => setThemePreference('dark')}
-                >
-                  Dark
-                </button>
-                <button
-                  type="button"
-                  className={`mode-toggle__btn ${themePreference === 'light' ? 'is-active' : ''}`}
-                  onClick={() => setThemePreference('light')}
-                >
-                  Light
-                </button>
-                <button
-                  type="button"
-                  className={`mode-toggle__btn ${themePreference === 'system' ? 'is-active' : ''}`}
-                  onClick={() => setThemePreference('system')}
-                >
-                  System
-                </button>
+              <div className="modal__section">
+                <div className="modal__label">Theme</div>
+                <div className="mode-toggle">
+                  <button
+                    type="button"
+                    className={`mode-toggle__btn ${themePreference === 'dark' ? 'is-active' : ''}`}
+                    onClick={() => setThemePreference('dark')}
+                  >
+                    Dark
+                  </button>
+                  <button
+                    type="button"
+                    className={`mode-toggle__btn ${themePreference === 'light' ? 'is-active' : ''}`}
+                    onClick={() => setThemePreference('light')}
+                  >
+                    Light
+                  </button>
+                  <button
+                    type="button"
+                    className={`mode-toggle__btn ${themePreference === 'system' ? 'is-active' : ''}`}
+                    onClick={() => setThemePreference('system')}
+                  >
+                    System
+                  </button>
+                </div>
+                <div className="modal__hint">Currently in {resolvedTheme} mode.</div>
               </div>
-              <div className="modal__hint">Currently in {resolvedTheme} mode.</div>
-            </div>
+              <div className="modal__section">
+                <div className="modal__label">Accent Color</div>
+                <div className="palette">
+                  {ACCENT_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className={`palette__swatch ${accentChoice === option.id ? 'is-active' : ''}`}
+                      style={{ background: option.accent }}
+                      onClick={() => setAccentChoice(option.id)}
+                    >
+                      <span>{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             <div className="modal__actions">
               <button className="btn btn--ghost" type="button" onClick={() => setSettingsOpen(false)}>
                 Close
