@@ -38,7 +38,9 @@ export default function Graph3DView({
   accentSeed,
 }: Graph3DViewProps) {
   const graphRef = useRef<any>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [viewport, setViewport] = useState({ width: 0, height: 0 })
 
   useEffect(() => {
     setNodes((current) => {
@@ -78,6 +80,26 @@ export default function Graph3DView({
     return () => {
       scene.remove(axes)
     }
+  }, [])
+
+  useEffect(() => {
+    const element = containerRef.current
+    if (!element) {
+      return
+    }
+
+    const updateSize = () => {
+      const rect = element.getBoundingClientRect()
+      setViewport({
+        width: Math.max(0, Math.floor(rect.width)),
+        height: Math.max(0, Math.floor(rect.height)),
+      })
+    }
+
+    updateSize()
+    const observer = new ResizeObserver(() => updateSize())
+    observer.observe(element)
+    return () => observer.disconnect()
   }, [])
 
   const graphData = useMemo(() => {
@@ -193,10 +215,12 @@ export default function Graph3DView({
   }
 
   return (
-    <div className="graph-3d">
+    <div className="graph-3d" ref={containerRef}>
       <ForceGraph3D
         ref={graphRef}
         graphData={graphData}
+        width={viewport.width || undefined}
+        height={viewport.height || undefined}
         nodeLabel="name"
         nodeColor={(node) => (selectedIds.includes(String(node.id)) ? colors.accent : colors.node)}
         linkColor={() => colors.edge}

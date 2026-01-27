@@ -114,7 +114,6 @@ export const normalizeGraph = (payload: GraphPayload | null): GraphPayload => {
     const progress = coerceNumber((rawData as NodeData).progress, 0)
     const scriptName =
       typeof (rawData as NodeData).scriptName === 'string' ? (rawData as NodeData).scriptName : ''
-
     return {
       ...node,
       type: node.type ?? 'default',

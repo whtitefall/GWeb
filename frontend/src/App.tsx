@@ -46,6 +46,7 @@ import {
   DRAWER_MAX,
   DRAWER_MIN,
   GROUP_PADDING,
+  SOLAR_SYSTEM_GRAPH,
   SIDEBAR_COLLAPSED,
   SIDEBAR_MAX,
   SIDEBAR_MIN,
@@ -162,6 +163,7 @@ export default function App() {
   const toolbarOffsetRef = useRef({ x: 0, y: 0 })
   const toolbarMovedRef = useRef(false)
   const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number } | null>(null)
+  const seeded3dGraphsRef = useRef<Set<string>>(new Set())
 
   const isGraphNoteView = viewMode === 'graph'
   const isApplicationView = viewMode === 'application'
@@ -461,7 +463,7 @@ export default function App() {
   }, [activeGraphId, graphName, setEdges, setNodes])
 
   useEffect(() => {
-    if (!activeGraphId) {
+    if (!activeGraphId || !hydrated) {
       return
     }
     setGraphList((current) =>
@@ -469,7 +471,7 @@ export default function App() {
         graph.id === activeGraphId ? { ...graph, name: graphName } : graph,
       ),
     )
-  }, [activeGraphId, graphName])
+  }, [activeGraphId, graphName, hydrated])
 
   useEffect(() => {
     if (!hydrated || !activeGraphId) {
@@ -1277,10 +1279,35 @@ export default function App() {
     [setEdges, setNodes],
   )
 
+  const seedSolarSystemIfNeeded = useCallback(() => {
+    if (!activeGraphId) {
+      return
+    }
+    if (seeded3dGraphsRef.current.has(activeGraphId)) {
+      return
+    }
+    const isDefaultGraph =
+      graphName === defaultGraph.name &&
+      nodes.length === defaultGraph.nodes.length &&
+      edges.length === defaultGraph.edges.length
+    if (!isDefaultGraph) {
+      return
+    }
+    const normalized = normalizeGraph(SOLAR_SYSTEM_GRAPH)
+    setGraphName(normalized.name)
+    setNodes(normalized.nodes)
+    setEdges(normalized.edges)
+    setSelectedNodeId(null)
+    seeded3dGraphsRef.current.add(activeGraphId)
+  }, [activeGraphId, edges.length, graphName, nodes.length, setEdges, setNodes])
+
   const changeView = (mode: ViewMode) => {
     setViewMode(mode)
     setSelectedNodeId(null)
     setChatOpen(false)
+    if (mode === 'graph3d') {
+      seedSolarSystemIfNeeded()
+    }
   }
 
   const handleToggleChat = useCallback(() => {
@@ -1401,6 +1428,9 @@ export default function App() {
                 onConnect={onConnect}
                 onInit={(instance) => {
                   reactFlowInstance.current = instance
+                  instance.fitView({ padding: 0.2 })
+                  const viewport = instance.getViewport ? instance.getViewport() : { x: 0, y: 0, zoom: 1 }
+                  instance.setViewport({ x: viewport.x, y: viewport.y, zoom: 0.8 }, { duration: 0 })
                 }}
                 onNodeClick={(_, node) => {
                   setChatOpen(false)
@@ -1440,8 +1470,7 @@ export default function App() {
                   event.preventDefault()
                   setContextMenu(null)
                 }}
-                fitView
-                fitViewOptions={{ padding: 0.2 }}
+                defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
                 deleteKeyCode={['Backspace', 'Delete']}
                 defaultEdgeOptions={{
                   type: 'smoothstep',

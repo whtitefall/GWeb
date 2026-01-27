@@ -146,6 +146,47 @@ export const defaultGraph: GraphPayload = {
   ],
 }
 
+const SOLAR_SYSTEM_POSITIONS = [
+  { id: 'sun', label: 'Sun', radius: 0, angle: 0, z: 0 },
+  { id: 'mercury', label: 'Mercury', radius: 120, angle: 20, z: 10 },
+  { id: 'venus', label: 'Venus', radius: 180, angle: 60, z: -10 },
+  { id: 'earth', label: 'Earth', radius: 240, angle: 110, z: 14 },
+  { id: 'mars', label: 'Mars', radius: 300, angle: 150, z: -8 },
+  { id: 'jupiter', label: 'Jupiter', radius: 380, angle: 200, z: 22 },
+  { id: 'saturn', label: 'Saturn', radius: 460, angle: 250, z: -18 },
+  { id: 'uranus', label: 'Uranus', radius: 540, angle: 300, z: 16 },
+  { id: 'neptune', label: 'Neptune', radius: 620, angle: 340, z: -12 },
+] as const
+
+export const SOLAR_SYSTEM_GRAPH: GraphPayload = {
+  name: 'Solar System',
+  nodes: SOLAR_SYSTEM_POSITIONS.map((planet, index) => {
+    const radians = (planet.angle * Math.PI) / 180
+    const x = Math.cos(radians) * planet.radius
+    const y = Math.sin(radians) * planet.radius
+    return {
+      id: planet.id,
+      type: 'default',
+      position: { x, y },
+      data: {
+        label: planet.label,
+        position3d: {
+          x: planet.radius,
+          y: planet.z,
+          z: index * 30,
+        },
+        items: [],
+      },
+    }
+  }),
+  edges: SOLAR_SYSTEM_POSITIONS.filter((planet) => planet.id !== 'sun').map((planet) => ({
+    id: `edge-${planet.id}`,
+    source: 'sun',
+    target: planet.id,
+    type: 'smoothstep',
+  })),
+}
+
 export const QUICK_FACTS = [
   {
     key: 'vertices',
