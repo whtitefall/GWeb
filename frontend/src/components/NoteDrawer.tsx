@@ -1,0 +1,121 @@
+import type { CSSProperties, MouseEvent, RefObject } from 'react'
+import type { GraphNode } from '../graphTypes'
+
+type NoteDrawerProps = {
+  activeNode: GraphNode | null
+  drawerStyle: CSSProperties
+  drawerRef: RefObject<HTMLElement | null>
+  onResizeStart: (event: MouseEvent<HTMLDivElement>) => void
+  onClose: () => void
+  onRemoveNode: (nodeId: string) => void
+  onDetachFromGroup: (nodeId: string) => void
+  onUpdateLabel: (nodeId: string, value: string) => void
+  itemTitle: string
+  onItemTitleChange: (value: string) => void
+  onAddItem: (nodeId: string, title: string) => void
+  onRemoveItem: (nodeId: string, itemId: string) => void
+  onOpenItemModal: (nodeId: string, itemId: string) => void
+}
+
+export default function NoteDrawer({
+  activeNode,
+  drawerStyle,
+  drawerRef,
+  onResizeStart,
+  onClose,
+  onRemoveNode,
+  onDetachFromGroup,
+  onUpdateLabel,
+  itemTitle,
+  onItemTitleChange,
+  onAddItem,
+  onRemoveItem,
+  onOpenItemModal,
+}: NoteDrawerProps) {
+  return (
+    <aside
+      className={`drawer ${activeNode ? 'drawer--open' : ''}`}
+      aria-hidden={!activeNode}
+      ref={drawerRef}
+      style={drawerStyle}
+    >
+      {activeNode ? (
+        <>
+          <div className="drawer__resizer" onMouseDown={onResizeStart} />
+          <div className="drawer__content">
+            <div className="drawer__header">
+              <div>
+                <div className="drawer__eyebrow">Node Settings</div>
+                <h2>{activeNode.data.label}</h2>
+              </div>
+              <div className="drawer__actions">
+                <button className="btn btn--ghost" type="button" onClick={onClose}>
+                  Close
+                </button>
+                {activeNode.parentNode ? (
+                  <button className="btn btn--ghost" type="button" onClick={() => onDetachFromGroup(activeNode.id)}>
+                    Remove from Group
+                  </button>
+                ) : null}
+                <button className="btn btn--danger" type="button" onClick={() => onRemoveNode(activeNode.id)}>
+                  Remove
+                </button>
+              </div>
+            </div>
+
+            <label className="field">
+              <span>Title</span>
+              <input
+                type="text"
+                value={activeNode.data.label}
+                onChange={(event) => onUpdateLabel(activeNode.id, event.target.value)}
+              />
+            </label>
+
+            <div className="items">
+              <div className="items__header">
+                <h3>Items</h3>
+                <span>{activeNode.data.items.length} items</span>
+              </div>
+              <ul className="items__list">
+                {activeNode.data.items.map((item) => (
+                  <li key={item.id} className="items__item">
+                    <button
+                      className="items__button"
+                      type="button"
+                      onClick={() => onOpenItemModal(activeNode.id, item.id)}
+                    >
+                      <span>{item.title}</span>
+                      <span className="items__meta">{item.notes.length} notes</span>
+                    </button>
+                    <button className="items__remove" type="button" onClick={() => onRemoveItem(activeNode.id, item.id)}>
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <form
+                className="items__form"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  onAddItem(activeNode.id, itemTitle)
+                  onItemTitleChange('')
+                }}
+              >
+                <input
+                  type="text"
+                  placeholder="Add an item..."
+                  value={itemTitle}
+                  onChange={(event) => onItemTitleChange(event.target.value)}
+                />
+                <button className="btn btn--primary" type="submit">
+                  Add Item
+                </button>
+              </form>
+            </div>
+          </div>
+        </>
+      ) : null}
+    </aside>
+  )
+}
