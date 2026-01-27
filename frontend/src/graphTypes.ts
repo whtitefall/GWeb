@@ -19,6 +19,8 @@ export type NodeData = {
     y: number
     z: number
   }
+  progress?: number
+  scriptName?: string
 }
 
 export type GraphNode = Node<NodeData>

@@ -26,6 +26,7 @@ import ReactFlow, {
   type Connection,
   type Edge,
   type NodeProps,
+  type NodeTypes,
   type ReactFlowInstance,
 } from 'reactflow'
 import ForceGraph3D from 'react-force-graph-3d'
@@ -52,9 +53,15 @@ const DRAWER_MIN = 280
 const DRAWER_MAX = 900
 
 type ThemePreference = 'dark' | 'light' | 'system'
-type ViewMode = 'graph' | 'graph3d' | 'facts'
+type ViewMode = 'graph' | 'application' | 'graph3d' | 'facts'
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string }
 type FactKey = (typeof QUICK_FACTS)[number]['key']
+type SshConfig = {
+  host: string
+  port: string
+  user: string
+  keyPath: string
+}
 
 const ACCENT_OPTIONS = [
   {
@@ -339,6 +346,10 @@ const normalizeGraph = (payload: GraphPayload | null): GraphPayload => {
     const basePosition = node.position ?? { x: 0, y: 0 }
     const position3d = resolvePosition3d((rawData as NodeData).position3d, basePosition, index)
 
+    const progress = coerceNumber((rawData as NodeData).progress, 0)
+    const scriptName =
+      typeof (rawData as NodeData).scriptName === 'string' ? (rawData as NodeData).scriptName : ''
+
     return {
       ...node,
       type: node.type ?? 'default',
@@ -348,6 +359,8 @@ const normalizeGraph = (payload: GraphPayload | null): GraphPayload => {
         label,
         items: ensureItems((rawData as NodeData).items, (rawData as { notes?: Note[] }).notes),
         position3d,
+        progress,
+        scriptName,
       },
       style,
     }
@@ -464,14 +477,6 @@ const isValidColor = (value: string) => {
   return false
 }
 
-const isGreeting = (value: string) => {
-  const trimmed = value.trim().toLowerCase()
-  if (trimmed.length > 24) {
-    return false
-  }
-  return /^(hi|hello|hey|yo|sup|good morning|good afternoon|good evening)(!|\.)?$/.test(trimmed)
-}
-
 const resolveAuthName = (session: {
   user?: { user_metadata?: { full_name?: string }; email?: string }
 } | null) => {
@@ -517,6 +522,31 @@ function GroupNode({ data, selected }: NodeProps<NodeData>) {
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
     </div>
+  )
+}
+
+function TaskNode({ data, selected }: NodeProps<NodeData>) {
+  const progress = Math.min(100, Math.max(0, coerceNumber(data.progress, 0)))
+  return (
+    <div className={`task-node ${selected ? 'task-node--selected' : ''}`}>
+      <div className="task-node__title">{data.label}</div>
+      <div className="task-node__progress">
+        <div className="task-node__progress-bar" style={{ width: `${progress}%` }} />
+      </div>
+      <div className="task-node__meta">{Math.round(progress)}%</div>
+      <Handle type="target" position={Position.Top} />
+      <Handle type="source" position={Position.Bottom} />
+    </div>
+  )
+}
+
+function NoteNode({ data }: NodeProps<NodeData>) {
+  return (
+    <>
+      <div>{data.label}</div>
+      <Handle type="target" position={Position.Left} />
+      <Handle type="source" position={Position.Right} />
+    </>
   )
 }
 
@@ -742,6 +772,16 @@ export default function App() {
   const [graphList, setGraphList] = useState<GraphSummary[]>([])
   const [activeGraphId, setActiveGraphId] = useState<string | null>(null)
   const [graphName, setGraphName] = useState(defaultGraph.name)
+  const [sshConfigs, setSshConfigs] = useState<Record<string, SshConfig>>({})
+  const [sshModal, setSshModal] = useState<{ graphId: string } | null>(null)
+  const [sshDraft, setSshDraft] = useState<SshConfig>({
+    host: '',
+    port: '22',
+    user: '',
+    keyPath: '',
+  })
+  const [sshConsoleOpen, setSshConsoleOpen] = useState(false)
+  const [sshConsoleMinimized, setSshConsoleMinimized] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [itemTitle, setItemTitle] = useState('')
   const [itemModal, setItemModal] = useState<{ nodeId: string; itemId: string } | null>(null)
@@ -763,7 +803,16 @@ export default function App() {
     const parsed = stored ? Number(stored) : 260
     return Number.isFinite(parsed) ? parsed : 260
   })
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true
+    }
+    const stored = window.localStorage.getItem('gweb.sidebar.collapsed')
+    if (stored === 'true' || stored === 'false') {
+      return stored === 'true'
+    }
+    return true
+  })
   const [contextMenu, setContextMenu] = useState<
     | { kind: 'node'; id: string; x: number; y: number }
     | { kind: 'edge'; id: string; x: number; y: number }
@@ -815,7 +864,27 @@ export default function App() {
   const toolbarMovedRef = useRef(false)
   const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number } | null>(null)
 
-  const nodeTypes = useMemo(() => ({ group: GroupNode }), [])
+  const isGraphNoteView = viewMode === 'graph'
+  const isApplicationView = viewMode === 'application'
+  const is2DView = isGraphNoteView || isApplicationView
+
+  const sshConsoleStyle = useMemo(() => {
+    if (!isApplicationView || !sshConsoleOpen) {
+      return undefined
+    }
+    const sidebarSpace = sidebarCollapsed ? SIDEBAR_COLLAPSED : sidebarWidth
+    return {
+      left: 16 + sidebarSpace + 12,
+    }
+  }, [isApplicationView, sshConsoleOpen, sidebarCollapsed, sidebarWidth])
+
+  const nodeTypes = useMemo<NodeTypes>(
+    () => ({
+      group: GroupNode,
+      default: viewMode === 'application' ? TaskNode : NoteNode,
+    }),
+    [viewMode],
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -886,6 +955,12 @@ export default function App() {
       window.localStorage.setItem('gweb.sidebar.width', String(sidebarWidth))
     }
   }, [sidebarWidth])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('gweb.sidebar.collapsed', String(sidebarCollapsed))
+    }
+  }, [sidebarCollapsed])
 
   useEffect(() => {
     const handleMove = (event: MouseEvent) => {
@@ -1291,6 +1366,8 @@ export default function App() {
           y: (centerPosition.y - 200) * 0.6,
           z: (spawnIndex.current % 5) * 40 - 80,
         },
+        progress: 0,
+        scriptName: '',
       },
     }
 
@@ -1825,18 +1902,6 @@ export default function App() {
       setChatMessages((current) => current.concat(userMessage))
       setChatInput('')
       setChatError('')
-
-      if (isGreeting(trimmed)) {
-        setChatMessages((current) =>
-          current.concat({
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: 'Hi! Tell me what graph you want and I can build it for you.',
-          }),
-        )
-        return
-      }
-
       setChatLoading(true)
 
       try {
@@ -1918,6 +1983,28 @@ export default function App() {
     setViewMode(mode)
     setSelectedNodeId(null)
     setChatOpen(false)
+  }
+
+  const openSshConfig = (graphId: string) => {
+    const existing = sshConfigs[graphId] ?? {
+      host: '',
+      port: '22',
+      user: '',
+      keyPath: '',
+    }
+    setSshDraft(existing)
+    setSshModal({ graphId })
+  }
+
+  const saveSshConfig = () => {
+    if (!sshModal) {
+      return
+    }
+    setSshConfigs((current) => ({
+      ...current,
+      [sshModal.graphId]: sshDraft,
+    }))
+    setSshModal(null)
   }
 
   const contextNode = useMemo(
@@ -2071,7 +2158,14 @@ export default function App() {
             className={`nav-btn ${viewMode === 'graph' ? 'is-active' : ''}`}
             onClick={() => changeView('graph')}
           >
-            Graph
+            Graph Note
+          </button>
+          <button
+            type="button"
+            className={`nav-btn ${viewMode === 'application' ? 'is-active' : ''}`}
+            onClick={() => changeView('application')}
+          >
+            Graph Application
           </button>
           <button
             type="button"
@@ -2138,7 +2232,7 @@ export default function App() {
         style={workspaceStyle}
       >
         <section className="flow-shell" ref={flowShellRef}>
-          {viewMode === 'graph' ? (
+          {is2DView ? (
             <>
               <ReactFlow
                 nodes={nodes}
@@ -2311,7 +2405,7 @@ export default function App() {
             </div>
           )}
 
-          {viewMode === 'graph' ? (
+          {is2DView ? (
             <aside
               className={`graph-list ${sidebarCollapsed ? 'graph-list--collapsed' : ''}`}
               ref={sidebarRef}
@@ -2373,31 +2467,33 @@ export default function App() {
 
               {!sidebarCollapsed ? (
                 <>
-                  <label className="graph-list__field">
-                    <span>Active graph</span>
-                    <input
-                      type="text"
-                      value={graphName}
-                      onChange={(event) => setGraphName(event.target.value)}
-                      placeholder="Graph name"
-                    />
-                  </label>
-
                   <div className="graph-list__items">
                     {graphList.length === 0 ? (
                       <div className="graph-list__empty">Create your first graph.</div>
                     ) : (
-                    graphList.map((graph) => (
-                      <button
-                        key={graph.id}
-                        type="button"
-                        className={`graph-list__item ${graph.id === activeGraphId ? 'is-active' : ''}`}
-                        onClick={() => setActiveGraphId(graph.id)}
-                      >
-                        <div className="graph-list__name">{graph.name}</div>
-                        <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
-                      </button>
-                    ))
+                    graphList.map((graph) =>
+                      isApplicationView ? (
+                        <button
+                          key={graph.id}
+                          type="button"
+                          className={`graph-list__item ${graph.id === activeGraphId ? 'is-active' : ''}`}
+                          onClick={() => setActiveGraphId(graph.id)}
+                        >
+                          <div className="graph-list__name">{graph.name}</div>
+                          <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
+                        </button>
+                      ) : (
+                        <button
+                          key={graph.id}
+                          type="button"
+                          className={`graph-list__item ${graph.id === activeGraphId ? 'is-active' : ''}`}
+                          onClick={() => setActiveGraphId(graph.id)}
+                        >
+                          <div className="graph-list__name">{graph.name}</div>
+                          <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
+                        </button>
+                      ),
+                    )
                   )}
                 </div>
 
@@ -2411,7 +2507,7 @@ export default function App() {
             </aside>
           ) : null}
 
-          {viewMode === 'graph' ? (
+          {is2DView ? (
             <div className="toolbar" style={toolbarStyle} ref={toolbarRef}>
               <div className="toolbar__label" onMouseDown={handleToolbarDragStart}>
                 Actions
@@ -2422,6 +2518,16 @@ export default function App() {
               <button className="btn btn--ghost" type="button" onClick={addGroup}>
                 Add Group
               </button>
+              {isApplicationView ? (
+                <button
+                  className="btn btn--ghost"
+                  type="button"
+                  onClick={() => activeGraphId && openSshConfig(activeGraphId)}
+                  disabled={!activeGraphId}
+                >
+                  SSH
+                </button>
+              ) : null}
               <button
                 className="btn btn--ghost"
                 type="button"
@@ -2430,18 +2536,37 @@ export default function App() {
               >
                 Group Selected
               </button>
-              <button
-                className="btn btn--danger"
-                type="button"
-                onClick={deleteSelected}
-                disabled={selectionCount === 0}
-              >
-                Delete Selected
-              </button>
+              {isGraphNoteView ? (
+                <button
+                  className="btn btn--danger"
+                  type="button"
+                  onClick={deleteSelected}
+                  disabled={selectionCount === 0}
+                >
+                  Delete Selected
+                </button>
+              ) : null}
+              {isApplicationView ? (
+                <button
+                  className="btn btn--ghost"
+                  type="button"
+                  onClick={() => {
+                    setSshConsoleOpen((open) => {
+                      const next = !open
+                      if (next) {
+                        setSshConsoleMinimized(false)
+                      }
+                      return next
+                    })
+                  }}
+                >
+                  Console
+                </button>
+              ) : null}
             </div>
           ) : null}
 
-          {viewMode === 'graph' ? (
+          {isGraphNoteView ? (
             <>
               <aside
                 className={`drawer ${activeNode ? 'drawer--open' : ''}`}
@@ -2598,8 +2723,263 @@ export default function App() {
               </aside>
             </>
           ) : null}
+
+          {isApplicationView ? (
+            <>
+              <aside
+                className={`drawer ${activeNode ? 'drawer--open' : ''}`}
+                aria-hidden={!activeNode}
+                ref={drawerRef}
+                style={drawerStyle}
+              >
+                {activeNode ? (
+                  <>
+                    <div className="drawer__resizer" onMouseDown={handleDrawerResizeStart} />
+                    <div className="drawer__content">
+                      <div className="drawer__header">
+                        <div>
+                          <div className="drawer__eyebrow">Task Settings</div>
+                          <h2>{activeNode.data.label}</h2>
+                        </div>
+                        <div className="drawer__actions">
+                          <button
+                            className="btn btn--ghost"
+                            type="button"
+                            onClick={() => setSelectedNodeId(null)}
+                          >
+                            Close
+                          </button>
+                          <button
+                            className="btn btn--danger"
+                            type="button"
+                            onClick={() => removeNode(activeNode.id)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+
+                      <label className="field">
+                        <span>Task Name</span>
+                        <input
+                          type="text"
+                          value={activeNode.data.label}
+                          onChange={(event) =>
+                            updateNodeData(activeNode.id, (data) => ({
+                              ...data,
+                              label: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label className="field">
+                        <span>Upload Script</span>
+                        <input
+                          type="file"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0]
+                            if (!file) return
+                            updateNodeData(activeNode.id, (data) => ({
+                              ...data,
+                              scriptName: file.name,
+                              progress: 0,
+                            }))
+                          }}
+                        />
+                      </label>
+                      {activeNode.data.scriptName ? (
+                        <div className="script-meta">Selected: {activeNode.data.scriptName}</div>
+                      ) : null}
+
+                      <label className="field">
+                        <span>Progress</span>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={Math.min(100, Math.max(0, coerceNumber(activeNode.data.progress, 0)))}
+                          onChange={(event) =>
+                            updateNodeData(activeNode.id, (data) => ({
+                              ...data,
+                              progress: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <button
+                        className="btn btn--primary"
+                        type="button"
+                        onClick={() =>
+                          updateNodeData(activeNode.id, (data) => ({
+                            ...data,
+                            progress: 100,
+                          }))
+                        }
+                      >
+                        Upload Script
+                      </button>
+                      <p className="drawer__hint">
+                        Script upload will be wired to the SSH tunnel in a future backend step.
+                      </p>
+                    </div>
+                  </>
+                ) : null}
+              </aside>
+
+              <aside className={`chat-panel ${chatOpen ? 'chat-panel--open' : ''}`} aria-hidden={!chatOpen}>
+                <div className="chat-panel__header">
+                  <div>
+                    <div className="chat-panel__eyebrow">AI Assistant</div>
+                    <h2>Describe your graph</h2>
+                  </div>
+                  <button className="btn btn--ghost" type="button" onClick={() => setChatOpen(false)}>
+                    Close
+                  </button>
+                </div>
+                <div className="chat-panel__body">
+                  <p className="chat-panel__note">
+                    Describe the structure and the AI will sketch it instantly.
+                  </p>
+                  {chatError ? <div className="chat-panel__error">{chatError}</div> : null}
+                  {chatMessages.length > 0 ? (
+                    <div className="chat-panel__messages">
+                      {chatMessages.map((message) => (
+                        <div key={message.id} className={`chat-message chat-message--${message.role}`}>
+                          {message.content}
+                        </div>
+                      ))}
+                      <div ref={chatEndRef} />
+                    </div>
+                  ) : (
+                    <div className="chat-panel__placeholder">
+                      <div className="chip">Example: “Group scripts by server role.”</div>
+                      <div className="chip">Example: “Create a deployment flow with 6 tasks.”</div>
+                    </div>
+                  )}
+                </div>
+                <form className="chat-panel__input" onSubmit={handleChatSend}>
+                  <input
+                    type="text"
+                    placeholder="Tell us about your graph..."
+                    value={chatInput}
+                    onChange={(event) => setChatInput(event.target.value)}
+                    disabled={chatLoading}
+                  />
+                  <button className="btn btn--ghost" type="submit" disabled={chatLoading}>
+                    {chatLoading ? 'Sending...' : 'Send'}
+                  </button>
+                </form>
+              </aside>
+              {sshConsoleOpen ? (
+                <div
+                  className={`ssh-console ${sshConsoleMinimized ? 'ssh-console--min' : ''}`}
+                  style={sshConsoleStyle}
+                >
+                  <div className="ssh-console__header">
+                    <div>
+                      <div className="ssh-console__eyebrow">SSH Console</div>
+                      <div className="ssh-console__title">
+                        {activeGraphId ? 'Connected server' : 'No graph selected'}
+                      </div>
+                    </div>
+                    <div className="ssh-console__actions">
+                      <button
+                        className="btn btn--ghost"
+                        type="button"
+                        onClick={() => setSshConsoleMinimized((current) => !current)}
+                      >
+                        {sshConsoleMinimized ? 'Maximize' : 'Minimize'}
+                      </button>
+                      <button
+                        className="btn btn--ghost"
+                        type="button"
+                        onClick={() => setSshConsoleOpen(false)}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                  {!sshConsoleMinimized ? (
+                    <div className="ssh-console__body">
+                      <div className="ssh-console__log">
+                        {sshConfigs[activeGraphId ?? '']?.host
+                          ? `Connecting to ${sshConfigs[activeGraphId ?? '']?.host}...`
+                          : 'Configure SSH to connect to a server.'}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </section>
       </main>
+
+      {sshModal ? (
+        <div className="modal-overlay" onClick={() => setSshModal(null)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <h2>SSH Tunnel</h2>
+            <p className="modal__subtitle">
+              Configure connection details for{' '}
+              {graphList.find((graph) => graph.id === sshModal.graphId)?.name ?? 'this graph'}.
+            </p>
+            <form
+              className="modal__form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                saveSshConfig()
+              }}
+            >
+              <label className="field">
+                <span>Host</span>
+                <input
+                  type="text"
+                  value={sshDraft.host}
+                  onChange={(event) => setSshDraft((current) => ({ ...current, host: event.target.value }))}
+                  placeholder="server.example.com"
+                />
+              </label>
+              <label className="field">
+                <span>Port</span>
+                <input
+                  type="text"
+                  value={sshDraft.port}
+                  onChange={(event) => setSshDraft((current) => ({ ...current, port: event.target.value }))}
+                  placeholder="22"
+                />
+              </label>
+              <label className="field">
+                <span>User</span>
+                <input
+                  type="text"
+                  value={sshDraft.user}
+                  onChange={(event) => setSshDraft((current) => ({ ...current, user: event.target.value }))}
+                  placeholder="ubuntu"
+                />
+              </label>
+              <label className="field">
+                <span>Private key path</span>
+                <input
+                  type="text"
+                  value={sshDraft.keyPath}
+                  onChange={(event) => setSshDraft((current) => ({ ...current, keyPath: event.target.value }))}
+                  placeholder="C:\\Users\\you\\.ssh\\id_rsa"
+                />
+              </label>
+              <div className="modal__actions">
+                <button className="btn btn--ghost" type="button" onClick={() => setSshModal(null)}>
+                  Cancel
+                </button>
+                <button className="btn btn--primary" type="submit">
+                  Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       {authOpen ? (
         <div className="modal-overlay" onClick={() => setAuthOpen(false)}>
@@ -2721,6 +3101,7 @@ export default function App() {
                 event.preventDefault()
                 addItemNote(itemModalNode.id, itemModalItem.id, itemNoteTitle)
                 setItemNoteTitle('')
+                setItemModal(null)
               }}
             >
               <textarea
@@ -2783,6 +3164,20 @@ export default function App() {
                       <span>{option.label}</span>
                     </button>
                   ))}
+                </div>
+              </div>
+              <div className="modal__section">
+                <div className="modal__label">Your Graphs Panel</div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={!sidebarCollapsed}
+                    onChange={(event) => setSidebarCollapsed(!event.target.checked)}
+                  />
+                  <span>Show expanded by default</span>
+                </label>
+                <div className="modal__hint">
+                  When disabled, the widget starts minimized in new sessions.
                 </div>
               </div>
             <div className="modal__actions">
