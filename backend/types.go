@@ -9,6 +9,7 @@ type graphPayload struct {
 	Name  string          `json:"name"`
 	Nodes json.RawMessage `json:"nodes"`
 	Edges json.RawMessage `json:"edges"`
+	Kind  string          `json:"kind,omitempty"`
 }
 
 type graphSummary struct {

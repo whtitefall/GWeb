@@ -5,6 +5,7 @@ type TopBarProps = {
   viewMode: ViewMode
   onChangeView: (mode: ViewMode) => void
   saveState: keyof typeof statusLabels
+  showBetaTabs: boolean
   isLoggedIn: boolean
   userName: string
   onOpenSettings: () => void
@@ -17,6 +18,7 @@ export default function TopBar({
   viewMode,
   onChangeView,
   saveState,
+  showBetaTabs,
   isLoggedIn,
   userName,
   onOpenSettings,
@@ -42,20 +44,24 @@ export default function TopBar({
         >
           Graph Note
         </button>
-        <button
-          type="button"
-          className={`nav-btn ${viewMode === 'application' ? 'is-active' : ''}`}
-          onClick={() => onChangeView('application')}
-        >
-          Graph Application
-        </button>
-        <button
-          type="button"
-          className={`nav-btn ${viewMode === 'graph3d' ? 'is-active' : ''}`}
-          onClick={() => onChangeView('graph3d')}
-        >
-          3D Graph
-        </button>
+        {showBetaTabs ? (
+          <>
+            <button
+              type="button"
+              className={`nav-btn ${viewMode === 'application' ? 'is-active' : ''}`}
+              onClick={() => onChangeView('application')}
+            >
+              Graph Application
+            </button>
+            <button
+              type="button"
+              className={`nav-btn ${viewMode === 'graph3d' ? 'is-active' : ''}`}
+              onClick={() => onChangeView('graph3d')}
+            >
+              3D Graph
+            </button>
+          </>
+        ) : null}
         <button
           type="button"
           className={`nav-btn ${viewMode === 'facts' ? 'is-active' : ''}`}

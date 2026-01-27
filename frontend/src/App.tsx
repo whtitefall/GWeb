@@ -2,6 +2,8 @@
 import {
   useCallback,
   useEffect,
+  Suspense,
+  lazy,
   useMemo,
   useRef,
   useState,
@@ -15,6 +17,7 @@ import ReactFlow, {
   Controls,
   MarkerType,
   MiniMap,
+  SelectionMode,
   type Connection,
   type Edge,
   type NodeTypes,
@@ -23,12 +26,11 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import './App.css'
 import { createGraph, deleteGraph, fetchGraph, generateGraph, listGraphs, saveGraph } from './api'
-import type { GraphNode, GraphPayload, GraphSummary, NodeData } from './graphTypes'
+import type { GraphKind, GraphNode, GraphPayload, GraphSummary, NodeData } from './graphTypes'
 import ActionsWidget from './components/ActionsWidget'
 import AuthModal from './components/AuthModal'
 import ChatPanel from './components/ChatPanel'
 import GraphContextMenu, { type ContextMenuState } from './components/GraphContextMenu'
-import Graph3DView from './components/Graph3DView'
 import GraphListWidget from './components/GraphListWidget'
 import ItemModal from './components/ItemModal'
 import NoteDrawer from './components/NoteDrawer'
@@ -43,9 +45,13 @@ import { useGraphState } from './hooks/useGraphState'
 import {
   ACCENT_KEY,
   ACCENT_OPTIONS,
+  BETA_KEY,
+  BETA_OPTIN_KEY,
+  DEFAULT_GROUP_SIZE,
   DRAWER_MAX,
   DRAWER_MIN,
   GROUP_PADDING,
+  MINIMAP_KEY,
   SOLAR_SYSTEM_GRAPH,
   SIDEBAR_COLLAPSED,
   SIDEBAR_MAX,
@@ -71,12 +77,17 @@ import { isLightColor, resolveTheme } from './utils/theme'
 import type { ChatMessage, FactKey, SshConfig, ThemePreference, ViewMode } from './types/ui'
 import { supabase } from './supabaseClient'
 
+const Graph3DView = lazy(() => import('./components/Graph3DView'))
 
 export default function App() {
   const { nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange } = useGraphState()
   const [graphList, setGraphList] = useState<GraphSummary[]>([])
   const [activeGraphId, setActiveGraphId] = useState<string | null>(null)
   const [graphName, setGraphName] = useState(defaultGraph.name)
+  const [createGraphOpen, setCreateGraphOpen] = useState(false)
+  const [createGraphName, setCreateGraphName] = useState('')
+  const [isRenamingGraph, setIsRenamingGraph] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
   const [sshConfigs, setSshConfigs] = useState<Record<string, SshConfig>>({})
   const [sshModal, setSshModal] = useState<{ graphId: string } | null>(null)
   const [sshDraft, setSshDraft] = useState<SshConfig>({
@@ -94,6 +105,7 @@ export default function App() {
   const [saveState, setSaveState] = useState<keyof typeof statusLabels>('idle')
   const [hydrated, setHydrated] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('graph')
+  const [graphKind, setGraphKind] = useState<GraphKind>('note')
   const [chatOpen, setChatOpen] = useState(false)
   const [activeFactKey, setActiveFactKey] = useState<FactKey | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -129,6 +141,21 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [userName, setUserName] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [betaFeaturesEnabled, setBetaFeaturesEnabled] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+    const optedIn = window.localStorage.getItem(BETA_OPTIN_KEY) === 'true'
+    const stored = window.localStorage.getItem(BETA_KEY)
+    return optedIn && stored === 'true'
+  })
+  const [showMiniMap, setShowMiniMap] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+    const stored = window.localStorage.getItem(MINIMAP_KEY)
+    return stored === 'true'
+  })
   const [accentChoice, setAccentChoice] = useState(() => {
     if (typeof window === 'undefined') {
       return 'blue'
@@ -150,7 +177,8 @@ export default function App() {
   const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>('dark')
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null)
   const spawnIndex = useRef(0)
-  const pendingGraphRef = useRef<{ id: string; payload: GraphPayload } | null>(null)
+  const pendingGraphRef = useRef<{ id: string; payload: GraphPayload; kind: GraphKind } | null>(null)
+  const hydratedKindRef = useRef<GraphKind>('note')
   const sidebarRef = useRef<HTMLElement | null>(null)
   const resizingRef = useRef(false)
   const flowShellRef = useRef<HTMLElement | null>(null)
@@ -164,6 +192,14 @@ export default function App() {
   const toolbarMovedRef = useRef(false)
   const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number } | null>(null)
   const seeded3dGraphsRef = useRef<Set<string>>(new Set())
+  const didMountRef = useRef(false)
+
+  const listStorageKey = useMemo(() => `${STORAGE_LIST_KEY}.${graphKind}`, [graphKind])
+  const activeStorageKey = useMemo(() => `${STORAGE_ACTIVE_KEY}.${graphKind}`, [graphKind])
+  const graphStorageKey = useCallback(
+    (graphId: string) => `${STORAGE_GRAPH_PREFIX}${graphKind}.${graphId}`,
+    [graphKind],
+  )
 
   const isGraphNoteView = viewMode === 'graph'
   const isApplicationView = viewMode === 'application'
@@ -217,6 +253,21 @@ export default function App() {
   }, [themePreference])
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const optedIn = window.localStorage.getItem(BETA_OPTIN_KEY) === 'true'
+      if (!optedIn) {
+        window.localStorage.setItem(BETA_KEY, 'false')
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(MINIMAP_KEY, String(showMiniMap))
+    }
+  }, [showMiniMap])
+
+  useEffect(() => {
     const selected = ACCENT_OPTIONS.find((option) => option.id === accentChoice) ?? ACCENT_OPTIONS[0]
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(ACCENT_KEY, selected.id)
@@ -260,6 +311,16 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem('gweb.sidebar.collapsed')
+      if (stored !== 'true' && stored !== 'false') {
+        window.localStorage.setItem('gweb.sidebar.collapsed', 'true')
+        setSidebarCollapsed(true)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
       window.localStorage.setItem('gweb.sidebar.width', String(sidebarWidth))
     }
   }, [sidebarWidth])
@@ -269,6 +330,33 @@ export default function App() {
       window.localStorage.setItem('gweb.sidebar.collapsed', String(sidebarCollapsed))
     }
   }, [sidebarCollapsed])
+
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      return
+    }
+    setHydrated(false)
+    setActiveGraphId(null)
+    setGraphList([])
+    setNodes([])
+    setEdges([])
+    setSelectedNodeId(null)
+    setItemModal(null)
+    setItemTitle('')
+    setItemNoteTitle('')
+  }, [graphKind])
+
+  useEffect(() => {
+    if (!isRenamingGraph) {
+      setRenameValue(graphName)
+    }
+  }, [graphName, isRenamingGraph])
+
+  useEffect(() => {
+    setIsRenamingGraph(false)
+  }, [activeGraphId])
+
 
   useEffect(() => {
     const handleMove = (event: MouseEvent) => {
@@ -334,9 +422,9 @@ export default function App() {
     const loadGraphs = async () => {
       let graphs: GraphSummary[] = []
       try {
-        graphs = await listGraphs()
+        graphs = await listGraphs(graphKind)
       } catch {
-        graphs = readLocalGraphList()
+        graphs = readLocalGraphList(listStorageKey)
       }
 
       if (!isMounted) {
@@ -344,11 +432,14 @@ export default function App() {
       }
 
       if (graphs.length === 0) {
-        const payload = defaultGraph
+        const payload =
+          graphKind === 'note'
+            ? defaultGraph
+            : createEmptyGraphPayload('Starter Graph', graphKind)
         try {
           const created = await createGraph(payload)
           graphs = [created]
-          pendingGraphRef.current = { id: created.id, payload }
+          pendingGraphRef.current = { id: created.id, payload, kind: graphKind }
         } catch {
           const localId = `local-${crypto.randomUUID()}`
           const summary: GraphSummary = {
@@ -357,19 +448,19 @@ export default function App() {
             updatedAt: new Date().toISOString(),
           }
           graphs = [summary]
-          pendingGraphRef.current = { id: localId, payload }
+          pendingGraphRef.current = { id: localId, payload, kind: graphKind }
           if (typeof window !== 'undefined') {
-            window.localStorage.setItem(`${STORAGE_GRAPH_PREFIX}${localId}`, JSON.stringify(payload))
+            window.localStorage.setItem(graphStorageKey(localId), JSON.stringify(payload))
           }
         }
       }
 
       setGraphList(graphs)
       if (typeof window !== 'undefined') {
-        window.localStorage.setItem(STORAGE_LIST_KEY, JSON.stringify(graphs))
+        window.localStorage.setItem(listStorageKey, JSON.stringify(graphs))
       }
 
-      const storedActive = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_ACTIVE_KEY) : null
+      const storedActive = typeof window !== 'undefined' ? window.localStorage.getItem(activeStorageKey) : null
       const activeId = storedActive && graphs.some((graph) => graph.id === storedActive)
         ? storedActive
         : graphs[0].id
@@ -380,16 +471,16 @@ export default function App() {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [activeStorageKey, graphKind, graphStorageKey, listStorageKey])
 
   useEffect(() => {
     if (!activeGraphId) {
       return
     }
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(STORAGE_ACTIVE_KEY, activeGraphId)
+      window.localStorage.setItem(activeStorageKey, activeGraphId)
     }
-  }, [activeGraphId])
+  }, [activeGraphId, activeStorageKey])
 
   useEffect(() => {
     if (!activeGraphId) {
@@ -404,14 +495,15 @@ export default function App() {
 
     const loadGraph = async () => {
       const pending = pendingGraphRef.current
-      if (pending && pending.id === activeGraphId) {
+      if (pending && pending.id === activeGraphId && pending.kind === graphKind) {
         pendingGraphRef.current = null
-        const normalized = normalizeGraph(pending.payload)
+        const normalized = normalizeGraph(pending.payload, graphKind)
         if (!isMounted) return
         setGraphName(normalized.name)
         setNodes(normalized.nodes)
         setEdges(normalized.edges)
         setSaveState('saved')
+        hydratedKindRef.current = graphKind
         setHydrated(true)
         return
       }
@@ -419,7 +511,7 @@ export default function App() {
       try {
         const payload = await fetchGraph(activeGraphId)
         if (!isMounted) return
-        const normalized = normalizeGraph(payload)
+        const normalized = normalizeGraph(payload, graphKind)
         setGraphName(normalized.name)
         setNodes(normalized.nodes)
         setEdges(normalized.edges)
@@ -427,23 +519,29 @@ export default function App() {
       } catch {
         const local =
           typeof window !== 'undefined'
-            ? window.localStorage.getItem(`${STORAGE_GRAPH_PREFIX}${activeGraphId}`)
+            ? window.localStorage.getItem(graphStorageKey(activeGraphId))
             : null
         if (local) {
           try {
             const parsed = JSON.parse(local) as GraphPayload
-            const normalized = normalizeGraph(parsed)
+            const normalized = normalizeGraph(parsed, graphKind)
             setGraphName(normalized.name)
             setNodes(normalized.nodes)
             setEdges(normalized.edges)
           } catch {
-            const fallback = { ...defaultGraph, name: graphName }
+            const fallback =
+              graphKind === 'note'
+                ? defaultGraph
+                : createEmptyGraphPayload('Starter Graph', graphKind)
             setGraphName(fallback.name)
             setNodes(fallback.nodes)
             setEdges(fallback.edges)
           }
         } else {
-          const fallback = { ...defaultGraph, name: graphName }
+          const fallback =
+            graphKind === 'note'
+              ? defaultGraph
+              : createEmptyGraphPayload('Starter Graph', graphKind)
           setGraphName(fallback.name)
           setNodes(fallback.nodes)
           setEdges(fallback.edges)
@@ -451,6 +549,7 @@ export default function App() {
         setSaveState('offline')
       } finally {
         if (isMounted) {
+          hydratedKindRef.current = graphKind
           setHydrated(true)
         }
       }
@@ -460,7 +559,7 @@ export default function App() {
     return () => {
       isMounted = false
     }
-  }, [activeGraphId, graphName, setEdges, setNodes])
+  }, [activeGraphId, graphKind, graphName, graphStorageKey, setEdges, setNodes])
 
   useEffect(() => {
     if (!activeGraphId || !hydrated) {
@@ -474,22 +573,22 @@ export default function App() {
   }, [activeGraphId, graphName, hydrated])
 
   useEffect(() => {
-    if (!hydrated || !activeGraphId) {
+    if (!hydrated || !activeGraphId || hydratedKindRef.current !== graphKind) {
       return
     }
 
-    const payload: GraphPayload = { name: graphName, nodes, edges }
+    const payload: GraphPayload = { name: graphName, nodes, edges, kind: graphKind }
     setSaveState('saving')
     const timer = window.setTimeout(() => {
       if (activeGraphId.startsWith('local-')) {
-        localStorage.setItem(`${STORAGE_GRAPH_PREFIX}${activeGraphId}`, JSON.stringify(payload))
+        localStorage.setItem(graphStorageKey(activeGraphId), JSON.stringify(payload))
         setSaveState('offline')
         return
       }
 
       saveGraph(activeGraphId, payload)
         .then(() => {
-          localStorage.setItem(`${STORAGE_GRAPH_PREFIX}${activeGraphId}`, JSON.stringify(payload))
+          localStorage.setItem(graphStorageKey(activeGraphId), JSON.stringify(payload))
           setGraphList((current) =>
             current.map((graph) =>
               graph.id === activeGraphId
@@ -500,19 +599,36 @@ export default function App() {
           setSaveState('saved')
         })
         .catch(() => {
-          localStorage.setItem(`${STORAGE_GRAPH_PREFIX}${activeGraphId}`, JSON.stringify(payload))
+          localStorage.setItem(graphStorageKey(activeGraphId), JSON.stringify(payload))
           setSaveState('offline')
         })
     }, 700)
 
     return () => window.clearTimeout(timer)
-  }, [activeGraphId, edges, graphName, hydrated, nodes])
+  }, [activeGraphId, edges, graphKind, graphName, graphStorageKey, hydrated, nodes])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(STORAGE_LIST_KEY, JSON.stringify(graphList))
+      window.localStorage.setItem(listStorageKey, JSON.stringify(graphList))
     }
-  }, [graphList])
+  }, [graphList, listStorageKey])
+
+  useEffect(() => {
+    if (!activeGraphId || !hydrated || hydratedKindRef.current !== graphKind) {
+      return
+    }
+    if (graphList.some((graph) => graph.id === activeGraphId)) {
+      return
+    }
+    setGraphList((current) => [
+      {
+        id: activeGraphId,
+        name: graphName || 'Untitled Graph',
+        updatedAt: new Date().toISOString(),
+      },
+      ...current,
+    ])
+  }, [activeGraphId, graphKind, graphList, graphName, hydrated])
 
   useEffect(() => {
     if (selectedNodeId && !nodes.some((node) => node.id === selectedNodeId)) {
@@ -630,6 +746,37 @@ export default function App() {
         items: data.items.map((item) =>
           item.id === itemId
             ? { ...item, notes: [...item.notes, { id: crypto.randomUUID(), title: trimmed }] }
+            : item,
+        ),
+      }))
+    },
+    [updateNodeData],
+  )
+
+  const updateItemTitle = useCallback(
+    (nodeId: string, itemId: string, title: string) => {
+      updateNodeData(nodeId, (data) => ({
+        ...data,
+        items: data.items.map((item) =>
+          item.id === itemId ? { ...item, title: title } : item,
+        ),
+      }))
+    },
+    [updateNodeData],
+  )
+
+  const updateItemNoteTitle = useCallback(
+    (nodeId: string, itemId: string, noteId: string, title: string) => {
+      updateNodeData(nodeId, (data) => ({
+        ...data,
+        items: data.items.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                notes: item.notes.map((note) =>
+                  note.id === noteId ? { ...note, title } : note,
+                ),
+              }
             : item,
         ),
       }))
@@ -936,13 +1083,39 @@ export default function App() {
     [setEdges],
   )
 
-  const handleCreateGraph = useCallback(async () => {
-    const payload = createEmptyGraphPayload(`New Graph ${graphList.length + 1}`)
+  const handleStartRename = useCallback(() => {
+    setIsRenamingGraph(true)
+    setRenameValue(graphName)
+  }, [graphName])
+
+  const handleCancelRename = useCallback(() => {
+    setIsRenamingGraph(false)
+    setRenameValue(graphName)
+  }, [graphName])
+
+  const handleSubmitRename = useCallback(() => {
+    const trimmed = renameValue.trim()
+    if (trimmed) {
+      setGraphName(trimmed)
+    }
+    setIsRenamingGraph(false)
+  }, [renameValue])
+
+  const handleCreateGraph = useCallback(() => {
+    setCreateGraphName('')
+    setCreateGraphOpen(true)
+  }, [])
+
+  const handleSubmitCreateGraph = useCallback(async () => {
+    const name = createGraphName.trim()
+    const payload = createEmptyGraphPayload(name || `New Graph ${graphList.length + 1}`, graphKind)
     try {
       const summary = await createGraph(payload)
-      pendingGraphRef.current = { id: summary.id, payload }
+      pendingGraphRef.current = { id: summary.id, payload, kind: graphKind }
       setGraphList((current) => [summary, ...current])
       setActiveGraphId(summary.id)
+      setCreateGraphOpen(false)
+      setCreateGraphName('')
     } catch {
       const localId = `local-${crypto.randomUUID()}`
       const summary: GraphSummary = {
@@ -950,12 +1123,14 @@ export default function App() {
         name: payload.name,
         updatedAt: new Date().toISOString(),
       }
-      pendingGraphRef.current = { id: localId, payload }
+      pendingGraphRef.current = { id: localId, payload, kind: graphKind }
       setGraphList((current) => [summary, ...current])
       setActiveGraphId(localId)
-      localStorage.setItem(`${STORAGE_GRAPH_PREFIX}${localId}`, JSON.stringify(payload))
+      localStorage.setItem(graphStorageKey(localId), JSON.stringify(payload))
+      setCreateGraphOpen(false)
+      setCreateGraphName('')
     }
-  }, [graphList.length])
+  }, [createGraphName, graphKind, graphList.length, graphStorageKey])
 
   const handleDeleteGraph = useCallback(
     async (graphId: string) => {
@@ -974,7 +1149,7 @@ export default function App() {
 
       if (graphId.startsWith('local-')) {
         if (typeof window !== 'undefined') {
-          window.localStorage.removeItem(`${STORAGE_GRAPH_PREFIX}${graphId}`)
+          window.localStorage.removeItem(graphStorageKey(graphId))
         }
       } else {
         try {
@@ -987,21 +1162,24 @@ export default function App() {
 
       setGraphList(updatedList)
       if (typeof window !== 'undefined') {
-        window.localStorage.setItem(STORAGE_LIST_KEY, JSON.stringify(updatedList))
+        window.localStorage.setItem(listStorageKey, JSON.stringify(updatedList))
       }
 
       if (activeGraphId === graphId) {
         if (updatedList.length > 0) {
           setActiveGraphId(updatedList[0].id)
         } else {
-          const payload = createEmptyGraphPayload('New Graph 1')
+          const payload =
+            graphKind === 'note'
+              ? { ...defaultGraph, name: 'Starter Graph' }
+              : createEmptyGraphPayload('Starter Graph', graphKind)
           try {
             const summary = await createGraph(payload)
-            pendingGraphRef.current = { id: summary.id, payload }
+            pendingGraphRef.current = { id: summary.id, payload, kind: graphKind }
             setGraphList([summary])
             setActiveGraphId(summary.id)
             if (typeof window !== 'undefined') {
-              window.localStorage.setItem(STORAGE_LIST_KEY, JSON.stringify([summary]))
+              window.localStorage.setItem(listStorageKey, JSON.stringify([summary]))
             }
           } catch {
             const localId = `local-${crypto.randomUUID()}`
@@ -1010,13 +1188,13 @@ export default function App() {
               name: payload.name,
               updatedAt: new Date().toISOString(),
             }
-            pendingGraphRef.current = { id: localId, payload }
+            pendingGraphRef.current = { id: localId, payload, kind: graphKind }
             setGraphList([summary])
             setActiveGraphId(localId)
             if (typeof window !== 'undefined') {
-              window.localStorage.setItem(STORAGE_LIST_KEY, JSON.stringify([summary]))
+              window.localStorage.setItem(listStorageKey, JSON.stringify([summary]))
               window.localStorage.setItem(
-                `${STORAGE_GRAPH_PREFIX}${localId}`,
+                graphStorageKey(localId),
                 JSON.stringify(payload),
               )
             }
@@ -1024,7 +1202,7 @@ export default function App() {
         }
       }
     },
-    [activeGraphId, graphList],
+    [activeGraphId, graphKind, graphList, graphStorageKey, listStorageKey],
   )
 
   const selectedNodeCount = nodes.filter((node) => node.selected).length
@@ -1214,10 +1392,11 @@ export default function App() {
 
       try {
         const payload = await generateGraph(trimmed)
-        const normalized = normalizeGraph(payload)
+        const normalized = normalizeGraph(payload, graphKind)
         setGraphName(normalized.name)
         setNodes(normalized.nodes)
         setEdges(normalized.edges)
+        hydratedKindRef.current = graphKind
         setHydrated(true)
         setChatMessages((current) =>
           current.concat({
@@ -1241,11 +1420,11 @@ export default function App() {
         setChatLoading(false)
       }
     },
-    [chatInput, chatLoading, setEdges, setGraphName, setHydrated, setNodes],
+    [chatInput, chatLoading, graphKind, setEdges, setGraphName, setHydrated, setNodes],
   )
 
   const handleExport = useCallback(() => {
-    const payload: GraphPayload = { name: graphName, nodes, edges }
+    const payload: GraphPayload = { name: graphName, nodes, edges, kind: graphKind }
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -1256,7 +1435,7 @@ export default function App() {
     link.click()
     link.remove()
     URL.revokeObjectURL(url)
-  }, [edges, graphName, nodes])
+  }, [edges, graphKind, graphName, nodes])
 
   const handleImportFile = useCallback(
     (file: File) => {
@@ -1264,10 +1443,11 @@ export default function App() {
       reader.onload = () => {
         try {
           const raw = JSON.parse(String(reader.result || '{}')) as GraphPayload
-          const normalized = normalizeGraph(raw)
+          const normalized = normalizeGraph(raw, graphKind)
           setGraphName(normalized.name)
           setNodes(normalized.nodes)
           setEdges(normalized.edges)
+          hydratedKindRef.current = graphKind
           setImportError('')
           setHydrated(true)
         } catch (error) {
@@ -1276,39 +1456,122 @@ export default function App() {
       }
       reader.readAsText(file)
     },
-    [setEdges, setNodes],
+    [graphKind, setEdges, setNodes],
   )
 
   const seedSolarSystemIfNeeded = useCallback(() => {
-    if (!activeGraphId) {
+    if (!activeGraphId || graphKind !== 'graph3d' || !hydrated) {
       return
     }
     if (seeded3dGraphsRef.current.has(activeGraphId)) {
       return
     }
-    const isDefaultGraph =
-      graphName === defaultGraph.name &&
-      nodes.length === defaultGraph.nodes.length &&
-      edges.length === defaultGraph.edges.length
-    if (!isDefaultGraph) {
+    if (nodes.length > 0 || edges.length > 0) {
       return
     }
-    const normalized = normalizeGraph(SOLAR_SYSTEM_GRAPH)
+    const normalized = normalizeGraph(SOLAR_SYSTEM_GRAPH, 'graph3d')
     setGraphName(normalized.name)
     setNodes(normalized.nodes)
     setEdges(normalized.edges)
     setSelectedNodeId(null)
     seeded3dGraphsRef.current.add(activeGraphId)
-  }, [activeGraphId, edges.length, graphName, nodes.length, setEdges, setNodes])
+  }, [activeGraphId, edges.length, graphKind, hydrated, nodes.length, setEdges, setNodes])
+
+  useEffect(() => {
+    seedSolarSystemIfNeeded()
+  }, [seedSolarSystemIfNeeded])
+
+  if (!isLoggedIn) {
+    return (
+      <div className="app app--auth">
+        <div className="auth-gate">
+          <div className="auth-gate__panel">
+            <div className="brand auth-gate__brand">
+              <div className="brand__mark" />
+              <div>
+                <div className="brand__title">Graph Studio</div>
+                <div className="brand__subtitle">Organize ideas into connected flows.</div>
+              </div>
+            </div>
+            <h1>Welcome</h1>
+            <p className="auth-gate__subtitle">
+              Create visual graph notes, store your progress, and sync across devices. Sign in to get started.
+            </p>
+            <div className="auth-gate__actions">
+              <button
+                className="btn btn--primary"
+                type="button"
+                onClick={() => {
+                  setAuthMode('register')
+                  setAuthOpen(true)
+                }}
+              >
+                Register
+              </button>
+              <button
+                className="btn btn--ghost"
+                type="button"
+                onClick={() => {
+                  setAuthMode('login')
+                  setAuthOpen(true)
+                }}
+              >
+                Log in
+              </button>
+            </div>
+            <div className="auth-gate__note">We keep your graphs private and synced to your account.</div>
+          </div>
+        </div>
+
+        <AuthModal
+          open={authOpen}
+          mode={authMode}
+          authName={authName}
+          authEmail={authEmail}
+          authPassword={authPassword}
+          authError={authError}
+          authNotice={authNotice}
+          onChangeMode={setAuthMode}
+          onClose={() => setAuthOpen(false)}
+          onSubmit={handleAuthSubmit}
+          onOAuthLogin={handleOAuthLogin}
+          onChangeName={setAuthName}
+          onChangeEmail={setAuthEmail}
+          onChangePassword={setAuthPassword}
+        />
+        <div className="app-footer">© 2026 GraphNote. Powered by Yuanzheng Hu and Codex.</div>
+      </div>
+    )
+  }
 
   const changeView = (mode: ViewMode) => {
+    if (!betaFeaturesEnabled && (mode === 'application' || mode === 'graph3d')) {
+      setViewMode('graph')
+      if (graphKind !== 'note') {
+        setGraphKind('note')
+      }
+      setSelectedNodeId(null)
+      setChatOpen(false)
+      return
+    }
+    const nextKind =
+      mode === 'graph' ? 'note' : mode === 'application' ? 'application' : mode === 'graph3d' ? 'graph3d' : null
+    if (nextKind && nextKind !== graphKind) {
+      setGraphKind(nextKind)
+    }
     setViewMode(mode)
     setSelectedNodeId(null)
     setChatOpen(false)
-    if (mode === 'graph3d') {
-      seedSolarSystemIfNeeded()
-    }
   }
+
+  useEffect(() => {
+    if (!betaFeaturesEnabled && (viewMode === 'application' || viewMode === 'graph3d')) {
+      setViewMode('graph')
+      if (graphKind !== 'note') {
+        setGraphKind('note')
+      }
+    }
+  }, [betaFeaturesEnabled, graphKind, viewMode])
 
   const handleToggleChat = useCallback(() => {
     setChatOpen((open) => {
@@ -1351,6 +1614,14 @@ export default function App() {
       }
       return next
     })
+  }, [])
+
+  const handleToggleBetaFeatures = useCallback((enabled: boolean) => {
+    setBetaFeaturesEnabled(enabled)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(BETA_KEY, String(enabled))
+      window.localStorage.setItem(BETA_OPTIN_KEY, 'true')
+    }
   }, [])
 
   const handleOpenItemModal = useCallback((nodeId: string, itemId: string) => {
@@ -1403,6 +1674,7 @@ export default function App() {
         viewMode={viewMode}
         onChangeView={changeView}
         saveState={saveState}
+        showBetaTabs={betaFeaturesEnabled}
         isLoggedIn={isLoggedIn}
         userName={userName}
         onOpenSettings={() => setSettingsOpen(true)}
@@ -1430,7 +1702,7 @@ export default function App() {
                   reactFlowInstance.current = instance
                   instance.fitView({ padding: 0.2 })
                   const viewport = instance.getViewport ? instance.getViewport() : { x: 0, y: 0, zoom: 1 }
-                  instance.setViewport({ x: viewport.x, y: viewport.y, zoom: 0.8 }, { duration: 0 })
+                  instance.setViewport({ x: viewport.x, y: viewport.y, zoom: 0.9 }, { duration: 0 })
                 }}
                 onNodeClick={(_, node) => {
                   setChatOpen(false)
@@ -1470,7 +1742,7 @@ export default function App() {
                   event.preventDefault()
                   setContextMenu(null)
                 }}
-                defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+                defaultViewport={{ x: 0, y: 0, zoom: 0.9 }}
                 deleteKeyCode={['Backspace', 'Delete']}
                 defaultEdgeOptions={{
                   type: 'smoothstep',
@@ -1479,16 +1751,21 @@ export default function App() {
                     color: 'var(--edge)',
                   },
                 }}
+                selectionOnDrag
+                selectionMode={SelectionMode.Partial}
+                panOnDrag={[2]}
               >
                 <Background color="var(--grid)" gap={26} size={1} />
                 <Controls position="bottom-right" />
-                <MiniMap
-                  pannable
-                  zoomable
-                  nodeColor={(node) => (node.selected ? 'var(--accent)' : 'var(--minimap-node)')}
-                  maskColor="var(--minimap-mask)"
-                  position="bottom-left"
-                />
+                {showMiniMap ? (
+                  <MiniMap
+                    pannable
+                    zoomable
+                    nodeColor={(node) => (node.selected ? 'var(--accent)' : 'var(--minimap-node)')}
+                    maskColor="var(--minimap-mask)"
+                    position="bottom-left"
+                  />
+                ) : null}
               </ReactFlow>
               <GraphContextMenu
                 contextMenu={contextMenu}
@@ -1503,16 +1780,18 @@ export default function App() {
               />
             </>
           ) : viewMode === 'graph3d' ? (
-            <Graph3DView
-              nodes={nodes}
-              edges={edges}
-              setNodes={setNodes}
-              setEdges={setEdges}
-              toolbarStyle={toolbarStyle}
-              toolbarRef={toolbarRef}
-              onToolbarDragStart={handleToolbarDragStart}
-              accentSeed={accentChoice}
-            />
+            <Suspense fallback={<div className="graph-3d__loading">Loading 3D view…</div>}>
+              <Graph3DView
+                nodes={nodes}
+                edges={edges}
+                setNodes={setNodes}
+                setEdges={setEdges}
+                toolbarStyle={toolbarStyle}
+                toolbarRef={toolbarRef}
+                onToolbarDragStart={handleToolbarDragStart}
+                accentSeed={accentChoice}
+              />
+            </Suspense>
           ) : (
             <QuickFactsView activeFactKey={activeFactKey} onSelectFact={setActiveFactKey} />
           )}
@@ -1524,7 +1803,13 @@ export default function App() {
               graphList={graphList}
               activeGraphId={activeGraphId}
               graphName={graphName}
+              renameValue={renameValue}
+              isRenaming={isRenamingGraph}
               importError={importError}
+              onRenameChange={setRenameValue}
+              onStartRename={handleStartRename}
+              onCancelRename={handleCancelRename}
+              onSubmitRename={handleSubmitRename}
               onSelectGraph={setActiveGraphId}
               onCreateGraph={handleCreateGraph}
               onDeleteGraph={handleDeleteGraph}
@@ -1652,10 +1937,47 @@ export default function App() {
         item={itemModalItem}
         noteTitle={itemNoteTitle}
         onChangeNoteTitle={setItemNoteTitle}
+        onUpdateItemTitle={updateItemTitle}
+        onUpdateNoteTitle={updateItemNoteTitle}
         onAddNote={addItemNote}
         onRemoveNote={removeItemNote}
         onClose={() => setItemModal(null)}
       />
+
+      {createGraphOpen ? (
+        <div className="modal-overlay" onClick={() => setCreateGraphOpen(false)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <h2>New Graph</h2>
+            <p className="modal__subtitle">Name your graph to keep work organized.</p>
+            <div className="modal__form">
+              <input
+                className="modal__input"
+                type="text"
+                value={createGraphName}
+                onChange={(event) => setCreateGraphName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    handleSubmitCreateGraph()
+                  }
+                  if (event.key === 'Escape') {
+                    setCreateGraphOpen(false)
+                  }
+                }}
+                placeholder="Graph name"
+                autoFocus
+              />
+            </div>
+            <div className="modal__actions">
+              <button className="btn btn--ghost" type="button" onClick={() => setCreateGraphOpen(false)}>
+                Cancel
+              </button>
+              <button className="btn btn--primary" type="button" onClick={handleSubmitCreateGraph}>
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <SettingsModal
         open={settingsOpen}
@@ -1663,11 +1985,17 @@ export default function App() {
         resolvedTheme={resolvedTheme}
         accentChoice={accentChoice}
         sidebarCollapsed={sidebarCollapsed}
+        betaFeaturesEnabled={betaFeaturesEnabled}
+        showMiniMap={showMiniMap}
         onClose={() => setSettingsOpen(false)}
         onSetTheme={setThemePreference}
         onSetAccent={setAccentChoice}
         onToggleSidebarExpanded={(expanded) => setSidebarCollapsed(!expanded)}
+        onToggleBetaFeatures={handleToggleBetaFeatures}
+        onToggleMiniMap={setShowMiniMap}
       />
+
+      <div className="app-footer">© 2026 GraphNote. Powered by Yuanzheng Hu and Codex.</div>
     </div>
   )
 }

@@ -37,7 +37,7 @@ func (s *server) handleGetGraph(w http.ResponseWriter, r *http.Request) {
 	var data []byte
 	err := s.pool.QueryRow(ctx, "SELECT data FROM graphs WHERE id=$1", s.graphID).Scan(&data)
 	if errors.Is(err, pgx.ErrNoRows) {
-		data = []byte(`{"name":"Default Graph","nodes":[],"edges":[]}`)
+		data = []byte(`{"name":"Default Graph","nodes":[],"edges":[],"kind":"note"}`)
 	} else if err != nil {
 		log.Printf("failed to read graph: %v", err)
 		http.Error(w, "failed to load graph", http.StatusInternalServerError)
@@ -72,6 +72,10 @@ func (s *server) handlePutGraph(w http.ResponseWriter, r *http.Request) {
 
 	if strings.TrimSpace(payload.Name) == "" {
 		payload.Name = "Default Graph"
+		body, _ = json.Marshal(payload)
+	}
+	if strings.TrimSpace(payload.Kind) == "" {
+		payload.Kind = "note"
 		body, _ = json.Marshal(payload)
 	}
 
@@ -126,8 +130,19 @@ func (s *server) handleListGraphs(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
-	rows, err := s.pool.Query(ctx, `SELECT id, COALESCE(data->>'name', 'Untitled Graph') AS name, updated_at
-		FROM graphs ORDER BY updated_at DESC`)
+	kind := strings.TrimSpace(r.URL.Query().Get("kind"))
+	if kind == "" {
+		kind = "note"
+	}
+
+	rows, err := s.pool.Query(
+		ctx,
+		`SELECT id, COALESCE(data->>'name', 'Untitled Graph') AS name, updated_at
+		 FROM graphs
+		 WHERE COALESCE(data->>'kind', 'note') = $1
+		 ORDER BY updated_at DESC`,
+		kind,
+	)
 	if err != nil {
 		log.Printf("failed to list graphs: %v", err)
 		http.Error(w, "failed to list graphs", http.StatusInternalServerError)
@@ -169,6 +184,7 @@ func (s *server) handleCreateGraph(w http.ResponseWriter, r *http.Request) {
 		Name:  "Untitled Graph",
 		Nodes: []byte("[]"),
 		Edges: []byte("[]"),
+		Kind:  "note",
 	}
 
 	if len(bytes.TrimSpace(body)) > 0 {
@@ -184,6 +200,9 @@ func (s *server) handleCreateGraph(w http.ResponseWriter, r *http.Request) {
 
 	if strings.TrimSpace(payload.Name) == "" {
 		payload.Name = "Untitled Graph"
+	}
+	if strings.TrimSpace(payload.Kind) == "" {
+		payload.Kind = "note"
 	}
 
 	data, err := json.Marshal(payload)
@@ -263,6 +282,10 @@ func (s *server) handlePutGraphByID(w http.ResponseWriter, r *http.Request, id s
 
 	if strings.TrimSpace(payload.Name) == "" {
 		payload.Name = "Untitled Graph"
+		body, _ = json.Marshal(payload)
+	}
+	if strings.TrimSpace(payload.Kind) == "" {
+		payload.Kind = "note"
 		body, _ = json.Marshal(payload)
 	}
 

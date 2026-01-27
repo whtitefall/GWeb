@@ -5,6 +5,9 @@ export const STORAGE_LIST_KEY = 'gweb.graph.list.v1'
 export const STORAGE_ACTIVE_KEY = 'gweb.graph.active.v1'
 export const THEME_KEY = 'gweb.theme.v1'
 export const ACCENT_KEY = 'gweb.accent.v1'
+export const BETA_KEY = 'gweb.beta.features.v1'
+export const BETA_OPTIN_KEY = 'gweb.beta.optin.v1'
+export const MINIMAP_KEY = 'gweb.minimap.v1'
 
 export const GROUP_PADDING = 32
 export const DEFAULT_GROUP_SIZE = { width: 300, height: 180 }
@@ -52,6 +55,7 @@ export const ACCENT_OPTIONS = [
 
 export const defaultGraph: GraphPayload = {
   name: 'Starter Graph',
+  kind: 'note',
   nodes: [
     {
       id: 'group-1',
@@ -160,6 +164,7 @@ const SOLAR_SYSTEM_POSITIONS = [
 
 export const SOLAR_SYSTEM_GRAPH: GraphPayload = {
   name: 'Solar System',
+  kind: 'graph3d',
   nodes: SOLAR_SYSTEM_POSITIONS.map((planet, index) => {
     const radians = (planet.angle * Math.PI) / 180
     const x = Math.cos(radians) * planet.radius

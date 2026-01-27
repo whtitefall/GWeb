@@ -1,5 +1,5 @@
 import type { Edge } from 'reactflow'
-import type { GraphNode, GraphPayload, Item, NodeData, Note } from '../graphTypes'
+import type { GraphKind, GraphNode, GraphPayload, Item, NodeData, Note } from '../graphTypes'
 import { DEFAULT_GROUP_SIZE, DEFAULT_NODE_SIZE, defaultGraph } from '../constants'
 
 export const ensureNotes = (value: unknown): Note[] => {
@@ -81,9 +81,9 @@ export const resolvePosition3d = (
   }
 }
 
-export const normalizeGraph = (payload: GraphPayload | null): GraphPayload => {
+export const normalizeGraph = (payload: GraphPayload | null, fallbackKind: GraphKind = 'note'): GraphPayload => {
   if (!payload || !Array.isArray(payload.nodes) || !Array.isArray(payload.edges)) {
-    return defaultGraph
+    return fallbackKind === 'note' ? defaultGraph : createEmptyGraphPayload('Starter Graph', fallbackKind)
   }
 
   const name =
@@ -136,7 +136,9 @@ export const normalizeGraph = (payload: GraphPayload | null): GraphPayload => {
     type: edge.type ?? 'smoothstep',
   }))
 
-  return { name, nodes, edges }
+  const kind = payload.kind ?? fallbackKind
+
+  return { name, nodes, edges, kind }
 }
 
 export const getNodeSize = (node: GraphNode) => {
@@ -180,8 +182,9 @@ export const getNodeRect = (node: GraphNode, nodeMap: Map<string, GraphNode>) =>
   }
 }
 
-export const createEmptyGraphPayload = (name: string): GraphPayload => ({
+export const createEmptyGraphPayload = (name: string, kind: GraphKind): GraphPayload => ({
   name,
   nodes: [],
   edges: [],
+  kind,
 })

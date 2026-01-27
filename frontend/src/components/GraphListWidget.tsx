@@ -1,4 +1,4 @@
-import { forwardRef, useRef, type ChangeEvent, type MouseEvent } from 'react'
+import { forwardRef, useRef, type ChangeEvent, type MouseEvent, type KeyboardEvent } from 'react'
 import type { GraphSummary } from '../graphTypes'
 import { formatUpdatedAt } from '../utils/time'
 
@@ -7,7 +7,13 @@ type GraphListWidgetProps = {
   graphList: GraphSummary[]
   activeGraphId: string | null
   graphName: string
+  renameValue: string
+  isRenaming: boolean
   importError: string
+  onRenameChange: (value: string) => void
+  onStartRename: () => void
+  onCancelRename: () => void
+  onSubmitRename: () => void
   onSelectGraph: (id: string) => void
   onCreateGraph: () => void
   onDeleteGraph: (id: string) => void
@@ -24,7 +30,13 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
       graphList,
       activeGraphId,
       graphName,
+      renameValue,
+      isRenaming,
       importError,
+      onRenameChange,
+      onStartRename,
+      onCancelRename,
+      onSubmitRename,
       onSelectGraph,
       onCreateGraph,
       onDeleteGraph,
@@ -45,13 +57,51 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
       event.target.value = ''
     }
 
+    const handleRenameKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'Enter') {
+        onSubmitRename()
+      }
+      if (event.key === 'Escape') {
+        onCancelRename()
+      }
+    }
+
     return (
       <aside className={`graph-list ${collapsed ? 'graph-list--collapsed' : ''}`} ref={ref}>
         <div className="graph-list__widget">
           <div className="graph-list__summary">
             <div className="graph-list__title">Your Graphs</div>
             <div className="graph-list__subtitle">{graphList.length} saved</div>
-            <div className="graph-list__active">Active: {graphName || 'Untitled'}</div>
+            {isRenaming && !collapsed ? (
+              <div className="graph-list__rename">
+                <input
+                  className="graph-list__input"
+                  type="text"
+                  value={renameValue}
+                  onChange={(event) => onRenameChange(event.target.value)}
+                  onKeyDown={handleRenameKeyDown}
+                  placeholder="Graph name"
+                  autoFocus
+                />
+                <div className="graph-list__rename-actions">
+                  <button className="btn btn--ghost" type="button" onClick={onSubmitRename}>
+                    Save
+                  </button>
+                  <button className="btn btn--ghost" type="button" onClick={onCancelRename}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="graph-list__active-row">
+                <div className="graph-list__active">Active: {graphName || 'Untitled'}</div>
+                {!collapsed ? (
+                  <button className="icon-btn" type="button" onClick={onStartRename} title="Rename graph">
+                    ✎
+                  </button>
+                ) : null}
+              </div>
+            )}
           </div>
           <div className="graph-list__actions">
             {!collapsed ? (
@@ -122,9 +172,6 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
               )}
             </div>
 
-            <button className="btn btn--primary graph-list__cta" type="button" onClick={onCreateGraph}>
-              New Graph
-            </button>
             {importError ? <div className="graph-list__error">{importError}</div> : null}
             <div className="graph-list__resizer" onMouseDown={onResizeStart} />
           </>

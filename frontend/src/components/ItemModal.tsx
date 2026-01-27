@@ -7,6 +7,8 @@ type ItemModalProps = {
   item: Item | null
   noteTitle: string
   onChangeNoteTitle: (value: string) => void
+  onUpdateItemTitle: (nodeId: string, itemId: string, title: string) => void
+  onUpdateNoteTitle: (nodeId: string, itemId: string, noteId: string, title: string) => void
   onAddNote: (nodeId: string, itemId: string, title: string) => void
   onRemoveNote: (nodeId: string, itemId: string, noteId: string) => void
   onClose: () => void
@@ -18,6 +20,8 @@ export default function ItemModal({
   item,
   noteTitle,
   onChangeNoteTitle,
+  onUpdateItemTitle,
+  onUpdateNoteTitle,
   onAddNote,
   onRemoveNote,
   onClose,
@@ -39,7 +43,12 @@ export default function ItemModal({
         <div className="item-modal__header">
           <div>
             <div className="item-modal__eyebrow">Item Notes</div>
-            <h2>{item.title}</h2>
+            <input
+              className="item-modal__title-input"
+              type="text"
+              value={item.title}
+              onChange={(event) => onUpdateItemTitle(node.id, item.id, event.target.value)}
+            />
           </div>
           <button className="btn btn--ghost" type="button" onClick={onClose}>
             Close
@@ -52,7 +61,14 @@ export default function ItemModal({
           <ul className="item-modal__list">
             {item.notes.map((note) => (
               <li key={note.id} className="item-modal__item">
-                <span>{note.title}</span>
+                <input
+                  className="item-modal__note-input"
+                  type="text"
+                  value={note.title}
+                  onChange={(event) =>
+                    onUpdateNoteTitle(node.id, item.id, note.id, event.target.value)
+                  }
+                />
                 <button
                   className="item-modal__remove"
                   type="button"

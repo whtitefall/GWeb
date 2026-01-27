@@ -1,11 +1,9 @@
 import type { GraphSummary } from '../graphTypes'
-import { STORAGE_LIST_KEY } from '../constants'
-
-export const readLocalGraphList = (): GraphSummary[] => {
+export const readLocalGraphList = (storageKey: string): GraphSummary[] => {
   if (typeof window === 'undefined') {
     return []
   }
-  const raw = window.localStorage.getItem(STORAGE_LIST_KEY)
+  const raw = window.localStorage.getItem(storageKey)
   if (!raw) {
     return []
   }

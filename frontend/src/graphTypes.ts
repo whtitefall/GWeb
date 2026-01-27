@@ -25,10 +25,13 @@ export type NodeData = {
 
 export type GraphNode = Node<NodeData>
 
+export type GraphKind = 'note' | 'application' | 'graph3d'
+
 export type GraphPayload = {
   name: string
   nodes: GraphNode[]
   edges: Edge[]
+  kind?: GraphKind
 }
 
 export type GraphSummary = {

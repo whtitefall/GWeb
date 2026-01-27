@@ -1,9 +1,9 @@
-import type { GraphPayload, GraphSummary } from './graphTypes'
+import type { GraphKind, GraphPayload, GraphSummary } from './graphTypes'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
 
-export async function listGraphs(): Promise<GraphSummary[]> {
-  const response = await fetch(`${API_URL}/api/graphs`)
+export async function listGraphs(kind: GraphKind): Promise<GraphSummary[]> {
+  const response = await fetch(`${API_URL}/api/graphs?kind=${encodeURIComponent(kind)}`)
   if (!response.ok) {
     throw new Error(`Failed to list graphs: ${response.status}`)
   }
