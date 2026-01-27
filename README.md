@@ -28,18 +28,17 @@ Graph Studio with 2D + 3D graph editing, grouping, and AI-assisted generation.
 - OpenAI API key (for AI graph generation)
 
 ## Environment variables
-Backend (set in your shell or system env):
+Backend (`backend/.env` auto-loaded on startup):
 - `DATABASE_URL` - Supabase Postgres connection string
 - `OPENAI_API_KEY` - OpenAI secret key
 - `OPENAI_MODEL` - optional, default: `gpt-4o-mini`
 - `CORS_ORIGIN` - optional, default: `http://localhost:5173`
 - `PORT` - optional, default: `8080`
 
-Frontend (optional):
+Frontend (`frontend/.env`):
 - `VITE_API_URL` - backend URL (default: `http://localhost:8080`)
-
-> Note: Supabase URL/anon key are currently hard-coded in `frontend/src/supabaseClient.ts`.
-> If you want them in env vars instead, move them to `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`.
+- `VITE_SUPABASE_URL` - Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` - Supabase anon public key
 
 ## Database schema
 Apply `backend/schema.sql` to your Supabase database.
