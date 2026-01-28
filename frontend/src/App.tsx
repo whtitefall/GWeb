@@ -18,7 +18,6 @@ import ReactFlow, {
   MiniMap,
   SelectionMode,
   type Connection,
-  type Edge,
   type NodeTypes,
   type ReactFlowInstance,
 } from 'reactflow'
@@ -58,11 +57,9 @@ import {
   statusLabels,
 } from './constants'
 import {
-  coerceNumber,
   createEmptyGraphPayload,
   getAbsolutePosition,
   getNodeRect,
-  getNodeSize,
   normalizeGraph,
 } from './utils/graph'
 import { resolveAuthName } from './utils/auth'

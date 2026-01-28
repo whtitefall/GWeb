@@ -11,7 +11,7 @@ type ChatPanelProps = {
   onClose: () => void
   onInputChange: (value: string) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
-  endRef: RefObject<HTMLDivElement>
+  endRef: RefObject<HTMLDivElement | null>
   examples?: string[]
 }
 

@@ -28,6 +28,11 @@ type Graph3DViewProps = {
   accentSeed: string
 }
 
+// Minimal pointer shape used for shift-click multi-select.
+type PointerEventLike = {
+  shiftKey?: boolean
+}
+
 export default function Graph3DView({
   nodes,
   edges,
@@ -144,7 +149,7 @@ export default function Graph3DView({
     }
   }, [accentSeed])
 
-  const handleNodeClick = (node: { id?: string | number }, event?: MouseEvent) => {
+  const handleNodeClick = (node: { id?: string | number }, event?: PointerEventLike) => {
     if (!node?.id) {
       return
     }
