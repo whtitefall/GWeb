@@ -16,6 +16,7 @@ import type { Edge } from 'reactflow'
 import type { GraphNode } from '../graphTypes'
 import { resolvePosition3d } from '../utils/graph'
 import { isValidColor } from '../utils/theme'
+import { generateId } from '../utils/id'
 
 type Graph3DViewProps = {
   nodes: GraphNode[]
@@ -163,7 +164,7 @@ export default function Graph3DView({
   }
 
   const handleAddNode = () => {
-    const id = crypto.randomUUID()
+    const id = generateId()
     const position3d = {
       x: (Math.random() - 0.5) * 240,
       y: (Math.random() - 0.5) * 200,
@@ -212,7 +213,7 @@ export default function Graph3DView({
     }
     setEdges((current) =>
       current.concat({
-        id: crypto.randomUUID(),
+        id: generateId(),
         source,
         target,
         type: 'smoothstep',

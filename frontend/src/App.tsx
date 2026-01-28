@@ -62,6 +62,7 @@ import {
   getNodeRect,
   normalizeGraph,
 } from './utils/graph'
+import { generateId } from './utils/id'
 import { resolveAuthName } from './utils/auth'
 import { readLocalGraphList } from './utils/storage'
 import { isLightColor, resolveTheme } from './utils/theme'
@@ -446,7 +447,7 @@ export default function App() {
           graphs = [created]
           pendingGraphRef.current = { id: created.id, payload, kind: graphKind }
         } catch {
-          const localId = `local-${crypto.randomUUID()}`
+          const localId = `local-${generateId()}`
           const summary: GraphSummary = {
             id: localId,
             name: payload.name,
@@ -724,7 +725,7 @@ export default function App() {
 
       updateNodeData(nodeId, (data) => ({
         ...data,
-        items: [...data.items, { id: crypto.randomUUID(), title: trimmed, notes: [] }],
+        items: [...data.items, { id: generateId(), title: trimmed, notes: [] }],
       }))
     },
     [updateNodeData],
@@ -750,7 +751,7 @@ export default function App() {
         ...data,
         items: data.items.map((item) =>
           item.id === itemId
-            ? { ...item, notes: [...item.notes, { id: crypto.randomUUID(), title: trimmed }] }
+            ? { ...item, notes: [...item.notes, { id: generateId(), title: trimmed }] }
             : item,
         ),
       }))
@@ -804,7 +805,7 @@ export default function App() {
   )
 
   const addNode = useCallback(() => {
-    const id = crypto.randomUUID()
+    const id = generateId()
     const offset = spawnIndex.current * 24
     spawnIndex.current += 1
     const centerPosition = reactFlowInstance.current
@@ -836,7 +837,7 @@ export default function App() {
   }, [setNodes])
 
   const addGroup = useCallback(() => {
-    const id = crypto.randomUUID()
+    const id = generateId()
     const offset = spawnIndex.current * 24
     spawnIndex.current += 1
     const centerPosition = reactFlowInstance.current
@@ -902,7 +903,7 @@ export default function App() {
     const groupWidth = Math.max(DEFAULT_GROUP_SIZE.width, maxX - minX + GROUP_PADDING * 2)
     const groupHeight = Math.max(DEFAULT_GROUP_SIZE.height, maxY - minY + GROUP_PADDING * 2)
 
-    const groupId = selectedGroup?.id ?? crypto.randomUUID()
+    const groupId = selectedGroup?.id ?? generateId()
     const memberIds = new Set(memberNodes.map((node) => node.id))
 
     setNodes((current) => {
@@ -1133,7 +1134,7 @@ export default function App() {
       setCreateGraphOpen(false)
       setCreateGraphName('')
     } catch {
-      const localId = `local-${crypto.randomUUID()}`
+      const localId = `local-${generateId()}`
       const summary: GraphSummary = {
         id: localId,
         name: payload.name,
@@ -1192,7 +1193,7 @@ export default function App() {
               window.localStorage.setItem(listStorageKey, JSON.stringify([summary]))
             }
           } catch {
-            const localId = `local-${crypto.randomUUID()}`
+            const localId = `local-${generateId()}`
             const summary: GraphSummary = {
               id: localId,
               name: payload.name,
@@ -1397,7 +1398,7 @@ export default function App() {
         return
       }
       const userMessage: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         role: 'user',
         content: trimmed,
       }
@@ -1416,7 +1417,7 @@ export default function App() {
         setHydrated(true)
         setChatMessages((current) =>
           current.concat({
-            id: crypto.randomUUID(),
+            id: generateId(),
             role: 'assistant',
             content: 'Graph generated and applied to the canvas.',
           }),
@@ -1427,7 +1428,7 @@ export default function App() {
         setChatError(message)
         setChatMessages((current) =>
           current.concat({
-            id: crypto.randomUUID(),
+            id: generateId(),
             role: 'assistant',
             content: 'Sorry, I could not generate a graph from that description.',
           }),

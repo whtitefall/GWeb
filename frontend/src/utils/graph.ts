@@ -2,6 +2,7 @@
 import type { Edge } from 'reactflow'
 import type { GraphKind, GraphNode, GraphPayload, Item, NodeData, Note } from '../graphTypes'
 import { DEFAULT_GROUP_SIZE, DEFAULT_NODE_SIZE, defaultGraph } from '../constants'
+import { generateId } from './id'
 
 // Normalize notes to a consistent shape and generate IDs when missing.
 export const ensureNotes = (value: unknown): Note[] => {
@@ -15,7 +16,7 @@ export const ensureNotes = (value: unknown): Note[] => {
       id:
         typeof (note as Note).id === 'string'
           ? (note as Note).id
-          : crypto.randomUUID(),
+          : generateId(),
       title: String((note as Note).title),
     }))
 }
@@ -26,7 +27,7 @@ export const ensureItems = (value: unknown, fallbackNotes: unknown): Item[] => {
     const items = value
       .filter((item) => item && typeof (item as Item).title === 'string')
       .map((item) => ({
-        id: typeof (item as Item).id === 'string' ? (item as Item).id : crypto.randomUUID(),
+        id: typeof (item as Item).id === 'string' ? (item as Item).id : generateId(),
         title: String((item as Item).title),
         notes: ensureNotes((item as Item).notes),
       }))
@@ -39,7 +40,7 @@ export const ensureItems = (value: unknown, fallbackNotes: unknown): Item[] => {
     return fallbackNotes
       .filter((note) => note && typeof (note as Note).title === 'string')
       .map((note) => ({
-        id: typeof (note as Note).id === 'string' ? (note as Note).id : crypto.randomUUID(),
+        id: typeof (note as Note).id === 'string' ? (note as Note).id : generateId(),
         title: String((note as Note).title),
         notes: [],
       }))
