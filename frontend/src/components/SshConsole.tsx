@@ -1,3 +1,4 @@
+// Placeholder SSH console panel for the graph-application beta.
 import type { CSSProperties } from 'react'
 
 type SshConsoleProps = {

@@ -1,3 +1,4 @@
+// Workspace settings modal (theme, accent, layout toggles).
 import { ACCENT_OPTIONS } from '../constants'
 import type { ThemePreference } from '../types/ui'
 
@@ -7,13 +8,11 @@ type SettingsModalProps = {
   resolvedTheme: 'dark' | 'light'
   accentChoice: string
   sidebarCollapsed: boolean
-  betaFeaturesEnabled: boolean
   showMiniMap: boolean
   onClose: () => void
   onSetTheme: (value: ThemePreference) => void
   onSetAccent: (value: string) => void
   onToggleSidebarExpanded: (expanded: boolean) => void
-  onToggleBetaFeatures: (enabled: boolean) => void
   onToggleMiniMap: (enabled: boolean) => void
 }
 
@@ -23,13 +22,11 @@ export default function SettingsModal({
   resolvedTheme,
   accentChoice,
   sidebarCollapsed,
-  betaFeaturesEnabled,
   showMiniMap,
   onClose,
   onSetTheme,
   onSetAccent,
   onToggleSidebarExpanded,
-  onToggleBetaFeatures,
   onToggleMiniMap,
 }: SettingsModalProps) {
   if (!open) {
@@ -107,20 +104,6 @@ export default function SettingsModal({
             <span>Show minimap thumbnail</span>
           </label>
           <div className="modal__hint">Toggle the bottom-left minimap for quick navigation.</div>
-        </div>
-        <div className="modal__section">
-          <div className="modal__label">Beta Features</div>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={betaFeaturesEnabled}
-              onChange={(event) => onToggleBetaFeatures(event.target.checked)}
-            />
-            <span>Show Graph Application + 3D Graph tabs</span>
-          </label>
-          <div className="modal__hint">
-            These beta tools are optional and may be less stable than Graph Note.
-          </div>
         </div>
         <div className="modal__actions">
           <button className="btn btn--ghost" type="button" onClick={onClose}>

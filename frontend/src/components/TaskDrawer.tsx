@@ -1,3 +1,4 @@
+// Task drawer for the graph-application beta (script upload + progress).
 import type { CSSProperties, MouseEvent, RefObject } from 'react'
 import type { GraphNode, NodeData } from '../graphTypes'
 import { coerceNumber } from '../utils/graph'

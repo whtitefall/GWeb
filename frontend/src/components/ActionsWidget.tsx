@@ -1,3 +1,4 @@
+// Floating action palette for graph editing (draggable via the label).
 import type { CSSProperties, MouseEvent, RefObject } from 'react'
 
 type ActionsWidgetProps = {
@@ -11,10 +12,6 @@ type ActionsWidgetProps = {
   canGroup: boolean
   canDelete: boolean
   isGraphNoteView: boolean
-  isApplicationView: boolean
-  onOpenSsh: () => void
-  canOpenSsh: boolean
-  onToggleConsole: () => void
 }
 
 export default function ActionsWidget({
@@ -28,10 +25,6 @@ export default function ActionsWidget({
   canGroup,
   canDelete,
   isGraphNoteView,
-  isApplicationView,
-  onOpenSsh,
-  canOpenSsh,
-  onToggleConsole,
 }: ActionsWidgetProps) {
   return (
     <div className="toolbar" style={style} ref={toolbarRef}>
@@ -44,22 +37,12 @@ export default function ActionsWidget({
       <button className="btn btn--ghost" type="button" onClick={onAddGroup}>
         Add Group
       </button>
-      {isApplicationView ? (
-        <button className="btn btn--ghost" type="button" onClick={onOpenSsh} disabled={!canOpenSsh}>
-          SSH
-        </button>
-      ) : null}
       <button className="btn btn--ghost" type="button" onClick={onGroupSelected} disabled={!canGroup}>
         Group Selected
       </button>
       {isGraphNoteView ? (
         <button className="btn btn--danger" type="button" onClick={onDeleteSelected} disabled={!canDelete}>
           Delete Selected
-        </button>
-      ) : null}
-      {isApplicationView ? (
-        <button className="btn btn--ghost" type="button" onClick={onToggleConsole}>
-          Console
         </button>
       ) : null}
     </div>

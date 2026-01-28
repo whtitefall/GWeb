@@ -1,3 +1,4 @@
+// Sliding chat panel for AI graph generation prompts.
 import type { FormEvent, RefObject } from 'react'
 import type { ChatMessage } from '../types/ui'
 

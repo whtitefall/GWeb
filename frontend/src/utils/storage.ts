@@ -1,3 +1,4 @@
+// Local storage helpers for offline graph lists.
 import type { GraphSummary } from '../graphTypes'
 export const readLocalGraphList = (storageKey: string): GraphSummary[] => {
   if (typeof window === 'undefined') {

@@ -1,3 +1,4 @@
+// OpenAI integration for AI-assisted graph generation.
 package main
 
 import (
@@ -132,6 +133,7 @@ type aiEdge struct {
 	Type   string `json:"type,omitempty"`
 }
 
+// POST /api/ai/graph: validate input, call OpenAI, sanitize graph payload.
 func (s *server) handleAIGraph(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -444,6 +446,7 @@ Rules:
 	)
 }
 
+// JSON schema used for strict structured output from OpenAI.
 func graphSchema() map[string]any {
 	return map[string]any{
 		"type":                 "object",

@@ -1,17 +1,18 @@
 # GWeb
 
-Graph Studio with 2D + 3D graph editing, grouping, and AI-assisted generation.
+Graph Notes studio with 2D graph editing, grouping, and AI-assisted generation.
 
 ## Features
-- 2D graph editor (nodes, edges, groups, drag/drop).
-- 3D graph view with basic actions (add/delete/connect) and coordinate axes.
+- Graph Notes 2D editor (nodes, edges, groups, drag/drop).
 - Multi-graph list with create/delete, import/export JSON.
 - Item + note system per node.
 - Right-side node drawer + AI chat panel.
+- Quick Facts page for graph theory basics.
 - Supabase auth (Google/GitHub) and test login UI.
+- Beta scaffolding for 3D/graph-application features exists in code but is not enabled by default.
 
 ## Tech stack
-- Frontend: React + TypeScript + Vite + React Flow + react-force-graph-3d
+- Frontend: React + TypeScript + Vite + React Flow (3D dependencies are present for future beta work)
 - Backend: Go + pgx (Postgres)
 - Database: Supabase Postgres
 - Auth: Supabase Auth
@@ -20,6 +21,7 @@ Graph Studio with 2D + 3D graph editing, grouping, and AI-assisted generation.
 ## Repo layout
 - `frontend/` React app
 - `backend/` Go API
+ - `docs/` maintenance notes
 
 ## Prerequisites
 - Node.js (for frontend)
@@ -82,9 +84,11 @@ Use the buttons on the left widget to export or import JSON. The export includes
 
 ## Notes
 - The AI chat applies the generated graph immediately.
-- 3D view is read/write (add/delete/connect), but does not use the 2D layout.
 - PowerShell script execution may be blocked by policy on Windows. If needed:
   `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
+
+## Maintenance
+See `docs/MAINTENANCE.md` for architecture and extension notes.
 
 ## License
 See `LICENSE`.

@@ -1,3 +1,4 @@
+// SSH connection modal for the graph-application beta.
 import type { ChangeEvent, FormEvent } from 'react'
 import type { SshConfig } from '../types/ui'
 

@@ -1,3 +1,4 @@
+// HTTP handlers for graph CRUD endpoints.
 package main
 
 import (
@@ -19,6 +20,7 @@ func (s *server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
+// Legacy single-graph endpoint used by early clients.
 func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -96,6 +98,7 @@ func (s *server) handlePutGraph(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// Multi-graph collection endpoint (list + create).
 func (s *server) handleGraphs(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -107,6 +110,7 @@ func (s *server) handleGraphs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Per-graph CRUD handler.
 func (s *server) handleGraphByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/api/graphs/")
 	if id == "" || strings.Contains(id, "/") {
@@ -126,6 +130,7 @@ func (s *server) handleGraphByID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Lists graphs filtered by kind (defaults to "note").
 func (s *server) handleListGraphs(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()

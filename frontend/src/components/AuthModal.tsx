@@ -1,3 +1,4 @@
+// Auth modal for Supabase OAuth + reserved email/password flow.
 import type { FormEvent } from 'react'
 
 type AuthModalProps = {

@@ -1,3 +1,4 @@
+// Context menu shown on right-click for nodes/edges.
 import type { Edge } from 'reactflow'
 import type { GraphNode } from '../graphTypes'
 

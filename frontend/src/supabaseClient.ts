@@ -1,3 +1,4 @@
+// Centralized Supabase client. Keep env var names in sync with .env.example.
 import { createClient } from '@supabase/supabase-js'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined

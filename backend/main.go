@@ -1,3 +1,5 @@
+// GraphNotes backend entry point. Loads env config, connects to Postgres,
+// and serves REST endpoints for graph persistence + AI generation.
 package main
 
 import (
@@ -13,6 +15,7 @@ import (
 )
 
 func main() {
+	// Load .env if present (safe in prod; no-op if missing).
 	_ = godotenv.Load()
 
 	databaseURL := os.Getenv("DATABASE_URL")
@@ -20,11 +23,13 @@ func main() {
 		log.Fatal("DATABASE_URL is required")
 	}
 
+	// Legacy single-graph ID (used by /api/graph); multi-graph endpoints use /api/graphs/:id.
 	graphID := os.Getenv("GRAPH_ID")
 	if graphID == "" {
 		graphID = "default"
 	}
 
+	// HTTP server configuration.
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -35,6 +40,7 @@ func main() {
 		corsOrigin = "http://localhost:5173"
 	}
 
+	// OpenAI is optional; AI endpoint will be disabled without a key.
 	openAIKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 	openAIModel := strings.TrimSpace(os.Getenv("OPENAI_MODEL"))
 	if openAIModel == "" {

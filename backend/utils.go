@@ -1,3 +1,4 @@
+// Shared helpers for HTTP request handling and ID generation.
 package main
 
 import (

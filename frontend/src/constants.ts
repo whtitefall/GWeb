@@ -1,3 +1,4 @@
+// Shared constants for storage keys, sizing, theme accents, and starter content.
 import type { GraphPayload } from './graphTypes'
 
 export const STORAGE_GRAPH_PREFIX = 'gweb.graph.data.v1.'
@@ -5,9 +6,8 @@ export const STORAGE_LIST_KEY = 'gweb.graph.list.v1'
 export const STORAGE_ACTIVE_KEY = 'gweb.graph.active.v1'
 export const THEME_KEY = 'gweb.theme.v1'
 export const ACCENT_KEY = 'gweb.accent.v1'
-export const BETA_KEY = 'gweb.beta.features.v1'
-export const BETA_OPTIN_KEY = 'gweb.beta.optin.v1'
 export const MINIMAP_KEY = 'gweb.minimap.v1'
+export const ADMIN_SESSION_KEY = 'gweb.admin.session.v1'
 
 export const GROUP_PADDING = 32
 export const DEFAULT_GROUP_SIZE = { width: 300, height: 180 }
@@ -53,6 +53,7 @@ export const ACCENT_OPTIONS = [
   },
 ] as const
 
+// Starter Graph Notes payload used for first-time users.
 export const defaultGraph: GraphPayload = {
   name: 'Starter Graph',
   kind: 'note',
@@ -162,6 +163,7 @@ const SOLAR_SYSTEM_POSITIONS = [
   { id: 'neptune', label: 'Neptune', radius: 620, angle: 340, z: -12 },
 ] as const
 
+// Reserved for future/beta 3D graph view (not wired by default).
 export const SOLAR_SYSTEM_GRAPH: GraphPayload = {
   name: 'Solar System',
   kind: 'graph3d',

@@ -1,3 +1,4 @@
+-- Graph storage table. "data" stores the full GraphPayload JSON.
 create table if not exists graphs (
   id text primary key,
   data jsonb not null,

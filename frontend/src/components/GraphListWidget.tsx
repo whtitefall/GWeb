@@ -1,3 +1,4 @@
+// Collapsible graph list widget with rename, import/export, and resize handle.
 import { forwardRef, useRef, type ChangeEvent, type MouseEvent, type KeyboardEvent } from 'react'
 import type { GraphSummary } from '../graphTypes'
 import { formatUpdatedAt } from '../utils/time'

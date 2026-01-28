@@ -1,3 +1,4 @@
+// Format timestamps for the graph list widget.
 export const formatUpdatedAt = (value: string) => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {

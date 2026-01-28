@@ -1,9 +1,8 @@
-
+// App orchestrates the Graph Notes experience: auth gate, graph editor,
+// widgets, settings, and persistence. Keep state/effects grouped.
 import {
   useCallback,
   useEffect,
-  Suspense,
-  lazy,
   useMemo,
   useRef,
   useState,
@@ -36,23 +35,18 @@ import ItemModal from './components/ItemModal'
 import NoteDrawer from './components/NoteDrawer'
 import QuickFactsView from './components/QuickFactsView'
 import SettingsModal from './components/SettingsModal'
-import SshConsole from './components/SshConsole'
-import SshModal from './components/SshModal'
-import TaskDrawer from './components/TaskDrawer'
 import TopBar from './components/TopBar'
-import { GroupNode, NoteNode, TaskNode } from './components/nodes'
+import { GroupNode, NoteNode } from './components/nodes'
 import { useGraphState } from './hooks/useGraphState'
 import {
   ACCENT_KEY,
   ACCENT_OPTIONS,
-  BETA_KEY,
-  BETA_OPTIN_KEY,
+  ADMIN_SESSION_KEY,
   DEFAULT_GROUP_SIZE,
   DRAWER_MAX,
   DRAWER_MIN,
   GROUP_PADDING,
   MINIMAP_KEY,
-  SOLAR_SYSTEM_GRAPH,
   SIDEBAR_COLLAPSED,
   SIDEBAR_MAX,
   SIDEBAR_MIN,
@@ -74,30 +68,22 @@ import {
 import { resolveAuthName } from './utils/auth'
 import { readLocalGraphList } from './utils/storage'
 import { isLightColor, resolveTheme } from './utils/theme'
-import type { ChatMessage, FactKey, SshConfig, ThemePreference, ViewMode } from './types/ui'
+import type { ChatMessage, FactKey, ThemePreference, ViewMode } from './types/ui'
 import { supabase } from './supabaseClient'
 
-const Graph3DView = lazy(() => import('./components/Graph3DView'))
-
 export default function App() {
+  // Core React Flow state for the active graph.
   const { nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange } = useGraphState()
+  // Graph list + metadata for the current Graph Notes view.
   const [graphList, setGraphList] = useState<GraphSummary[]>([])
   const [activeGraphId, setActiveGraphId] = useState<string | null>(null)
   const [graphName, setGraphName] = useState(defaultGraph.name)
   const [createGraphOpen, setCreateGraphOpen] = useState(false)
   const [createGraphName, setCreateGraphName] = useState('')
+  const [deleteGraphTarget, setDeleteGraphTarget] = useState<{ id: string; name: string } | null>(null)
   const [isRenamingGraph, setIsRenamingGraph] = useState(false)
   const [renameValue, setRenameValue] = useState('')
-  const [sshConfigs, setSshConfigs] = useState<Record<string, SshConfig>>({})
-  const [sshModal, setSshModal] = useState<{ graphId: string } | null>(null)
-  const [sshDraft, setSshDraft] = useState<SshConfig>({
-    host: '',
-    port: '22',
-    user: '',
-    keyPath: '',
-  })
-  const [sshConsoleOpen, setSshConsoleOpen] = useState(false)
-  const [sshConsoleMinimized, setSshConsoleMinimized] = useState(false)
+  // Selected node/item state for the drawer + item modal.
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [itemTitle, setItemTitle] = useState('')
   const [itemModal, setItemModal] = useState<{ nodeId: string; itemId: string } | null>(null)
@@ -105,13 +91,16 @@ export default function App() {
   const [saveState, setSaveState] = useState<keyof typeof statusLabels>('idle')
   const [hydrated, setHydrated] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('graph')
-  const [graphKind, setGraphKind] = useState<GraphKind>('note')
+  // Graph kind keeps storage + API calls namespaced; Graph Notes uses "note".
+  const graphKind: GraphKind = 'note'
+  // Chat + quick facts state.
   const [chatOpen, setChatOpen] = useState(false)
   const [activeFactKey, setActiveFactKey] = useState<FactKey | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const [chatError, setChatError] = useState('')
+  // Left panel sizing + collapse preferences (persisted in localStorage).
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window === 'undefined') {
       return 260
@@ -130,6 +119,7 @@ export default function App() {
     }
     return true
   })
+  // Context menu + auth modal state.
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null)
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
@@ -138,17 +128,23 @@ export default function App() {
   const [authName, setAuthName] = useState('')
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [userName, setUserName] = useState('')
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [betaFeaturesEnabled, setBetaFeaturesEnabled] = useState(() => {
+  // Admin login is local-only (stored in localStorage) and intended for dev/test.
+  const [adminSession, setAdminSession] = useState(() => {
     if (typeof window === 'undefined') {
       return false
     }
-    const optedIn = window.localStorage.getItem(BETA_OPTIN_KEY) === 'true'
-    const stored = window.localStorage.getItem(BETA_KEY)
-    return optedIn && stored === 'true'
+    return window.localStorage.getItem(ADMIN_SESSION_KEY) === 'true'
   })
+  const adminSessionRef = useRef(adminSession)
+  const [supabaseLoggedIn, setSupabaseLoggedIn] = useState(false)
+  const [userName, setUserName] = useState(() => {
+    if (typeof window === 'undefined') {
+      return ''
+    }
+    return window.localStorage.getItem(ADMIN_SESSION_KEY) === 'true' ? 'admin' : ''
+  })
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  // Appearance settings (theme + accent + minimap).
   const [showMiniMap, setShowMiniMap] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -175,6 +171,7 @@ export default function App() {
     return 'dark'
   })
   const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>('dark')
+  // Instance refs used for sizing, drag/resize, and scroll anchoring.
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null)
   const spawnIndex = useRef(0)
   const pendingGraphRef = useRef<{ id: string; payload: GraphPayload; kind: GraphKind } | null>(null)
@@ -191,9 +188,12 @@ export default function App() {
   const toolbarOffsetRef = useRef({ x: 0, y: 0 })
   const toolbarMovedRef = useRef(false)
   const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number } | null>(null)
-  const seeded3dGraphsRef = useRef<Set<string>>(new Set())
   const didMountRef = useRef(false)
 
+  // Derived auth state (supabase session OR admin dev login).
+  const isLoggedIn = adminSession || supabaseLoggedIn
+
+  // Local storage keys are namespaced by graph kind for future expansion.
   const listStorageKey = useMemo(() => `${STORAGE_LIST_KEY}.${graphKind}`, [graphKind])
   const activeStorageKey = useMemo(() => `${STORAGE_ACTIVE_KEY}.${graphKind}`, [graphKind])
   const graphStorageKey = useCallback(
@@ -202,34 +202,23 @@ export default function App() {
   )
 
   const isGraphNoteView = viewMode === 'graph'
-  const isApplicationView = viewMode === 'application'
-  const is2DView = isGraphNoteView || isApplicationView
+  const is2DView = isGraphNoteView
 
-  const sshConsoleStyle = useMemo(() => {
-    if (!isApplicationView || !sshConsoleOpen) {
-      return undefined
-    }
-    const sidebarSpace = sidebarCollapsed ? SIDEBAR_COLLAPSED : sidebarWidth
-    return {
-      left: 16 + sidebarSpace + 12,
-    }
-  }, [isApplicationView, sshConsoleOpen, sidebarCollapsed, sidebarWidth])
+  const chatExamples = [
+    'Example: “Group nodes by theme and connect milestones.”',
+    'Example: “Create a hub and spoke layout with 6 clusters.”',
+  ]
 
-  const chatExamples = isApplicationView
-    ? ['Example: “Group scripts by server role.”', 'Example: “Create a deployment flow with 6 tasks.”']
-    : [
-        'Example: “Group nodes by theme and connect milestones.”',
-        'Example: “Create a hub and spoke layout with 6 clusters.”',
-      ]
-
+  // Custom React Flow node renderers.
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
       group: GroupNode,
-      default: viewMode === 'application' ? TaskNode : NoteNode,
+      default: NoteNode,
     }),
-    [viewMode],
+    [],
   )
 
+  // Theme + appearance: sync CSS variables with user preference/system theme.
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
@@ -254,15 +243,6 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const optedIn = window.localStorage.getItem(BETA_OPTIN_KEY) === 'true'
-      if (!optedIn) {
-        window.localStorage.setItem(BETA_KEY, 'false')
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
       window.localStorage.setItem(MINIMAP_KEY, String(showMiniMap))
     }
   }, [showMiniMap])
@@ -281,12 +261,32 @@ export default function App() {
   }, [accentChoice])
 
   useEffect(() => {
+    adminSessionRef.current = adminSession
+  }, [adminSession])
+
+  useEffect(() => {
+    if (adminSession) {
+      setUserName('admin')
+    }
+  }, [adminSession])
+
+  useEffect(() => {
     let isMounted = true
     supabase.auth.getSession().then(({ data }) => {
       if (!isMounted) return
       if (data.session) {
-        setIsLoggedIn(true)
+        setAdminSession(false)
+        adminSessionRef.current = false
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(ADMIN_SESSION_KEY, 'false')
+        }
+        setSupabaseLoggedIn(true)
         setUserName(resolveAuthName(data.session))
+      } else {
+        setSupabaseLoggedIn(false)
+        if (!adminSessionRef.current) {
+          setUserName('')
+        }
       }
     })
 
@@ -295,11 +295,18 @@ export default function App() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!isMounted) return
       if (session) {
-        setIsLoggedIn(true)
+        setAdminSession(false)
+        adminSessionRef.current = false
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(ADMIN_SESSION_KEY, 'false')
+        }
+        setSupabaseLoggedIn(true)
         setUserName(resolveAuthName(session))
       } else {
-        setIsLoggedIn(false)
-        setUserName('')
+        setSupabaseLoggedIn(false)
+        if (!adminSessionRef.current) {
+          setUserName('')
+        }
       }
     })
 
@@ -357,7 +364,7 @@ export default function App() {
     setIsRenamingGraph(false)
   }, [activeGraphId])
 
-
+  // Global mouse handlers for panel resizing + toolbar drag.
   useEffect(() => {
     const handleMove = (event: MouseEvent) => {
       if (resizingRef.current && sidebarRef.current) {
@@ -417,6 +424,7 @@ export default function App() {
     }
   }, [chatMessages])
 
+  // Initial graph list load + hydration of the active graph.
   useEffect(() => {
     let isMounted = true
     const loadGraphs = async () => {
@@ -1106,6 +1114,17 @@ export default function App() {
     setCreateGraphOpen(true)
   }, [])
 
+  const handleRequestDeleteGraph = useCallback(
+    (graphId: string) => {
+      if (!graphId) {
+        return
+      }
+      const match = graphList.find((graph) => graph.id === graphId)
+      setDeleteGraphTarget({ id: graphId, name: match?.name ?? 'this graph' })
+    },
+    [graphList],
+  )
+
   const handleSubmitCreateGraph = useCallback(async () => {
     const name = createGraphName.trim()
     const payload = createEmptyGraphPayload(name || `New Graph ${graphList.length + 1}`, graphKind)
@@ -1136,12 +1155,6 @@ export default function App() {
     async (graphId: string) => {
       if (!graphId) {
         return
-      }
-      if (typeof window !== 'undefined') {
-        const confirmed = window.confirm('Delete this graph? This cannot be undone.')
-        if (!confirmed) {
-          return
-        }
       }
 
       const currentList = graphList
@@ -1282,10 +1295,13 @@ export default function App() {
     }
 
     if (authMode === 'login' && trimmedEmail === 'admin' && trimmedPassword === 'admin123!') {
+      setAdminSession(true)
+      adminSessionRef.current = true
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(ADMIN_SESSION_KEY, 'true')
+      }
       setUserName('admin')
-      setIsLoggedIn(true)
       setAuthOpen(false)
-      setSettingsOpen(true)
       setAuthName('')
       setAuthEmail('')
       setAuthPassword('')
@@ -1307,9 +1323,8 @@ export default function App() {
         }
         if (data.session) {
           setUserName(resolveAuthName(data.session))
-          setIsLoggedIn(true)
+          setSupabaseLoggedIn(true)
           setAuthOpen(false)
-          setSettingsOpen(true)
           setAuthName('')
           setAuthEmail('')
           setAuthPassword('')
@@ -1326,9 +1341,8 @@ export default function App() {
         }
         if (data.session) {
           setUserName(resolveAuthName(data.session))
-          setIsLoggedIn(true)
+          setSupabaseLoggedIn(true)
           setAuthOpen(false)
-          setSettingsOpen(true)
           setAuthName('')
           setAuthEmail('')
           setAuthPassword('')
@@ -1347,7 +1361,12 @@ export default function App() {
         // Ignore sign-out errors for now; local state still clears.
       }
     }
-    setIsLoggedIn(false)
+    setAdminSession(false)
+    adminSessionRef.current = false
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(ADMIN_SESSION_KEY, 'false')
+    }
+    setSupabaseLoggedIn(false)
     setUserName('')
     setSettingsOpen(false)
   }
@@ -1459,119 +1478,11 @@ export default function App() {
     [graphKind, setEdges, setNodes],
   )
 
-  const seedSolarSystemIfNeeded = useCallback(() => {
-    if (!activeGraphId || graphKind !== 'graph3d' || !hydrated) {
-      return
-    }
-    if (seeded3dGraphsRef.current.has(activeGraphId)) {
-      return
-    }
-    if (nodes.length > 0 || edges.length > 0) {
-      return
-    }
-    const normalized = normalizeGraph(SOLAR_SYSTEM_GRAPH, 'graph3d')
-    setGraphName(normalized.name)
-    setNodes(normalized.nodes)
-    setEdges(normalized.edges)
-    setSelectedNodeId(null)
-    seeded3dGraphsRef.current.add(activeGraphId)
-  }, [activeGraphId, edges.length, graphKind, hydrated, nodes.length, setEdges, setNodes])
-
-  useEffect(() => {
-    seedSolarSystemIfNeeded()
-  }, [seedSolarSystemIfNeeded])
-
-  if (!isLoggedIn) {
-    return (
-      <div className="app app--auth">
-        <div className="auth-gate">
-          <div className="auth-gate__panel">
-            <div className="brand auth-gate__brand">
-              <div className="brand__mark" />
-              <div>
-                <div className="brand__title">Graph Studio</div>
-                <div className="brand__subtitle">Organize ideas into connected flows.</div>
-              </div>
-            </div>
-            <h1>Welcome</h1>
-            <p className="auth-gate__subtitle">
-              Create visual graph notes, store your progress, and sync across devices. Sign in to get started.
-            </p>
-            <div className="auth-gate__actions">
-              <button
-                className="btn btn--primary"
-                type="button"
-                onClick={() => {
-                  setAuthMode('register')
-                  setAuthOpen(true)
-                }}
-              >
-                Register
-              </button>
-              <button
-                className="btn btn--ghost"
-                type="button"
-                onClick={() => {
-                  setAuthMode('login')
-                  setAuthOpen(true)
-                }}
-              >
-                Log in
-              </button>
-            </div>
-            <div className="auth-gate__note">We keep your graphs private and synced to your account.</div>
-          </div>
-        </div>
-
-        <AuthModal
-          open={authOpen}
-          mode={authMode}
-          authName={authName}
-          authEmail={authEmail}
-          authPassword={authPassword}
-          authError={authError}
-          authNotice={authNotice}
-          onChangeMode={setAuthMode}
-          onClose={() => setAuthOpen(false)}
-          onSubmit={handleAuthSubmit}
-          onOAuthLogin={handleOAuthLogin}
-          onChangeName={setAuthName}
-          onChangeEmail={setAuthEmail}
-          onChangePassword={setAuthPassword}
-        />
-        <div className="app-footer">© 2026 GraphNote. Powered by Yuanzheng Hu and Codex.</div>
-      </div>
-    )
-  }
-
   const changeView = (mode: ViewMode) => {
-    if (!betaFeaturesEnabled && (mode === 'application' || mode === 'graph3d')) {
-      setViewMode('graph')
-      if (graphKind !== 'note') {
-        setGraphKind('note')
-      }
-      setSelectedNodeId(null)
-      setChatOpen(false)
-      return
-    }
-    const nextKind =
-      mode === 'graph' ? 'note' : mode === 'application' ? 'application' : mode === 'graph3d' ? 'graph3d' : null
-    if (nextKind && nextKind !== graphKind) {
-      setGraphKind(nextKind)
-    }
     setViewMode(mode)
     setSelectedNodeId(null)
     setChatOpen(false)
   }
-
-  useEffect(() => {
-    if (!betaFeaturesEnabled && (viewMode === 'application' || viewMode === 'graph3d')) {
-      setViewMode('graph')
-      if (graphKind !== 'note') {
-        setGraphKind('note')
-      }
-    }
-  }, [betaFeaturesEnabled, graphKind, viewMode])
 
   const handleToggleChat = useCallback(() => {
     setChatOpen((open) => {
@@ -1582,46 +1493,6 @@ export default function App() {
       }
       return next
     })
-  }, [])
-
-  const openSshConfig = (graphId: string) => {
-    const existing = sshConfigs[graphId] ?? {
-      host: '',
-      port: '22',
-      user: '',
-      keyPath: '',
-    }
-    setSshDraft(existing)
-    setSshModal({ graphId })
-  }
-
-  const saveSshConfig = () => {
-    if (!sshModal) {
-      return
-    }
-    setSshConfigs((current) => ({
-      ...current,
-      [sshModal.graphId]: sshDraft,
-    }))
-    setSshModal(null)
-  }
-
-  const handleToggleConsole = useCallback(() => {
-    setSshConsoleOpen((open) => {
-      const next = !open
-      if (next) {
-        setSshConsoleMinimized(false)
-      }
-      return next
-    })
-  }, [])
-
-  const handleToggleBetaFeatures = useCallback((enabled: boolean) => {
-    setBetaFeaturesEnabled(enabled)
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(BETA_KEY, String(enabled))
-      window.localStorage.setItem(BETA_OPTIN_KEY, 'true')
-    }
   }, [])
 
   const handleOpenItemModal = useCallback((nodeId: string, itemId: string) => {
@@ -1668,251 +1539,246 @@ export default function App() {
     return itemModalNode.data.items.find((item) => item.id === itemModal.itemId) ?? null
   }, [itemModal, itemModalNode])
 
+  const showAuthGate = !isLoggedIn
+  const authGate = (
+    <div className="auth-gate">
+      <div className="auth-gate__panel">
+        <div className="brand auth-gate__brand">
+          <div className="brand__mark" />
+          <div>
+            <div className="brand__title">Graph Studio</div>
+            <div className="brand__subtitle">Organize ideas into connected flows.</div>
+          </div>
+        </div>
+        <h1>Welcome</h1>
+        <p className="auth-gate__subtitle">
+          Create visual graph notes, store your progress, and sync across devices. Sign in to get started.
+        </p>
+        <div className="auth-gate__actions">
+          <button
+            className="btn btn--primary"
+            type="button"
+            onClick={() => {
+              setAuthMode('register')
+              setAuthOpen(true)
+            }}
+          >
+            Register
+          </button>
+          <button
+            className="btn btn--ghost"
+            type="button"
+            onClick={() => {
+              setAuthMode('login')
+              setAuthOpen(true)
+            }}
+          >
+            Log in
+          </button>
+        </div>
+        <div className="auth-gate__note">We keep your graphs private and synced to your account.</div>
+      </div>
+    </div>
+  )
+
   return (
-    <div className="app">
-      <TopBar
-        viewMode={viewMode}
-        onChangeView={changeView}
-        saveState={saveState}
-        showBetaTabs={betaFeaturesEnabled}
-        isLoggedIn={isLoggedIn}
-        userName={userName}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onLogout={handleLogout}
-        onOpenAuth={handleOpenAuth}
-        onToggleChat={handleToggleChat}
-      />
-
-      <main
-        className={`workspace ${viewMode === 'facts' ? 'workspace--facts' : ''}`}
-        style={workspaceStyle}
-      >
-        <section className="flow-shell" ref={flowShellRef}>
-          {is2DView ? (
-            <>
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                nodeTypes={nodeTypes}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onNodesDelete={onNodesDelete}
-                onConnect={onConnect}
-                onInit={(instance) => {
-                  reactFlowInstance.current = instance
-                  instance.fitView({ padding: 0.2 })
-                  const viewport = instance.getViewport ? instance.getViewport() : { x: 0, y: 0, zoom: 1 }
-                  instance.setViewport({ x: viewport.x, y: viewport.y, zoom: 0.9 }, { duration: 0 })
-                }}
-                onNodeClick={(_, node) => {
-                  setChatOpen(false)
-                  setContextMenu(null)
-                  setSelectedNodeId(node.id)
-                }}
-                onNodeContextMenu={(event, node) => {
-                  event.preventDefault()
-                  setSelectedNodeId(node.id)
-                  const rect = flowShellRef.current?.getBoundingClientRect()
-                  const x = rect ? event.clientX - rect.left : event.clientX
-                  const y = rect ? event.clientY - rect.top : event.clientY
-                  setContextMenu({
-                    kind: 'node',
-                    id: node.id,
-                    x,
-                    y,
-                  })
-                }}
-                onEdgeContextMenu={(event, edge) => {
-                  event.preventDefault()
-                  const rect = flowShellRef.current?.getBoundingClientRect()
-                  const x = rect ? event.clientX - rect.left : event.clientX
-                  const y = rect ? event.clientY - rect.top : event.clientY
-                  setContextMenu({
-                    kind: 'edge',
-                    id: edge.id,
-                    x,
-                    y,
-                  })
-                }}
-                onPaneClick={() => {
-                  setSelectedNodeId(null)
-                  setContextMenu(null)
-                }}
-                onPaneContextMenu={(event) => {
-                  event.preventDefault()
-                  setContextMenu(null)
-                }}
-                defaultViewport={{ x: 0, y: 0, zoom: 0.9 }}
-                deleteKeyCode={['Backspace', 'Delete']}
-                defaultEdgeOptions={{
-                  type: 'smoothstep',
-                  markerEnd: {
-                    type: MarkerType.ArrowClosed,
-                    color: 'var(--edge)',
-                  },
-                }}
-                selectionOnDrag
-                selectionMode={SelectionMode.Partial}
-                panOnDrag={[2]}
-              >
-                <Background color="var(--grid)" gap={26} size={1} />
-                <Controls position="bottom-right" />
-                {showMiniMap ? (
-                  <MiniMap
-                    pannable
-                    zoomable
-                    nodeColor={(node) => (node.selected ? 'var(--accent)' : 'var(--minimap-node)')}
-                    maskColor="var(--minimap-mask)"
-                    position="bottom-left"
-                  />
-                ) : null}
-              </ReactFlow>
-              <GraphContextMenu
-                contextMenu={contextMenu}
-                menuPosition={menuPosition}
-                contextNode={contextNode}
-                contextEdge={contextEdge}
-                onDeleteNode={removeNode}
-                onRemoveFromGroup={detachFromGroup}
-                onUngroupChildren={ungroupChildren}
-                onDeleteEdge={removeEdgeById}
-                onClose={() => setContextMenu(null)}
-              />
-            </>
-          ) : viewMode === 'graph3d' ? (
-            <Suspense fallback={<div className="graph-3d__loading">Loading 3D view…</div>}>
-              <Graph3DView
-                nodes={nodes}
-                edges={edges}
-                setNodes={setNodes}
-                setEdges={setEdges}
-                toolbarStyle={toolbarStyle}
-                toolbarRef={toolbarRef}
-                onToolbarDragStart={handleToolbarDragStart}
-                accentSeed={accentChoice}
-              />
-            </Suspense>
-          ) : (
-            <QuickFactsView activeFactKey={activeFactKey} onSelectFact={setActiveFactKey} />
-          )}
-
-          {is2DView ? (
-            <GraphListWidget
-              ref={sidebarRef}
-              collapsed={sidebarCollapsed}
-              graphList={graphList}
-              activeGraphId={activeGraphId}
-              graphName={graphName}
-              renameValue={renameValue}
-              isRenaming={isRenamingGraph}
-              importError={importError}
-              onRenameChange={setRenameValue}
-              onStartRename={handleStartRename}
-              onCancelRename={handleCancelRename}
-              onSubmitRename={handleSubmitRename}
-              onSelectGraph={setActiveGraphId}
-              onCreateGraph={handleCreateGraph}
-              onDeleteGraph={handleDeleteGraph}
-              onExport={handleExport}
-              onImportFile={handleImportFile}
-              onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
-              onResizeStart={handleResizeStart}
-            />
-          ) : null}
-
-          {is2DView ? (
-            <ActionsWidget
-              style={toolbarStyle}
-              toolbarRef={toolbarRef}
-              onDragStart={handleToolbarDragStart}
-              onAddNode={addNode}
-              onAddGroup={addGroup}
-              onGroupSelected={groupSelected}
-              onDeleteSelected={deleteSelected}
-              canGroup={selectedNodeCount > 0}
-              canDelete={selectionCount > 0}
-              isGraphNoteView={isGraphNoteView}
-              isApplicationView={isApplicationView}
-              onOpenSsh={() => activeGraphId && openSshConfig(activeGraphId)}
-              canOpenSsh={Boolean(activeGraphId)}
-              onToggleConsole={handleToggleConsole}
-            />
-          ) : null}
-
-          {isGraphNoteView ? (
-            <NoteDrawer
-              activeNode={activeNode}
-              drawerStyle={drawerStyle}
-              drawerRef={drawerRef}
-              onResizeStart={handleDrawerResizeStart}
-              onClose={() => setSelectedNodeId(null)}
-              onRemoveNode={removeNode}
-              onDetachFromGroup={detachFromGroup}
-              onUpdateLabel={(nodeId, value) =>
-                updateNodeData(nodeId, (data) => ({
-                  ...data,
-                  label: value,
-                }))
-              }
-              itemTitle={itemTitle}
-              onItemTitleChange={setItemTitle}
-              onAddItem={addItem}
-              onRemoveItem={removeItem}
-              onOpenItemModal={handleOpenItemModal}
-            />
-          ) : null}
-
-          {isApplicationView ? (
-            <TaskDrawer
-              activeNode={activeNode}
-              drawerStyle={drawerStyle}
-              drawerRef={drawerRef}
-              onResizeStart={handleDrawerResizeStart}
-              onClose={() => setSelectedNodeId(null)}
-              onRemoveNode={removeNode}
-              updateNodeData={updateNodeData}
-            />
-          ) : null}
-
-          {is2DView ? (
-            <ChatPanel
-              open={chatOpen}
-              chatMessages={chatMessages}
-              chatError={chatError}
-              chatInput={chatInput}
-              chatLoading={chatLoading}
-              onClose={() => setChatOpen(false)}
-              onInputChange={setChatInput}
-              onSubmit={handleChatSend}
-              endRef={chatEndRef}
-              examples={chatExamples}
-            />
-          ) : null}
-
-          <SshConsole
-            open={isApplicationView && sshConsoleOpen}
-            minimized={sshConsoleMinimized}
-            style={sshConsoleStyle}
-            title={activeGraphId ? 'Connected server' : 'No graph selected'}
-            message={
-              sshConfigs[activeGraphId ?? '']?.host
-                ? `Connecting to ${sshConfigs[activeGraphId ?? '']?.host}...`
-                : 'Configure SSH to connect to a server.'
-            }
-            onToggleMinimize={() => setSshConsoleMinimized((current) => !current)}
-            onClose={() => setSshConsoleOpen(false)}
+    <div className={`app ${showAuthGate ? 'app--auth' : ''}`}>
+      {showAuthGate ? (
+        authGate
+      ) : (
+        <>
+          <TopBar
+            viewMode={viewMode}
+            onChangeView={changeView}
+            saveState={saveState}
+            isLoggedIn={isLoggedIn}
+            userName={userName}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onLogout={handleLogout}
+            onOpenAuth={handleOpenAuth}
+            onToggleChat={handleToggleChat}
           />
-        </section>
-      </main>
 
-      <SshModal
-        open={Boolean(sshModal)}
-        graphName={sshModal ? graphList.find((graph) => graph.id === sshModal.graphId)?.name ?? 'this graph' : ''}
-        draft={sshDraft}
-        onChangeDraft={setSshDraft}
-        onClose={() => setSshModal(null)}
-        onSave={saveSshConfig}
-      />
+          <main
+            className={`workspace ${viewMode === 'facts' ? 'workspace--facts' : ''}`}
+            style={workspaceStyle}
+          >
+            <section className="flow-shell" ref={flowShellRef}>
+              {is2DView ? (
+                <>
+                  <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    nodeTypes={nodeTypes}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onNodesDelete={onNodesDelete}
+                    onConnect={onConnect}
+                    onInit={(instance) => {
+                      reactFlowInstance.current = instance
+                      instance.fitView({ padding: 0.2 })
+                      const viewport = instance.getViewport ? instance.getViewport() : { x: 0, y: 0, zoom: 1 }
+                      instance.setViewport({ x: viewport.x, y: viewport.y, zoom: 0.9 }, { duration: 0 })
+                    }}
+                    onNodeClick={(_, node) => {
+                      setChatOpen(false)
+                      setContextMenu(null)
+                      setSelectedNodeId(node.id)
+                    }}
+                    onNodeContextMenu={(event, node) => {
+                      event.preventDefault()
+                      setSelectedNodeId(node.id)
+                      const rect = flowShellRef.current?.getBoundingClientRect()
+                      const x = rect ? event.clientX - rect.left : event.clientX
+                      const y = rect ? event.clientY - rect.top : event.clientY
+                      setContextMenu({
+                        kind: 'node',
+                        id: node.id,
+                        x,
+                        y,
+                      })
+                    }}
+                    onEdgeContextMenu={(event, edge) => {
+                      event.preventDefault()
+                      const rect = flowShellRef.current?.getBoundingClientRect()
+                      const x = rect ? event.clientX - rect.left : event.clientX
+                      const y = rect ? event.clientY - rect.top : event.clientY
+                      setContextMenu({
+                        kind: 'edge',
+                        id: edge.id,
+                        x,
+                        y,
+                      })
+                    }}
+                    onPaneClick={() => {
+                      setSelectedNodeId(null)
+                      setContextMenu(null)
+                    }}
+                    onPaneContextMenu={(event) => {
+                      event.preventDefault()
+                      setContextMenu(null)
+                    }}
+                    defaultViewport={{ x: 0, y: 0, zoom: 0.9 }}
+                    deleteKeyCode={['Backspace', 'Delete']}
+                    defaultEdgeOptions={{
+                      type: 'smoothstep',
+                      markerEnd: {
+                        type: MarkerType.ArrowClosed,
+                        color: 'var(--edge)',
+                      },
+                    }}
+                    selectionOnDrag
+                    selectionMode={SelectionMode.Partial}
+                    panOnDrag={[2]}
+                  >
+                    <Background color="var(--grid)" gap={26} size={1} />
+                    <Controls position="bottom-right" />
+                    {showMiniMap ? (
+                      <MiniMap
+                        pannable
+                        zoomable
+                        nodeColor={(node) => (node.selected ? 'var(--accent)' : 'var(--minimap-node)')}
+                        maskColor="var(--minimap-mask)"
+                        position="bottom-left"
+                      />
+                    ) : null}
+                  </ReactFlow>
+                  <GraphContextMenu
+                    contextMenu={contextMenu}
+                    menuPosition={menuPosition}
+                    contextNode={contextNode}
+                    contextEdge={contextEdge}
+                    onDeleteNode={removeNode}
+                    onRemoveFromGroup={detachFromGroup}
+                    onUngroupChildren={ungroupChildren}
+                    onDeleteEdge={removeEdgeById}
+                    onClose={() => setContextMenu(null)}
+                  />
+                </>
+              ) : (
+                <QuickFactsView activeFactKey={activeFactKey} onSelectFact={setActiveFactKey} />
+              )}
+
+              {is2DView ? (
+                <GraphListWidget
+                  ref={sidebarRef}
+                  collapsed={sidebarCollapsed}
+                  graphList={graphList}
+                  activeGraphId={activeGraphId}
+                  graphName={graphName}
+                  renameValue={renameValue}
+                  isRenaming={isRenamingGraph}
+                  importError={importError}
+                  onRenameChange={setRenameValue}
+                  onStartRename={handleStartRename}
+                  onCancelRename={handleCancelRename}
+                  onSubmitRename={handleSubmitRename}
+                  onSelectGraph={setActiveGraphId}
+                  onCreateGraph={handleCreateGraph}
+                  onDeleteGraph={handleRequestDeleteGraph}
+                  onExport={handleExport}
+                  onImportFile={handleImportFile}
+                  onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
+                  onResizeStart={handleResizeStart}
+                />
+              ) : null}
+
+              {is2DView ? (
+                <ActionsWidget
+                  style={toolbarStyle}
+                  toolbarRef={toolbarRef}
+                  onDragStart={handleToolbarDragStart}
+                  onAddNode={addNode}
+                  onAddGroup={addGroup}
+                  onGroupSelected={groupSelected}
+                  onDeleteSelected={deleteSelected}
+                  canGroup={selectedNodeCount > 0}
+                  canDelete={selectionCount > 0}
+                  isGraphNoteView={isGraphNoteView}
+                />
+              ) : null}
+
+              {isGraphNoteView ? (
+                <NoteDrawer
+                  activeNode={activeNode}
+                  drawerStyle={drawerStyle}
+                  drawerRef={drawerRef}
+                  onResizeStart={handleDrawerResizeStart}
+                  onClose={() => setSelectedNodeId(null)}
+                  onRemoveNode={removeNode}
+                  onDetachFromGroup={detachFromGroup}
+                  onUpdateLabel={(nodeId, value) =>
+                    updateNodeData(nodeId, (data) => ({
+                      ...data,
+                      label: value,
+                    }))
+                  }
+                  itemTitle={itemTitle}
+                  onItemTitleChange={setItemTitle}
+                  onAddItem={addItem}
+                  onRemoveItem={removeItem}
+                  onOpenItemModal={handleOpenItemModal}
+                />
+              ) : null}
+
+              {is2DView ? (
+                <ChatPanel
+                  open={chatOpen}
+                  chatMessages={chatMessages}
+                  chatError={chatError}
+                  chatInput={chatInput}
+                  chatLoading={chatLoading}
+                  onClose={() => setChatOpen(false)}
+                  onInputChange={setChatInput}
+                  onSubmit={handleChatSend}
+                  endRef={chatEndRef}
+                  examples={chatExamples}
+                />
+              ) : null}
+            </section>
+          </main>
+        </>
+      )}
 
       <AuthModal
         open={authOpen}
@@ -1979,23 +1845,47 @@ export default function App() {
         </div>
       ) : null}
 
+      {deleteGraphTarget ? (
+        <div className="modal-overlay" onClick={() => setDeleteGraphTarget(null)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <h2>Delete Graph</h2>
+            <p className="modal__subtitle">
+              Delete "{deleteGraphTarget.name}"? This cannot be undone.
+            </p>
+            <div className="modal__actions">
+              <button className="btn btn--ghost" type="button" onClick={() => setDeleteGraphTarget(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn--danger"
+                type="button"
+                onClick={() => {
+                  handleDeleteGraph(deleteGraphTarget.id)
+                  setDeleteGraphTarget(null)
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <SettingsModal
         open={settingsOpen}
         themePreference={themePreference}
         resolvedTheme={resolvedTheme}
         accentChoice={accentChoice}
         sidebarCollapsed={sidebarCollapsed}
-        betaFeaturesEnabled={betaFeaturesEnabled}
         showMiniMap={showMiniMap}
         onClose={() => setSettingsOpen(false)}
         onSetTheme={setThemePreference}
         onSetAccent={setAccentChoice}
         onToggleSidebarExpanded={(expanded) => setSidebarCollapsed(!expanded)}
-        onToggleBetaFeatures={handleToggleBetaFeatures}
         onToggleMiniMap={setShowMiniMap}
       />
 
-      <div className="app-footer">© 2026 GraphNote. Powered by Yuanzheng Hu and Codex.</div>
+      {showAuthGate ? <div className="app-footer">© 2026 GraphNotes. Powered by Yuanzheng Hu and Codex.</div> : null}
     </div>
   )
 }

@@ -1,3 +1,4 @@
+// Derive a display name from a Supabase session (fallback to email/local label).
 export const resolveAuthName = (session: {
   user?: { user_metadata?: { full_name?: string }; email?: string }
 } | null) => {

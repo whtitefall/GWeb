@@ -1,3 +1,4 @@
+// Quick Facts page with interactive cards + simple SVG illustrations.
 import { QUICK_FACTS, type QuickFactKey } from '../constants'
 
 type QuickFactsViewProps = {
@@ -5,6 +6,7 @@ type QuickFactsViewProps = {
   onSelectFact: (key: QuickFactKey) => void
 }
 
+// Lightweight inline SVGs keep the facts page dependency-free.
 const renderFactDiagram = (key: QuickFactKey) => {
   switch (key) {
     case 'directed':

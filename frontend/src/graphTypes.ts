@@ -1,3 +1,4 @@
+// Shared graph data types used throughout the frontend (and mirrored in the backend payloads).
 import type { Edge, Node } from 'reactflow'
 
 export type Note = {
@@ -25,6 +26,7 @@ export type NodeData = {
 
 export type GraphNode = Node<NodeData>
 
+// Graph "applications" share a common payload shape but are kept separate by kind.
 export type GraphKind = 'note' | 'application' | 'graph3d'
 
 export type GraphPayload = {

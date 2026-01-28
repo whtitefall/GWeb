@@ -1,3 +1,4 @@
+// Theme helpers shared by settings + UI rendering.
 export const resolveTheme = (preference: 'dark' | 'light' | 'system', prefersDark: boolean) => {
   if (preference === 'system') {
     return prefersDark ? 'dark' : 'light'

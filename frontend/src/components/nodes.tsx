@@ -1,3 +1,4 @@
+// Custom React Flow node renderers.
 import { Handle, Position, type NodeProps } from 'reactflow'
 import type { NodeData } from '../graphTypes'
 import { coerceNumber } from '../utils/graph'
@@ -14,6 +15,7 @@ export function GroupNode({ data, selected }: NodeProps<NodeData>) {
   )
 }
 
+// Reserved for graph-application tasks (not wired into Graph Notes by default).
 export function TaskNode({ data, selected }: NodeProps<NodeData>) {
   const progress = Math.min(100, Math.max(0, coerceNumber(data.progress, 0)))
   return (

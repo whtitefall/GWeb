@@ -1,7 +1,9 @@
+// Graph helpers for normalization, sizing, and safe data coercion.
 import type { Edge } from 'reactflow'
 import type { GraphKind, GraphNode, GraphPayload, Item, NodeData, Note } from '../graphTypes'
 import { DEFAULT_GROUP_SIZE, DEFAULT_NODE_SIZE, defaultGraph } from '../constants'
 
+// Normalize notes to a consistent shape and generate IDs when missing.
 export const ensureNotes = (value: unknown): Note[] => {
   if (!Array.isArray(value)) {
     return []
@@ -18,6 +20,7 @@ export const ensureNotes = (value: unknown): Note[] => {
     }))
 }
 
+// Normalize items (and legacy notes) into the current Item[] structure.
 export const ensureItems = (value: unknown, fallbackNotes: unknown): Item[] => {
   if (Array.isArray(value)) {
     const items = value
@@ -81,6 +84,7 @@ export const resolvePosition3d = (
   }
 }
 
+// Ensure a graph payload has required fields, sane defaults, and stable IDs.
 export const normalizeGraph = (payload: GraphPayload | null, fallbackKind: GraphKind = 'note'): GraphPayload => {
   if (!payload || !Array.isArray(payload.nodes) || !Array.isArray(payload.edges)) {
     return fallbackKind === 'note' ? defaultGraph : createEmptyGraphPayload('Starter Graph', fallbackKind)
@@ -154,6 +158,7 @@ export const getNodeSize = (node: GraphNode) => {
   }
 }
 
+// Resolve absolute position for group child nodes.
 export const getAbsolutePosition = (node: GraphNode, nodeMap: Map<string, GraphNode>) => {
   if (node.positionAbsolute) {
     return node.positionAbsolute

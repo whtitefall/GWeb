@@ -1,3 +1,4 @@
+// 3D graph view (beta / future feature). Not wired into the main UI by default.
 import {
   useEffect,
   useMemo,

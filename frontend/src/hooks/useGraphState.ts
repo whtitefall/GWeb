@@ -1,3 +1,4 @@
+// Convenience hook to keep React Flow node/edge state co-located.
 import { useEdgesState, useNodesState } from 'reactflow'
 import type { NodeData } from '../graphTypes'
 

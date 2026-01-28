@@ -1,3 +1,4 @@
+// Simple CORS middleware for local dev + configurable origins.
 package main
 
 import (

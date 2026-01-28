@@ -1,3 +1,4 @@
+// server holds runtime dependencies for request handlers.
 package main
 
 import "github.com/jackc/pgx/v5/pgxpool"

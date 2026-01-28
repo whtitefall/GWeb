@@ -1,3 +1,4 @@
+// Modal for editing an item's title and notes list.
 import type { FormEvent } from 'react'
 import type { GraphNode, Item } from '../graphTypes'
 
