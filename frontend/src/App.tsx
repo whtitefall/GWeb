@@ -1668,7 +1668,7 @@ export default function App() {
         <div className="brand auth-gate__brand">
           <div className="brand__mark" />
           <div>
-            <div className="brand__title">Graph Studio</div>
+            <div className="brand__title">Graph Note</div>
             <div className="brand__subtitle">Organize ideas into connected flows.</div>
           </div>
         </div>
@@ -2061,7 +2061,7 @@ export default function App() {
         onToggleMiniMap={setShowMiniMap}
       />
 
-      {showAuthGate ? <div className="app-footer">© 2026 GraphNotes. Powered by Yuanzheng Hu and Codex.</div> : null}
+      {showAuthGate ? <div className="app-footer">© 2026 Graph Note. Powered by Yuanzheng Hu and Codex.</div> : null}
     </div>
   )
 }

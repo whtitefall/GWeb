@@ -32,7 +32,7 @@ export default function TopBar({
       <div className="brand">
         <div className="brand__mark" />
         <div>
-          <div className="brand__title">Graph Studio</div>
+          <div className="brand__title">Graph Note</div>
           <div className="brand__subtitle">Organize ideas into connected flows.</div>
         </div>
       </div>
