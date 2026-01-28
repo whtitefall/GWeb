@@ -1,6 +1,8 @@
 // App orchestrates the Graph Notes experience: auth gate, graph editor,
 // widgets, settings, and persistence. Keep state/effects grouped.
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -33,14 +35,18 @@ import GraphListWidget from './components/GraphListWidget'
 import ItemModal from './components/ItemModal'
 import NoteDrawer from './components/NoteDrawer'
 import QuickFactsView from './components/QuickFactsView'
+import SshConsole from './components/SshConsole'
+import SshModal from './components/SshModal'
 import SettingsModal from './components/SettingsModal'
+import TaskDrawer from './components/TaskDrawer'
 import TopBar from './components/TopBar'
-import { GroupNode, NoteNode } from './components/nodes'
+import { GroupNode, NoteNode, TaskNode } from './components/nodes'
 import { useGraphState } from './hooks/useGraphState'
 import {
   ACCENT_KEY,
   ACCENT_OPTIONS,
   ADMIN_SESSION_KEY,
+  BETA_KEY,
   DEFAULT_GROUP_SIZE,
   DRAWER_MAX,
   DRAWER_MIN,
@@ -54,6 +60,7 @@ import {
   STORAGE_LIST_KEY,
   THEME_KEY,
   defaultGraph,
+  SOLAR_SYSTEM_GRAPH,
   statusLabels,
 } from './constants'
 import {
@@ -66,8 +73,10 @@ import { generateId } from './utils/id'
 import { resolveAuthName } from './utils/auth'
 import { readLocalGraphList } from './utils/storage'
 import { isLightColor, resolveTheme } from './utils/theme'
-import type { ChatMessage, FactKey, ThemePreference, ViewMode } from './types/ui'
+import type { ChatMessage, FactKey, SshConfig, ThemePreference, ViewMode } from './types/ui'
 import { supabase } from './supabaseClient'
+
+const Graph3DView = lazy(() => import('./components/Graph3DView'))
 
 export default function App() {
   // Core React Flow state for the active graph.
@@ -81,6 +90,16 @@ export default function App() {
   const [deleteGraphTarget, setDeleteGraphTarget] = useState<{ id: string; name: string } | null>(null)
   const [isRenamingGraph, setIsRenamingGraph] = useState(false)
   const [renameValue, setRenameValue] = useState('')
+  const [sshConfigs, setSshConfigs] = useState<Record<string, SshConfig>>({})
+  const [sshModal, setSshModal] = useState<{ graphId: string } | null>(null)
+  const [sshDraft, setSshDraft] = useState<SshConfig>({
+    host: '',
+    port: '22',
+    user: '',
+    keyPath: '',
+  })
+  const [sshConsoleOpen, setSshConsoleOpen] = useState(false)
+  const [sshConsoleMinimized, setSshConsoleMinimized] = useState(false)
   // Selected node/item state for the drawer + item modal.
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [itemTitle, setItemTitle] = useState('')
@@ -89,8 +108,8 @@ export default function App() {
   const [saveState, setSaveState] = useState<keyof typeof statusLabels>('idle')
   const [hydrated, setHydrated] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('graph')
-  // Graph kind keeps storage + API calls namespaced; Graph Notes uses "note".
-  const graphKind: GraphKind = 'note'
+  // Graph kind keeps storage + API calls namespaced across app surfaces.
+  const [graphKind, setGraphKind] = useState<GraphKind>('note')
   // Chat + quick facts state.
   const [chatOpen, setChatOpen] = useState(false)
   const [activeFactKey, setActiveFactKey] = useState<FactKey | null>(null)
@@ -142,6 +161,13 @@ export default function App() {
     return window.localStorage.getItem(ADMIN_SESSION_KEY) === 'true' ? 'admin' : ''
   })
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Beta toggle controls optional Graph Application + 3D tabs.
+  const [betaFeaturesEnabled, setBetaFeaturesEnabled] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+    return window.localStorage.getItem(BETA_KEY) === 'true'
+  })
   // Appearance settings (theme + accent + minimap).
   const [showMiniMap, setShowMiniMap] = useState(() => {
     if (typeof window === 'undefined') {
@@ -186,6 +212,7 @@ export default function App() {
   const toolbarOffsetRef = useRef({ x: 0, y: 0 })
   const toolbarMovedRef = useRef(false)
   const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number } | null>(null)
+  const seeded3dGraphsRef = useRef<Set<string>>(new Set())
   const didMountRef = useRef(false)
 
   // Derived auth state (supabase session OR admin dev login).
@@ -200,20 +227,32 @@ export default function App() {
   )
 
   const isGraphNoteView = viewMode === 'graph'
-  const is2DView = isGraphNoteView
+  const isApplicationView = viewMode === 'application'
+  const isGraph3dView = viewMode === 'graph3d'
+  const is2DView = isGraphNoteView || isApplicationView
 
-  const chatExamples = [
-    'Example: “Group nodes by theme and connect milestones.”',
-    'Example: “Create a hub and spoke layout with 6 clusters.”',
-  ]
+  const sshConsoleStyle = useMemo(() => {
+    if (!isApplicationView || !sshConsoleOpen) {
+      return undefined
+    }
+    const sidebarSpace = sidebarCollapsed ? SIDEBAR_COLLAPSED : sidebarWidth
+    return { left: 16 + sidebarSpace + 12 }
+  }, [isApplicationView, sshConsoleOpen, sidebarCollapsed, sidebarWidth])
+
+  const chatExamples = isApplicationView
+    ? ['Example: “Group scripts by server role.”', 'Example: “Create a deployment flow with 6 tasks.”']
+    : [
+        'Example: “Group nodes by theme and connect milestones.”',
+        'Example: “Create a hub and spoke layout with 6 clusters.”',
+      ]
 
   // Custom React Flow node renderers.
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
       group: GroupNode,
-      default: NoteNode,
+      default: viewMode === 'application' ? TaskNode : NoteNode,
     }),
-    [],
+    [viewMode],
   )
 
   // Theme + appearance: sync CSS variables with user preference/system theme.
@@ -1476,11 +1515,57 @@ export default function App() {
     [graphKind, setEdges, setNodes],
   )
 
+  // Seed the 3D view with a starter scene when it's empty.
+  const seedSolarSystemIfNeeded = useCallback(() => {
+    if (!activeGraphId || graphKind !== 'graph3d' || !hydrated) {
+      return
+    }
+    if (seeded3dGraphsRef.current.has(activeGraphId)) {
+      return
+    }
+    if (nodes.length > 0 || edges.length > 0) {
+      return
+    }
+    const normalized = normalizeGraph(SOLAR_SYSTEM_GRAPH, 'graph3d')
+    setGraphName(normalized.name)
+    setNodes(normalized.nodes)
+    setEdges(normalized.edges)
+    setSelectedNodeId(null)
+    seeded3dGraphsRef.current.add(activeGraphId)
+  }, [activeGraphId, edges.length, graphKind, hydrated, nodes.length, setEdges, setNodes, setGraphName])
+
+  useEffect(() => {
+    seedSolarSystemIfNeeded()
+  }, [seedSolarSystemIfNeeded])
+
   const changeView = (mode: ViewMode) => {
+    if (!betaFeaturesEnabled && (mode === 'application' || mode === 'graph3d')) {
+      setViewMode('graph')
+      if (graphKind !== 'note') {
+        setGraphKind('note')
+      }
+      setSelectedNodeId(null)
+      setChatOpen(false)
+      return
+    }
+    const nextKind =
+      mode === 'graph' ? 'note' : mode === 'application' ? 'application' : mode === 'graph3d' ? 'graph3d' : null
+    if (nextKind && nextKind !== graphKind) {
+      setGraphKind(nextKind)
+    }
     setViewMode(mode)
     setSelectedNodeId(null)
     setChatOpen(false)
   }
+
+  useEffect(() => {
+    if (!betaFeaturesEnabled && (viewMode === 'application' || viewMode === 'graph3d')) {
+      setViewMode('graph')
+      if (graphKind !== 'note') {
+        setGraphKind('note')
+      }
+    }
+  }, [betaFeaturesEnabled, graphKind, viewMode])
 
   const handleToggleChat = useCallback(() => {
     setChatOpen((open) => {
@@ -1491,6 +1576,45 @@ export default function App() {
       }
       return next
     })
+  }, [])
+
+  const openSshConfig = (graphId: string) => {
+    const existing = sshConfigs[graphId] ?? {
+      host: '',
+      port: '22',
+      user: '',
+      keyPath: '',
+    }
+    setSshDraft(existing)
+    setSshModal({ graphId })
+  }
+
+  const saveSshConfig = () => {
+    if (!sshModal) {
+      return
+    }
+    setSshConfigs((current) => ({
+      ...current,
+      [sshModal.graphId]: sshDraft,
+    }))
+    setSshModal(null)
+  }
+
+  const handleToggleConsole = useCallback(() => {
+    setSshConsoleOpen((open) => {
+      const next = !open
+      if (next) {
+        setSshConsoleMinimized(false)
+      }
+      return next
+    })
+  }, [])
+
+  const handleToggleBetaFeatures = useCallback((enabled: boolean) => {
+    setBetaFeaturesEnabled(enabled)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(BETA_KEY, String(enabled))
+    }
   }, [])
 
   const handleOpenItemModal = useCallback((nodeId: string, itemId: string) => {
@@ -1585,13 +1709,14 @@ export default function App() {
         authGate
       ) : (
         <>
-          <TopBar
-            viewMode={viewMode}
-            onChangeView={changeView}
-            saveState={saveState}
-            isLoggedIn={isLoggedIn}
-            userName={userName}
-            onOpenSettings={() => setSettingsOpen(true)}
+        <TopBar
+          viewMode={viewMode}
+          onChangeView={changeView}
+          saveState={saveState}
+          showBetaTabs={betaFeaturesEnabled}
+          isLoggedIn={isLoggedIn}
+          userName={userName}
+          onOpenSettings={() => setSettingsOpen(true)}
             onLogout={handleLogout}
             onOpenAuth={handleOpenAuth}
             onToggleChat={handleToggleChat}
@@ -1693,6 +1818,19 @@ export default function App() {
                     onClose={() => setContextMenu(null)}
                   />
                 </>
+              ) : isGraph3dView ? (
+                <Suspense fallback={<div className="graph-3d__loading">Loading 3D view…</div>}>
+                  <Graph3DView
+                    nodes={nodes}
+                    edges={edges}
+                    setNodes={setNodes}
+                    setEdges={setEdges}
+                    toolbarStyle={toolbarStyle}
+                    toolbarRef={toolbarRef}
+                    onToolbarDragStart={handleToolbarDragStart}
+                    accentSeed={accentChoice}
+                  />
+                </Suspense>
               ) : (
                 <QuickFactsView activeFactKey={activeFactKey} onSelectFact={setActiveFactKey} />
               )}
@@ -1733,6 +1871,10 @@ export default function App() {
                   canGroup={selectedNodeCount > 0}
                   canDelete={selectionCount > 0}
                   isGraphNoteView={isGraphNoteView}
+                  isApplicationView={isApplicationView}
+                  onOpenSsh={() => activeGraphId && openSshConfig(activeGraphId)}
+                  canOpenSsh={Boolean(activeGraphId)}
+                  onToggleConsole={handleToggleConsole}
                 />
               ) : null}
 
@@ -1758,6 +1900,17 @@ export default function App() {
                   onOpenItemModal={handleOpenItemModal}
                 />
               ) : null}
+              {isApplicationView ? (
+                <TaskDrawer
+                  activeNode={activeNode}
+                  drawerStyle={drawerStyle}
+                  drawerRef={drawerRef}
+                  onResizeStart={handleDrawerResizeStart}
+                  onClose={() => setSelectedNodeId(null)}
+                  onRemoveNode={removeNode}
+                  updateNodeData={updateNodeData}
+                />
+              ) : null}
 
               {is2DView ? (
                 <ChatPanel
@@ -1773,6 +1926,20 @@ export default function App() {
                   examples={chatExamples}
                 />
               ) : null}
+
+              <SshConsole
+                open={isApplicationView && sshConsoleOpen}
+                minimized={sshConsoleMinimized}
+                style={sshConsoleStyle}
+                title={graphName}
+                message={
+                  sshConfigs[activeGraphId ?? '']?.host
+                    ? `Connecting to ${sshConfigs[activeGraphId ?? '']?.host}...`
+                    : 'Configure SSH to connect to a server.'
+                }
+                onToggleMinimize={() => setSshConsoleMinimized((current) => !current)}
+                onClose={() => setSshConsoleOpen(false)}
+              />
             </section>
           </main>
         </>
@@ -1806,6 +1973,15 @@ export default function App() {
         onAddNote={addItemNote}
         onRemoveNote={removeItemNote}
         onClose={() => setItemModal(null)}
+      />
+
+      <SshModal
+        open={Boolean(sshModal)}
+        graphName={sshModal ? graphList.find((graph) => graph.id === sshModal.graphId)?.name ?? 'this graph' : ''}
+        draft={sshDraft}
+        onChangeDraft={setSshDraft}
+        onClose={() => setSshModal(null)}
+        onSave={saveSshConfig}
       />
 
       {createGraphOpen ? (
@@ -1875,11 +2051,13 @@ export default function App() {
         resolvedTheme={resolvedTheme}
         accentChoice={accentChoice}
         sidebarCollapsed={sidebarCollapsed}
+        betaFeaturesEnabled={betaFeaturesEnabled}
         showMiniMap={showMiniMap}
         onClose={() => setSettingsOpen(false)}
         onSetTheme={setThemePreference}
         onSetAccent={setAccentChoice}
         onToggleSidebarExpanded={(expanded) => setSidebarCollapsed(!expanded)}
+        onToggleBetaFeatures={handleToggleBetaFeatures}
         onToggleMiniMap={setShowMiniMap}
       />
 
