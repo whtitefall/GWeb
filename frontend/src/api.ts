@@ -5,10 +5,14 @@ import { supabase } from './supabaseClient'
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
 
 // Attach Supabase access tokens so the backend can scope graphs per user.
-const authHeaders = async () => {
+const authHeaders = async (): Promise<Record<string, string>> => {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  const headers: Record<string, string> = {}
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  return headers
 }
 
 export async function listGraphs(kind: GraphKind): Promise<GraphSummary[]> {
