@@ -516,7 +516,7 @@ export default function App() {
     return () => {
       isMounted = false
     }
-  }, [activeStorageKey, graphKind, graphStorageKey, listStorageKey])
+  }, [activeStorageKey, graphKind, graphStorageKey, listStorageKey, supabaseLoggedIn])
 
   useEffect(() => {
     if (!activeGraphId) {

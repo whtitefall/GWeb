@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 )
 
 func readBody(r *http.Request) ([]byte, error) {
@@ -32,4 +33,12 @@ func writeJSON(w http.ResponseWriter, value any) {
 	if err := encoder.Encode(value); err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 	}
+}
+
+// userGraphID namespaces legacy single-graph ids by user to avoid collisions.
+func userGraphID(userID, graphID string) string {
+	if strings.TrimSpace(graphID) == "" {
+		return userID
+	}
+	return userID + ":" + graphID
 }

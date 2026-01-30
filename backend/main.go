@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -49,6 +49,10 @@ func main() {
 	if openAIKey == "" {
 		log.Print("OPENAI_API_KEY not set; /api/ai/graph will be disabled")
 	}
+	supabaseJWTSecret := strings.TrimSpace(os.Getenv("SUPABASE_JWT_SECRET"))
+	if supabaseJWTSecret == "" {
+		log.Fatal("SUPABASE_JWT_SECRET is required to authorize API requests")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -64,11 +68,12 @@ func main() {
 	}
 
 	srv := &server{
-		pool:        pool,
-		graphID:     graphID,
-		corsOrigins: parseOrigins(corsOrigin),
-		openAIKey:   openAIKey,
-		openAIModel: openAIModel,
+		pool:              pool,
+		graphID:           graphID,
+		corsOrigins:       parseOrigins(corsOrigin),
+		openAIKey:         openAIKey,
+		openAIModel:       openAIModel,
+		supabaseJWTSecret: supabaseJWTSecret,
 	}
 
 	mux := http.NewServeMux()

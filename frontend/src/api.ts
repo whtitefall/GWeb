@@ -1,10 +1,22 @@
 // Thin API client for the Go backend. Keep response shapes in sync with backend/types.go.
 import type { GraphKind, GraphPayload, GraphSummary } from './graphTypes'
+import { supabase } from './supabaseClient'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
 
+// Attach Supabase access tokens so the backend can scope graphs per user.
+const authHeaders = async () => {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 export async function listGraphs(kind: GraphKind): Promise<GraphSummary[]> {
-  const response = await fetch(`${API_URL}/api/graphs?kind=${encodeURIComponent(kind)}`)
+  const response = await fetch(`${API_URL}/api/graphs?kind=${encodeURIComponent(kind)}`, {
+    headers: {
+      ...(await authHeaders()),
+    },
+  })
   if (!response.ok) {
     throw new Error(`Failed to list graphs: ${response.status}`)
   }
@@ -16,6 +28,7 @@ export async function createGraph(payload: GraphPayload): Promise<GraphSummary> 
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(await authHeaders()),
     },
     body: JSON.stringify(payload),
   })
@@ -28,7 +41,11 @@ export async function createGraph(payload: GraphPayload): Promise<GraphSummary> 
 }
 
 export async function fetchGraph(graphId: string): Promise<GraphPayload> {
-  const response = await fetch(`${API_URL}/api/graphs/${graphId}`)
+  const response = await fetch(`${API_URL}/api/graphs/${graphId}`, {
+    headers: {
+      ...(await authHeaders()),
+    },
+  })
   if (!response.ok) {
     throw new Error(`Failed to fetch graph: ${response.status}`)
   }
@@ -40,6 +57,7 @@ export async function saveGraph(graphId: string, payload: GraphPayload): Promise
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
+      ...(await authHeaders()),
     },
     body: JSON.stringify(payload),
   })
@@ -52,6 +70,9 @@ export async function saveGraph(graphId: string, payload: GraphPayload): Promise
 export async function deleteGraph(graphId: string): Promise<void> {
   const response = await fetch(`${API_URL}/api/graphs/${graphId}`, {
     method: 'DELETE',
+    headers: {
+      ...(await authHeaders()),
+    },
   })
 
   if (!response.ok) {
@@ -64,6 +85,7 @@ export async function generateGraph(prompt: string, maxNodes = 28): Promise<Grap
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(await authHeaders()),
     },
     body: JSON.stringify({ prompt, maxNodes }),
   })

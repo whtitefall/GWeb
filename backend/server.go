@@ -9,4 +9,6 @@ type server struct {
 	corsOrigins []string
 	openAIKey   string
 	openAIModel string
+	// Supabase JWT secret is required to validate access tokens.
+	supabaseJWTSecret string
 }

@@ -32,6 +32,7 @@ Graph Notes studio with 2D graph editing, grouping, and AI-assisted generation.
 ## Environment variables
 Backend (`backend/.env` auto-loaded on startup):
 - `DATABASE_URL` - Supabase Postgres connection string
+- `SUPABASE_JWT_SECRET` - Supabase JWT secret (required for per-user graph auth)
 - `OPENAI_API_KEY` - OpenAI secret key
 - `OPENAI_MODEL` - optional, default: `gpt-4o-mini`
 - `CORS_ORIGIN` - optional, default: `http://localhost:5173`
@@ -86,6 +87,7 @@ Use the buttons on the left widget to export or import JSON. The export includes
 - The AI chat applies the generated graph immediately.
 - PowerShell script execution may be blocked by policy on Windows. If needed:
   `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
+ - Graphs are scoped per authenticated user; the backend expects a Supabase access token.
 
 ## Maintenance
 See `docs/MAINTENANCE.md` for architecture and extension notes.

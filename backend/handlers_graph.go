@@ -33,11 +33,18 @@ func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleGetGraph(w http.ResponseWriter, r *http.Request) {
+	userID, err := s.requireUserID(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
 	var data []byte
-	err := s.pool.QueryRow(ctx, "SELECT data FROM graphs WHERE id=$1", s.graphID).Scan(&data)
+	graphID := userGraphID(userID, s.graphID)
+	err = s.pool.QueryRow(ctx, "SELECT data FROM graphs WHERE id=$1 AND user_id=$2", graphID, userID).Scan(&data)
 	if errors.Is(err, pgx.ErrNoRows) {
 		data = []byte(`{"name":"Default Graph","nodes":[],"edges":[],"kind":"note"}`)
 	} else if err != nil {
@@ -52,6 +59,12 @@ func (s *server) handleGetGraph(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handlePutGraph(w http.ResponseWriter, r *http.Request) {
+	userID, err := s.requireUserID(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
@@ -81,12 +94,14 @@ func (s *server) handlePutGraph(w http.ResponseWriter, r *http.Request) {
 		body, _ = json.Marshal(payload)
 	}
 
+	graphID := userGraphID(userID, s.graphID)
 	_, err = s.pool.Exec(
 		ctx,
-		`INSERT INTO graphs (id, data, updated_at)
-		 VALUES ($1, $2, now())
+		`INSERT INTO graphs (id, user_id, data, updated_at)
+		 VALUES ($1, $2, $3, now())
 		 ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
-		s.graphID,
+		graphID,
+		userID,
 		body,
 	)
 	if err != nil {
@@ -132,6 +147,12 @@ func (s *server) handleGraphByID(w http.ResponseWriter, r *http.Request) {
 
 // Lists graphs filtered by kind (defaults to "note").
 func (s *server) handleListGraphs(w http.ResponseWriter, r *http.Request) {
+	userID, err := s.requireUserID(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
@@ -144,8 +165,9 @@ func (s *server) handleListGraphs(w http.ResponseWriter, r *http.Request) {
 		ctx,
 		`SELECT id, COALESCE(data->>'name', 'Untitled Graph') AS name, updated_at
 		 FROM graphs
-		 WHERE COALESCE(data->>'kind', 'note') = $1
+		 WHERE user_id = $1 AND COALESCE(data->>'kind', 'note') = $2
 		 ORDER BY updated_at DESC`,
+		userID,
 		kind,
 	)
 	if err != nil {
@@ -176,6 +198,12 @@ func (s *server) handleListGraphs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleCreateGraph(w http.ResponseWriter, r *http.Request) {
+	userID, err := s.requireUserID(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
@@ -225,10 +253,11 @@ func (s *server) handleCreateGraph(w http.ResponseWriter, r *http.Request) {
 	var updatedAt time.Time
 	err = s.pool.QueryRow(
 		ctx,
-		`INSERT INTO graphs (id, data, updated_at)
-		 VALUES ($1, $2, now())
+		`INSERT INTO graphs (id, user_id, data, updated_at)
+		 VALUES ($1, $2, $3, now())
 		 RETURNING updated_at`,
 		id,
+		userID,
 		data,
 	).Scan(&updatedAt)
 	if err != nil {
@@ -245,11 +274,17 @@ func (s *server) handleCreateGraph(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleGetGraphByID(w http.ResponseWriter, r *http.Request, id string) {
+	userID, err := s.requireUserID(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
 	var data []byte
-	err := s.pool.QueryRow(ctx, "SELECT data FROM graphs WHERE id=$1", id).Scan(&data)
+	err = s.pool.QueryRow(ctx, "SELECT data FROM graphs WHERE id=$1 AND user_id=$2", id, userID).Scan(&data)
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, "graph not found", http.StatusNotFound)
 		return
@@ -265,6 +300,12 @@ func (s *server) handleGetGraphByID(w http.ResponseWriter, r *http.Request, id s
 }
 
 func (s *server) handlePutGraphByID(w http.ResponseWriter, r *http.Request, id string) {
+	userID, err := s.requireUserID(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
@@ -296,10 +337,11 @@ func (s *server) handlePutGraphByID(w http.ResponseWriter, r *http.Request, id s
 
 	_, err = s.pool.Exec(
 		ctx,
-		`INSERT INTO graphs (id, data, updated_at)
-		 VALUES ($1, $2, now())
+		`INSERT INTO graphs (id, user_id, data, updated_at)
+		 VALUES ($1, $2, $3, now())
 		 ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
 		id,
+		userID,
 		body,
 	)
 	if err != nil {
@@ -312,10 +354,16 @@ func (s *server) handlePutGraphByID(w http.ResponseWriter, r *http.Request, id s
 }
 
 func (s *server) handleDeleteGraphByID(w http.ResponseWriter, r *http.Request, id string) {
+	userID, err := s.requireUserID(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
-	cmd, err := s.pool.Exec(ctx, "DELETE FROM graphs WHERE id=$1", id)
+	cmd, err := s.pool.Exec(ctx, "DELETE FROM graphs WHERE id=$1 AND user_id=$2", id, userID)
 	if err != nil {
 		log.Printf("failed to delete graph: %v", err)
 		http.Error(w, "failed to delete graph", http.StatusInternalServerError)
