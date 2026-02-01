@@ -42,6 +42,7 @@ Frontend (`frontend/.env`):
 - `VITE_API_URL` - backend URL (default: `http://localhost:8080`)
 - `VITE_SUPABASE_URL` - Supabase project URL
 - `VITE_SUPABASE_ANON_KEY` - Supabase anon public key
+- `VITE_ADMIN_EMAIL` - Supabase email used for the admin test login (`admin/admin123!`)
 
 ## Database schema
 Apply `backend/schema.sql` to your Supabase database.

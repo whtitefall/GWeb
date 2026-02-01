@@ -77,6 +77,8 @@ import type { ChatMessage, FactKey, SshConfig, ThemePreference, ViewMode } from 
 import { supabase } from './supabaseClient'
 
 const Graph3DView = lazy(() => import('./components/Graph3DView'))
+// Admin test login maps to a real Supabase user so it can sync to the database.
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL ?? 'admin@graphnote.local'
 
 export default function App() {
   // Core React Flow state for the active graph.
@@ -1332,17 +1334,31 @@ export default function App() {
     }
 
     if (authMode === 'login' && trimmedEmail === 'admin' && trimmedPassword === 'admin123!') {
-      setAdminSession(true)
-      adminSessionRef.current = true
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(ADMIN_SESSION_KEY, 'true')
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: ADMIN_EMAIL,
+          password: trimmedPassword,
+        })
+        if (error) {
+          throw error
+        }
+        if (data.session) {
+          setUserName('admin')
+          setSupabaseLoggedIn(true)
+          setAuthOpen(false)
+          setAuthName('')
+          setAuthEmail('')
+          setAuthPassword('')
+          return
+        }
+      } catch (error) {
+        setAuthError(
+          error instanceof Error
+            ? error.message
+            : `Create a Supabase user for ${ADMIN_EMAIL} to enable admin sync.`,
+        )
+        return
       }
-      setUserName('admin')
-      setAuthOpen(false)
-      setAuthName('')
-      setAuthEmail('')
-      setAuthPassword('')
-      return
     }
 
     try {
@@ -1391,7 +1407,7 @@ export default function App() {
   }
 
   const handleLogout = async () => {
-    if (userName !== 'admin') {
+    if (supabaseLoggedIn) {
       try {
         await supabase.auth.signOut()
       } catch {
