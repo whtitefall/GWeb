@@ -7,7 +7,6 @@ export const STORAGE_ACTIVE_KEY = 'gweb.graph.active.v1'
 export const THEME_KEY = 'gweb.theme.v1'
 export const ACCENT_KEY = 'gweb.accent.v1'
 export const MINIMAP_KEY = 'gweb.minimap.v1'
-export const ADMIN_SESSION_KEY = 'gweb.admin.session.v1'
 export const BETA_KEY = 'gweb.beta.features.v1'
 
 export const GROUP_PADDING = 32

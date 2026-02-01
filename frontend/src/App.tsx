@@ -45,7 +45,6 @@ import { useGraphState } from './hooks/useGraphState'
 import {
   ACCENT_KEY,
   ACCENT_OPTIONS,
-  ADMIN_SESSION_KEY,
   BETA_KEY,
   DEFAULT_GROUP_SIZE,
   DRAWER_MAX,
@@ -77,8 +76,6 @@ import type { ChatMessage, FactKey, SshConfig, ThemePreference, ViewMode } from 
 import { supabase } from './supabaseClient'
 
 const Graph3DView = lazy(() => import('./components/Graph3DView'))
-// Admin test login maps to a real Supabase user so it can sync to the database.
-const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL ?? 'admin@graphnote.local'
 
 export default function App() {
   // Core React Flow state for the active graph.
@@ -147,20 +144,12 @@ export default function App() {
   const [authName, setAuthName] = useState('')
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
-  // Admin login is local-only (stored in localStorage) and intended for dev/test.
-  const [adminSession, setAdminSession] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false
-    }
-    return window.localStorage.getItem(ADMIN_SESSION_KEY) === 'true'
-  })
-  const adminSessionRef = useRef(adminSession)
   const [supabaseLoggedIn, setSupabaseLoggedIn] = useState(false)
   const [userName, setUserName] = useState(() => {
     if (typeof window === 'undefined') {
       return ''
     }
-    return window.localStorage.getItem(ADMIN_SESSION_KEY) === 'true' ? 'admin' : ''
+    return ''
   })
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Beta toggle controls optional Graph Application + 3D tabs.
@@ -217,8 +206,8 @@ export default function App() {
   const seeded3dGraphsRef = useRef<Set<string>>(new Set())
   const didMountRef = useRef(false)
 
-  // Derived auth state (supabase session OR admin dev login).
-  const isLoggedIn = adminSession || supabaseLoggedIn
+  // Derived auth state (Supabase session only).
+  const isLoggedIn = supabaseLoggedIn
 
   // Local storage keys are namespaced by graph kind for future expansion.
   const listStorageKey = useMemo(() => `${STORAGE_LIST_KEY}.${graphKind}`, [graphKind])
@@ -300,32 +289,15 @@ export default function App() {
   }, [accentChoice])
 
   useEffect(() => {
-    adminSessionRef.current = adminSession
-  }, [adminSession])
-
-  useEffect(() => {
-    if (adminSession) {
-      setUserName('admin')
-    }
-  }, [adminSession])
-
-  useEffect(() => {
     let isMounted = true
     supabase.auth.getSession().then(({ data }) => {
       if (!isMounted) return
       if (data.session) {
-        setAdminSession(false)
-        adminSessionRef.current = false
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(ADMIN_SESSION_KEY, 'false')
-        }
         setSupabaseLoggedIn(true)
         setUserName(resolveAuthName(data.session))
       } else {
         setSupabaseLoggedIn(false)
-        if (!adminSessionRef.current) {
-          setUserName('')
-        }
+        setUserName('')
       }
     })
 
@@ -334,18 +306,11 @@ export default function App() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!isMounted) return
       if (session) {
-        setAdminSession(false)
-        adminSessionRef.current = false
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(ADMIN_SESSION_KEY, 'false')
-        }
         setSupabaseLoggedIn(true)
         setUserName(resolveAuthName(session))
       } else {
         setSupabaseLoggedIn(false)
-        if (!adminSessionRef.current) {
-          setUserName('')
-        }
+        setUserName('')
       }
     })
 
@@ -1333,35 +1298,8 @@ export default function App() {
       return
     }
 
-    if (authMode === 'login' && trimmedEmail === 'admin' && trimmedPassword === 'admin123!') {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: ADMIN_EMAIL,
-          password: trimmedPassword,
-        })
-        if (error) {
-          throw error
-        }
-        if (data.session) {
-          setUserName('admin')
-          setSupabaseLoggedIn(true)
-          setAuthOpen(false)
-          setAuthName('')
-          setAuthEmail('')
-          setAuthPassword('')
-          return
-        }
-      } catch (error) {
-        setAuthError(
-          error instanceof Error
-            ? error.message
-            : `Create a Supabase user for ${ADMIN_EMAIL} to enable admin sync.`,
-        )
-        return
-      }
-    }
-
     try {
+      // Supabase email/password auth for all users (including admin accounts).
       if (authMode === 'register') {
         const { data, error } = await supabase.auth.signUp({
           email: trimmedEmail,
@@ -1413,11 +1351,6 @@ export default function App() {
       } catch {
         // Ignore sign-out errors for now; local state still clears.
       }
-    }
-    setAdminSession(false)
-    adminSessionRef.current = false
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(ADMIN_SESSION_KEY, 'false')
     }
     setSupabaseLoggedIn(false)
     setUserName('')
