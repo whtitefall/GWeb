@@ -1,6 +1,5 @@
 // Context menu shown on right-click for nodes/edges.
-import type { Edge } from 'reactflow'
-import type { GraphNode } from '../graphTypes'
+import type { GraphEdge, GraphNode } from '../graphTypes'
 
 export type ContextMenuState =
   | { kind: 'node'; id: string; x: number; y: number }
@@ -11,10 +10,12 @@ type GraphContextMenuProps = {
   contextMenu: ContextMenuState
   menuPosition: { x: number; y: number } | null
   contextNode: GraphNode | null
-  contextEdge: Edge | null
+  contextEdge: GraphEdge | null
+  contextEdgeDirected: boolean
   onDeleteNode: (id: string) => void
   onRemoveFromGroup: (id: string) => void
   onUngroupChildren: (id: string) => void
+  onToggleEdgeDirection: (id: string) => void
   onDeleteEdge: (id: string) => void
   onClose: () => void
 }
@@ -24,9 +25,11 @@ export default function GraphContextMenu({
   menuPosition,
   contextNode,
   contextEdge,
+  contextEdgeDirected,
   onDeleteNode,
   onRemoveFromGroup,
   onUngroupChildren,
+  onToggleEdgeDirection,
   onDeleteEdge,
   onClose,
 }: GraphContextMenuProps) {
@@ -76,15 +79,26 @@ export default function GraphContextMenu({
         </>
       ) : null}
       {contextMenu.kind === 'edge' && contextEdge ? (
-        <button
-          type="button"
-          onClick={() => {
-            onDeleteEdge(contextEdge.id)
-            onClose()
-          }}
-        >
-          Delete Edge
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              onToggleEdgeDirection(contextEdge.id)
+              onClose()
+            }}
+          >
+            {contextEdgeDirected ? 'Make Undirected' : 'Make Directed'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onDeleteEdge(contextEdge.id)
+              onClose()
+            }}
+          >
+            Delete Edge
+          </button>
+        </>
       ) : null}
     </div>
   )

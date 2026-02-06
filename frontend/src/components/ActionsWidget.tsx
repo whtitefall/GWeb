@@ -16,6 +16,8 @@ type ActionsWidgetProps = {
   onOpenSsh: () => void
   canOpenSsh: boolean
   onToggleConsole: () => void
+  edgeMode: 'undirected' | 'directed'
+  onToggleEdgeMode: () => void
 }
 
 export default function ActionsWidget({
@@ -33,6 +35,8 @@ export default function ActionsWidget({
   onOpenSsh,
   canOpenSsh,
   onToggleConsole,
+  edgeMode,
+  onToggleEdgeMode,
 }: ActionsWidgetProps) {
   return (
     <div className="toolbar" style={style} ref={toolbarRef}>
@@ -44,6 +48,9 @@ export default function ActionsWidget({
       </button>
       <button className="btn btn--ghost" type="button" onClick={onAddGroup}>
         Add Group
+      </button>
+      <button className="btn btn--ghost" type="button" onClick={onToggleEdgeMode}>
+        Edge: {edgeMode === 'directed' ? 'Directed' : 'Undirected'}
       </button>
       {isApplicationView ? (
         <button className="btn btn--ghost" type="button" onClick={onOpenSsh} disabled={!canOpenSsh}>

@@ -16,7 +16,6 @@ import ReactFlow, {
   addEdge,
   Background,
   Controls,
-  MarkerType,
   MiniMap,
   SelectionMode,
   type Connection,
@@ -26,7 +25,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import './App.css'
 import { createGraph, deleteGraph, fetchGraph, generateGraph, listGraphs, saveGraph } from './api'
-import type { GraphKind, GraphNode, GraphPayload, GraphSummary, NodeData } from './graphTypes'
+import type { GraphEdge, GraphKind, GraphNode, GraphPayload, GraphSummary, NodeData } from './graphTypes'
 import ActionsWidget from './components/ActionsWidget'
 import AuthModal from './components/AuthModal'
 import ChatPanel from './components/ChatPanel'
@@ -66,7 +65,9 @@ import {
   createEmptyGraphPayload,
   getAbsolutePosition,
   getNodeRect,
+  isEdgeDirected,
   normalizeGraph,
+  withEdgeDirection,
 } from './utils/graph'
 import { generateId } from './utils/id'
 import { resolveAuthName } from './utils/auth'
@@ -175,6 +176,8 @@ export default function App() {
     return stored ?? 'blue'
   })
   const [importError, setImportError] = useState('')
+  // New connections default to undirected; users can switch modes from Actions.
+  const [edgeMode, setEdgeMode] = useState<'undirected' | 'directed'>('undirected')
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => {
     if (typeof window === 'undefined') {
       return 'dark'
@@ -677,15 +680,18 @@ export default function App() {
     (connection: Connection) => {
       setEdges((current) =>
         addEdge(
-          {
-            ...connection,
-            type: 'smoothstep',
-          },
+          withEdgeDirection(
+            {
+              ...(connection as GraphEdge),
+              type: 'smoothstep',
+            },
+            edgeMode === 'directed',
+          ),
           current,
         ),
       )
     },
-    [setEdges],
+    [edgeMode, setEdges],
   )
 
   const onNodesDelete = useCallback(
@@ -1100,6 +1106,17 @@ export default function App() {
   const removeEdgeById = useCallback(
     (edgeId: string) => {
       setEdges((current) => current.filter((edge) => edge.id !== edgeId))
+    },
+    [setEdges],
+  )
+
+  const toggleEdgeDirection = useCallback(
+    (edgeId: string) => {
+      setEdges((current) =>
+        current.map((edge) =>
+          edge.id === edgeId ? withEdgeDirection(edge, !isEdgeDirected(edge)) : edge,
+        ),
+      )
     },
     [setEdges],
   )
@@ -1588,6 +1605,7 @@ export default function App() {
     () => (contextMenu?.kind === 'edge' ? edges.find((edge) => edge.id === contextMenu.id) ?? null : null),
     [contextMenu, edges],
   )
+  const contextEdgeDirected = useMemo(() => isEdgeDirected(contextEdge), [contextEdge])
   const menuPosition = useMemo(() => {
     if (!contextMenu) {
       return null
@@ -1743,10 +1761,6 @@ export default function App() {
                     deleteKeyCode={['Backspace', 'Delete']}
                     defaultEdgeOptions={{
                       type: 'smoothstep',
-                      markerEnd: {
-                        type: MarkerType.ArrowClosed,
-                        color: 'var(--edge)',
-                      },
                     }}
                     selectionOnDrag
                     selectionMode={SelectionMode.Partial}
@@ -1769,9 +1783,11 @@ export default function App() {
                     menuPosition={menuPosition}
                     contextNode={contextNode}
                     contextEdge={contextEdge}
+                    contextEdgeDirected={contextEdgeDirected}
                     onDeleteNode={removeNode}
                     onRemoveFromGroup={detachFromGroup}
                     onUngroupChildren={ungroupChildren}
+                    onToggleEdgeDirection={toggleEdgeDirection}
                     onDeleteEdge={removeEdgeById}
                     onClose={() => setContextMenu(null)}
                   />
@@ -1833,6 +1849,12 @@ export default function App() {
                   onOpenSsh={() => activeGraphId && openSshConfig(activeGraphId)}
                   canOpenSsh={Boolean(activeGraphId)}
                   onToggleConsole={handleToggleConsole}
+                  edgeMode={edgeMode}
+                  onToggleEdgeMode={() =>
+                    setEdgeMode((current) =>
+                      current === 'undirected' ? 'directed' : 'undirected',
+                    )
+                  }
                 />
               ) : null}
 

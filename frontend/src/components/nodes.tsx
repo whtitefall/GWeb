@@ -9,8 +9,10 @@ export function GroupNode({ data, selected }: NodeProps<NodeData>) {
       <div className="group-node__header">
         <span>{data.label}</span>
       </div>
-      <Handle type="target" position={Position.Left} />
-      <Handle type="source" position={Position.Right} />
+      <Handle id="left-in" type="target" position={Position.Left} />
+      <Handle id="right-out" type="source" position={Position.Right} />
+      <Handle id="top-in" type="target" position={Position.Top} />
+      <Handle id="bottom-out" type="source" position={Position.Bottom} />
     </div>
   )
 }
@@ -25,8 +27,10 @@ export function TaskNode({ data, selected }: NodeProps<NodeData>) {
         <div className="task-node__progress-bar" style={{ width: `${progress}%` }} />
       </div>
       <div className="task-node__meta">{Math.round(progress)}%</div>
-      <Handle type="target" position={Position.Top} />
-      <Handle type="source" position={Position.Bottom} />
+      <Handle id="left-in" type="target" position={Position.Left} />
+      <Handle id="right-out" type="source" position={Position.Right} />
+      <Handle id="top-in" type="target" position={Position.Top} />
+      <Handle id="bottom-out" type="source" position={Position.Bottom} />
     </div>
   )
 }
@@ -35,8 +39,10 @@ export function NoteNode({ data }: NodeProps<NodeData>) {
   return (
     <>
       <div>{data.label}</div>
-      <Handle type="target" position={Position.Left} />
-      <Handle type="source" position={Position.Right} />
+      <Handle id="left-in" type="target" position={Position.Left} />
+      <Handle id="right-out" type="source" position={Position.Right} />
+      <Handle id="top-in" type="target" position={Position.Top} />
+      <Handle id="bottom-out" type="source" position={Position.Bottom} />
     </>
   )
 }

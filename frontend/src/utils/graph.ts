@@ -1,6 +1,6 @@
 // Graph helpers for normalization, sizing, and safe data coercion.
-import type { Edge } from 'reactflow'
-import type { GraphKind, GraphNode, GraphPayload, Item, NodeData, Note } from '../graphTypes'
+import { MarkerType } from 'reactflow'
+import type { GraphKind, GraphNode, GraphPayload, Item, NodeData, Note, GraphEdge } from '../graphTypes'
 import { DEFAULT_GROUP_SIZE, DEFAULT_NODE_SIZE, defaultGraph } from '../constants'
 import { generateId } from './id'
 
@@ -61,6 +61,24 @@ export const coerceNumber = (value: unknown, fallback: number): number => {
   }
   return fallback
 }
+
+export const isEdgeDirected = (edge: GraphEdge | null | undefined): boolean =>
+  Boolean(edge?.data?.directed)
+
+export const withEdgeDirection = (edge: GraphEdge, directed: boolean): GraphEdge => ({
+  ...edge,
+  type: edge.type ?? 'smoothstep',
+  data: {
+    ...(edge.data ?? {}),
+    directed,
+  },
+  markerEnd: directed
+    ? {
+        type: MarkerType.ArrowClosed,
+        color: 'var(--edge)',
+      }
+    : undefined,
+})
 
 export const resolvePosition3d = (
   value: unknown,
@@ -135,11 +153,17 @@ export const normalizeGraph = (payload: GraphPayload | null, fallbackKind: Graph
     }
   })
 
-  const edges = (payload.edges as Edge[]).map((edge, index) => ({
-    ...edge,
-    id: edge.id ?? `edge-${index}`,
-    type: edge.type ?? 'smoothstep',
-  }))
+  const edges = (payload.edges as GraphEdge[]).map((edge, index) => {
+    const directed = Boolean(edge.data?.directed || edge.markerEnd)
+    return withEdgeDirection(
+      {
+        ...edge,
+        id: edge.id ?? `edge-${index}`,
+        type: edge.type ?? 'smoothstep',
+      },
+      directed,
+    )
+  })
 
   const kind = payload.kind ?? fallbackKind
 

@@ -25,6 +25,10 @@ export type NodeData = {
 }
 
 export type GraphNode = Node<NodeData>
+export type EdgeData = {
+  directed?: boolean
+}
+export type GraphEdge = Edge<EdgeData>
 
 // Graph "applications" share a common payload shape but are kept separate by kind.
 export type GraphKind = 'note' | 'application' | 'graph3d'
@@ -32,7 +36,7 @@ export type GraphKind = 'note' | 'application' | 'graph3d'
 export type GraphPayload = {
   name: string
   nodes: GraphNode[]
-  edges: Edge[]
+  edges: GraphEdge[]
   kind?: GraphKind
 }
 
