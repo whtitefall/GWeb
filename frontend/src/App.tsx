@@ -48,6 +48,7 @@ import {
   DRAWER_MIN,
   GROUP_PADDING,
   MINIMAP_KEY,
+  NODE_DETAILS_LAYOUT_KEY,
   SIDEBAR_COLLAPSED,
   SIDEBAR_MAX,
   SIDEBAR_MIN,
@@ -71,7 +72,7 @@ import { generateId } from './utils/id'
 import { resolveAuthName } from './utils/auth'
 import { readLocalGraphList } from './utils/storage'
 import { isLightColor, resolveTheme } from './utils/theme'
-import type { ChatMessage, FactKey, SshConfig, ThemePreference, ViewMode } from './types/ui'
+import type { ChatMessage, FactKey, NodeDetailsLayout, SshConfig, ThemePreference, ViewMode } from './types/ui'
 import { supabase } from './supabaseClient'
 import { useI18n } from './i18n'
 
@@ -79,6 +80,7 @@ const Graph3DView = lazy(() => import('./components/Graph3DView'))
 
 const AUTOSAVE_IDLE_MS = 3000
 const CHAT_DOCK_WIDTH = 420
+const NODE_DOCK_WIDTH = 420
 
 type queuedSave = {
   graphId: string
@@ -126,6 +128,7 @@ export default function App() {
   const [graphKind, setGraphKind] = useState<GraphKind>('note')
   // Chat + quick facts state.
   const [chatOpen, setChatOpen] = useState(false)
+  const [chatMinimized, setChatMinimized] = useState(false)
   const [activeFactKey, setActiveFactKey] = useState<FactKey | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
@@ -204,6 +207,13 @@ export default function App() {
     }
     return 'dark'
   })
+  const [nodeDetailsLayout, setNodeDetailsLayout] = useState<NodeDetailsLayout>(() => {
+    if (typeof window === 'undefined') {
+      return 'drawer'
+    }
+    const stored = window.localStorage.getItem(NODE_DETAILS_LAYOUT_KEY)
+    return stored === 'panel' ? 'panel' : 'drawer'
+  })
   const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>('dark')
   // Instance refs used for sizing, drag/resize, and scroll anchoring.
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null)
@@ -252,6 +262,7 @@ export default function App() {
   const isGraph3dView = viewMode === 'graph3d'
   const is2DView = isGraphNoteView || isApplicationView
   const isReadOnlyCanvas = is2DView && displayMode
+  const useDockedNodeDrawer = is2DView && nodeDetailsLayout === 'drawer'
   const canShowDisplayMode = isGraphNoteView || isApplicationView
 
   const sshConsoleStyle = useMemo(() => {
@@ -446,6 +457,12 @@ export default function App() {
   }, [sidebarCollapsed])
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(NODE_DETAILS_LAYOUT_KEY, nodeDetailsLayout)
+    }
+  }, [nodeDetailsLayout])
+
+  useEffect(() => {
     if (!didMountRef.current) {
       didMountRef.current = true
       return
@@ -468,6 +485,7 @@ export default function App() {
     // Close only mutation surfaces when entering display mode.
     setContextMenu(null)
     setChatOpen(false)
+    setChatMinimized(false)
   }, [isReadOnlyCanvas])
 
   useEffect(() => {
@@ -1516,7 +1534,11 @@ export default function App() {
     },
     [sidebarWidthValue, toolbarPos],
   )
-  const effectiveDrawerWidth = isReadOnlyCanvas ? Math.max(drawerWidth, 460) : drawerWidth
+  const effectiveDrawerWidth = useDockedNodeDrawer
+    ? Math.max(drawerWidth, NODE_DOCK_WIDTH)
+    : isReadOnlyCanvas
+      ? Math.max(drawerWidth, 460)
+      : drawerWidth
   const drawerWidthValue = Math.min(DRAWER_MAX, Math.max(DRAWER_MIN, effectiveDrawerWidth))
   const drawerStyle = useMemo(
     () => ({ ['--drawer-width' as string]: `${drawerWidthValue}px` } as CSSProperties),
@@ -1524,18 +1546,16 @@ export default function App() {
   )
   const drawerMiniTrayStyle = useMemo(() => {
     // Keep minimized cards clear of the open right drawer and shift as it resizes.
-    const drawerVisible = is2DView && Boolean(activeNode)
-    const chatOffset = is2DView && !isReadOnlyCanvas && chatOpen ? CHAT_DOCK_WIDTH + 16 : 0
-    const rightOffset = (drawerVisible ? drawerWidthValue + 36 : 24) + chatOffset
+    const drawerVisible = is2DView && nodeDetailsLayout === 'panel' && Boolean(activeNode)
+    const rightOffset = drawerVisible ? drawerWidthValue + 36 : 24
     return { right: `${rightOffset}px` } as CSSProperties
-  }, [activeNode, chatOpen, drawerWidthValue, is2DView, isReadOnlyCanvas])
+  }, [activeNode, drawerWidthValue, is2DView, nodeDetailsLayout])
   const appMenuStyle = useMemo(() => {
-    // Keep the top-right app menu clear of the open node/task details drawer.
-    const drawerVisible = is2DView && Boolean(activeNode)
-    const chatOffset = is2DView && !isReadOnlyCanvas && chatOpen ? CHAT_DOCK_WIDTH + 16 : 0
-    const rightOffset = (drawerVisible ? drawerWidthValue + 16 : 16) + chatOffset
+    // Keep the top-right app menu clear only of the docked chat panel.
+    const chatOffset = is2DView && !isReadOnlyCanvas && chatOpen && !chatMinimized ? CHAT_DOCK_WIDTH + 16 : 0
+    const rightOffset = 16 + chatOffset
     return { right: `${rightOffset}px` } as CSSProperties
-  }, [activeNode, chatOpen, drawerWidthValue, is2DView, isReadOnlyCanvas])
+  }, [chatMinimized, chatOpen, is2DView, isReadOnlyCanvas])
 
   const handleResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -1781,6 +1801,7 @@ export default function App() {
       }
       setSelectedNodeId(null)
       setChatOpen(false)
+      setChatMinimized(false)
       return
     }
     const nextKind =
@@ -1791,6 +1812,7 @@ export default function App() {
     setViewMode(mode)
     setSelectedNodeId(null)
     setChatOpen(false)
+    setChatMinimized(false)
   }
 
   useEffect(() => {
@@ -1838,8 +1860,11 @@ export default function App() {
     setChatOpen((open) => {
       const next = !open
       if (next) {
+        setChatMinimized(false)
         setSelectedNodeId(null)
         setContextMenu(null)
+      } else {
+        setChatMinimized(false)
       }
       return next
     })
@@ -1898,11 +1923,28 @@ export default function App() {
     setSelectedNodeId((current) => (current === nodeId ? null : current))
   }, [])
 
+  const handleMinimizeChat = useCallback(() => {
+    setChatMinimized(true)
+  }, [])
+
+  const handleRestoreChat = useCallback(() => {
+    setChatMinimized(false)
+  }, [])
+
+  const handleDismissChat = useCallback(() => {
+    setChatOpen(false)
+    setChatMinimized(false)
+  }, [])
+
   const handleToggleBetaFeatures = useCallback((enabled: boolean) => {
     setBetaFeaturesEnabled(enabled)
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(BETA_KEY, String(enabled))
     }
+  }, [])
+
+  const handleSetNodeDetailsLayout = useCallback((layout: NodeDetailsLayout) => {
+    setNodeDetailsLayout(layout)
   }, [])
 
   const handleOpenItemModal = useCallback((nodeId: string, itemId: string) => {
@@ -1998,7 +2040,9 @@ export default function App() {
       ) : (
         <>
           <main
-            className={`workspace ${viewMode === 'facts' ? 'workspace--facts' : ''} ${chatOpen && is2DView && !isReadOnlyCanvas ? 'workspace--chat-open' : ''}`}
+            className={`workspace ${viewMode === 'facts' ? 'workspace--facts' : ''} ${
+              chatOpen && !chatMinimized && is2DView && !isReadOnlyCanvas ? 'workspace--chat-open' : ''
+            } ${useDockedNodeDrawer && activeNode ? 'workspace--node-dock-open' : ''}`}
             style={workspaceStyle}
           >
             <div className={`app-menu ${appMenuOpen ? 'app-menu--open' : ''}`} ref={appMenuRef} style={appMenuStyle}>
@@ -2113,6 +2157,45 @@ export default function App() {
                 </div>
               ) : null}
             </div>
+
+            {useDockedNodeDrawer && activeNode && isGraphNoteView ? (
+              <NoteDrawer
+                activeNode={activeNode}
+                drawerStyle={drawerStyle}
+                drawerRef={drawerRef}
+                docked
+                showResizer={false}
+                onResizeStart={handleDrawerResizeStart}
+                readOnly={isReadOnlyCanvas}
+                onClose={handleMinimizeNodeDrawer}
+                onRemoveNode={removeNode}
+                onDetachFromGroup={detachFromGroup}
+                onUpdateLabel={(nodeId, value) =>
+                  updateNodeData(nodeId, (data) => ({
+                    ...data,
+                    label: value,
+                  }))
+                }
+                itemTitle={itemTitle}
+                onItemTitleChange={setItemTitle}
+                onAddItem={addItem}
+                onRemoveItem={removeItem}
+                onOpenItemModal={handleOpenItemModal}
+              />
+            ) : null}
+            {useDockedNodeDrawer && activeNode && isApplicationView && !isReadOnlyCanvas ? (
+              <TaskDrawer
+                activeNode={activeNode}
+                drawerStyle={drawerStyle}
+                drawerRef={drawerRef}
+                docked
+                showResizer={false}
+                onResizeStart={handleDrawerResizeStart}
+                onClose={handleMinimizeNodeDrawer}
+                onRemoveNode={removeNode}
+                updateNodeData={updateNodeData}
+              />
+            ) : null}
 
             <section className="flow-shell" ref={flowShellRef}>
               {is2DView ? (
@@ -2286,11 +2369,12 @@ export default function App() {
                 />
               ) : null}
 
-              {isGraphNoteView ? (
+              {isGraphNoteView && !useDockedNodeDrawer ? (
                 <NoteDrawer
                   activeNode={activeNode}
                   drawerStyle={drawerStyle}
                   drawerRef={drawerRef}
+                  showResizer
                   onResizeStart={handleDrawerResizeStart}
                   readOnly={isReadOnlyCanvas}
                   onClose={handleMinimizeNodeDrawer}
@@ -2309,11 +2393,12 @@ export default function App() {
                   onOpenItemModal={handleOpenItemModal}
                 />
               ) : null}
-              {isApplicationView && !isReadOnlyCanvas ? (
+              {isApplicationView && !isReadOnlyCanvas && !useDockedNodeDrawer ? (
                 <TaskDrawer
                   activeNode={activeNode}
                   drawerStyle={drawerStyle}
                   drawerRef={drawerRef}
+                  showResizer
                   onResizeStart={handleDrawerResizeStart}
                   onClose={handleMinimizeNodeDrawer}
                   onRemoveNode={removeNode}
@@ -2370,19 +2455,38 @@ export default function App() {
                 onClose={() => setSshConsoleOpen(false)}
               />
             </section>
-            {is2DView && !isReadOnlyCanvas && chatOpen ? (
+            {is2DView && !isReadOnlyCanvas && chatOpen && !chatMinimized ? (
               <ChatPanel
                 open={chatOpen}
                 chatMessages={chatMessages}
                 chatError={chatError}
                 chatInput={chatInput}
                 chatLoading={chatLoading}
-                onClose={() => setChatOpen(false)}
+                onMinimize={handleMinimizeChat}
+                onClose={handleDismissChat}
                 onInputChange={setChatInput}
                 onSubmit={handleChatSend}
                 endRef={chatEndRef}
                 examples={chatExamples}
               />
+            ) : null}
+            {is2DView && !isReadOnlyCanvas && chatOpen && chatMinimized ? (
+              <div className="chat-mini">
+                <div className="chat-mini__title">{t('chat.title')}</div>
+                <div className="chat-mini__actions">
+                  <button className="icon-btn" type="button" onClick={handleRestoreChat} title={t('chat.restore')}>
+                    ⌃
+                  </button>
+                  <button
+                    className="icon-btn drawer-mini__dismiss"
+                    type="button"
+                    onClick={handleDismissChat}
+                    title={t('chat.dismiss')}
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
             ) : null}
           </main>
         </>
@@ -2494,12 +2598,14 @@ export default function App() {
         themePreference={themePreference}
         resolvedTheme={resolvedTheme}
         accentChoice={accentChoice}
+        nodeDetailsLayout={nodeDetailsLayout}
         sidebarCollapsed={sidebarCollapsed}
         betaFeaturesEnabled={betaFeaturesEnabled}
         showMiniMap={showMiniMap}
         onClose={() => setSettingsOpen(false)}
         onSetTheme={setThemePreference}
         onSetAccent={setAccentChoice}
+        onSetNodeDetailsLayout={handleSetNodeDetailsLayout}
         onToggleSidebarExpanded={(expanded) => setSidebarCollapsed(!expanded)}
         onToggleBetaFeatures={handleToggleBetaFeatures}
         onToggleMiniMap={setShowMiniMap}

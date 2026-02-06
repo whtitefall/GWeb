@@ -8,6 +8,8 @@ type NoteDrawerProps = {
   drawerStyle: CSSProperties
   drawerRef: RefObject<HTMLElement | null>
   readOnly?: boolean
+  docked?: boolean
+  showResizer?: boolean
   onResizeStart: (event: MouseEvent<HTMLDivElement>) => void
   onClose: () => void
   onRemoveNode: (nodeId: string) => void
@@ -25,6 +27,8 @@ export default function NoteDrawer({
   drawerStyle,
   drawerRef,
   readOnly = false,
+  docked = false,
+  showResizer = true,
   onResizeStart,
   onClose,
   onRemoveNode,
@@ -39,14 +43,14 @@ export default function NoteDrawer({
   const { t } = useI18n()
   return (
     <aside
-      className={`drawer ${activeNode ? 'drawer--open' : ''}`}
+      className={`drawer ${activeNode ? 'drawer--open' : ''} ${docked ? 'drawer--dock drawer--dock-left' : ''}`}
       aria-hidden={!activeNode}
       ref={drawerRef}
       style={drawerStyle}
     >
       {activeNode ? (
         <>
-          <div className="drawer__resizer" onMouseDown={onResizeStart} />
+          {showResizer ? <div className="drawer__resizer" onMouseDown={onResizeStart} /> : null}
           <div className="drawer__content">
             <div className="drawer__header">
               <div>

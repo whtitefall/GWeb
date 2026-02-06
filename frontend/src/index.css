@@ -24,6 +24,16 @@
   --group-border: rgba(255, 255, 255, 0.14);
   --minimap-node: #5e6570;
   --minimap-mask: rgba(15, 17, 20, 0.6);
+  --sidebar-bg: rgba(14, 17, 22, 0.84);
+  --surface-soft: rgba(255, 255, 255, 0.04);
+  --surface-strong: rgba(255, 255, 255, 0.08);
+  --surface-contrast: rgba(255, 255, 255, 0.12);
+  --accent-surface: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-surface-strong: color-mix(in srgb, var(--accent) 24%, transparent);
+  --accent-border: color-mix(in srgb, var(--accent) 56%, transparent);
+  --focus-ring: color-mix(in srgb, var(--accent) 34%, transparent);
+  --danger-surface: color-mix(in srgb, var(--danger) 14%, transparent);
+  --danger-border: color-mix(in srgb, var(--danger) 38%, transparent);
 }
 
 :root[data-theme='light'] {
@@ -50,6 +60,10 @@
   --group-border: rgba(20, 29, 38, 0.16);
   --minimap-node: #a4acb7;
   --minimap-mask: rgba(233, 236, 240, 0.75);
+  --sidebar-bg: rgba(248, 250, 252, 0.95);
+  --surface-soft: rgba(15, 23, 42, 0.06);
+  --surface-strong: rgba(15, 23, 42, 0.1);
+  --surface-contrast: rgba(15, 23, 42, 0.16);
 }
 
 *,
@@ -118,6 +132,6 @@ input::placeholder {
 }
 
 input:focus {
-  outline: 2px solid rgba(86, 216, 163, 0.3);
-  border-color: rgba(86, 216, 163, 0.6);
+  outline: 2px solid var(--focus-ring);
+  border-color: var(--accent-border);
 }

@@ -1,6 +1,6 @@
 // Workspace settings modal (theme, accent, layout toggles).
 import { ACCENT_OPTIONS } from '../constants'
-import type { ThemePreference } from '../types/ui'
+import type { NodeDetailsLayout, ThemePreference } from '../types/ui'
 import { useI18n } from '../i18n'
 
 type SettingsModalProps = {
@@ -8,12 +8,14 @@ type SettingsModalProps = {
   themePreference: ThemePreference
   resolvedTheme: 'dark' | 'light'
   accentChoice: string
+  nodeDetailsLayout: NodeDetailsLayout
   sidebarCollapsed: boolean
   betaFeaturesEnabled: boolean
   showMiniMap: boolean
   onClose: () => void
   onSetTheme: (value: ThemePreference) => void
   onSetAccent: (value: string) => void
+  onSetNodeDetailsLayout: (value: NodeDetailsLayout) => void
   onToggleSidebarExpanded: (expanded: boolean) => void
   onToggleBetaFeatures: (enabled: boolean) => void
   onToggleMiniMap: (enabled: boolean) => void
@@ -24,12 +26,14 @@ export default function SettingsModal({
   themePreference,
   resolvedTheme,
   accentChoice,
+  nodeDetailsLayout,
   sidebarCollapsed,
   betaFeaturesEnabled,
   showMiniMap,
   onClose,
   onSetTheme,
   onSetAccent,
+  onSetNodeDetailsLayout,
   onToggleSidebarExpanded,
   onToggleBetaFeatures,
   onToggleMiniMap,
@@ -102,6 +106,26 @@ export default function SettingsModal({
               </button>
             ))}
           </div>
+        </div>
+        <div className="modal__section">
+          <div className="modal__label">{t('settings.nodeDetailsLayout')}</div>
+          <div className="mode-toggle mode-toggle--2">
+            <button
+              type="button"
+              className={`mode-toggle__btn ${nodeDetailsLayout === 'drawer' ? 'is-active' : ''}`}
+              onClick={() => onSetNodeDetailsLayout('drawer')}
+            >
+              {t('settings.nodeDetailsLayout.drawer')}
+            </button>
+            <button
+              type="button"
+              className={`mode-toggle__btn ${nodeDetailsLayout === 'panel' ? 'is-active' : ''}`}
+              onClick={() => onSetNodeDetailsLayout('panel')}
+            >
+              {t('settings.nodeDetailsLayout.panel')}
+            </button>
+          </div>
+          <div className="modal__hint">{t('settings.nodeDetailsLayoutHint')}</div>
         </div>
         <div className="modal__section">
           <div className="modal__label">{t('settings.panel')}</div>

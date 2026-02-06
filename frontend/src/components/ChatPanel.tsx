@@ -9,6 +9,7 @@ type ChatPanelProps = {
   chatError: string
   chatInput: string
   chatLoading: boolean
+  onMinimize: () => void
   onClose: () => void
   onInputChange: (value: string) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
@@ -22,6 +23,7 @@ export default function ChatPanel({
   chatError,
   chatInput,
   chatLoading,
+  onMinimize,
   onClose,
   onInputChange,
   onSubmit,
@@ -41,9 +43,14 @@ export default function ChatPanel({
           <div className="chat-panel__eyebrow">{t('chat.eyebrow')}</div>
           <h2>{t('chat.title')}</h2>
         </div>
-        <button className="btn btn--ghost" type="button" onClick={onClose}>
-          {t('chat.close')}
-        </button>
+        <div className="chat-panel__header-actions">
+          <button className="btn btn--ghost" type="button" onClick={onMinimize}>
+            {t('chat.minimize')}
+          </button>
+          <button className="btn btn--ghost" type="button" onClick={onClose}>
+            {t('chat.close')}
+          </button>
+        </div>
       </div>
       <div className="chat-panel__body">
         <p className="chat-panel__note">{t('chat.note')}</p>
