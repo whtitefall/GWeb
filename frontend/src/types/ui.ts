@@ -3,6 +3,7 @@ import type { QuickFactKey } from '../constants'
 
 export type ThemePreference = 'dark' | 'light' | 'system'
 export type NodeDetailsLayout = 'drawer' | 'panel'
+export type AIProvider = 'model_server' | 'openai'
 export type ViewMode = 'home' | 'graph' | 'application' | 'graph3d' | 'facts'
 export type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string }
 export type FactKey = QuickFactKey

@@ -15,20 +15,37 @@ import (
 )
 
 const (
-	openAIEndpoint     = "https://api.openai.com/v1/responses"
-	defaultOpenAIModel = "gpt-4o-mini"
-	defaultMaxNodes    = 28
-	maxMaxNodes        = 80
-	maxPromptChars     = 4000
+	defaultOpenAIEndpoint      = "https://api.openai.com/v1/responses"
+	defaultModelServerEndpoint = "http://localhost:8090"
+	defaultModelServerModel    = "Qwen/Qwen2.5-14B-Instruct"
+	defaultOpenAIModel         = "gpt-4o-mini"
+	defaultMaxNodes            = 28
+	maxMaxNodes                = 80
+	maxPromptChars             = 4000
+	aiProviderOpenAI           = "openai"
+	aiProviderModelServer      = "model_server"
 )
 
 type aiGraphRequest struct {
 	Prompt   string `json:"prompt"`
 	MaxNodes int    `json:"maxNodes,omitempty"`
+	Provider string `json:"provider,omitempty"`
 }
 
 type aiGraphResponse struct {
 	Graph graphPayload `json:"graph"`
+}
+
+type modelServerRequest struct {
+	Prompt   string `json:"prompt"`
+	MaxNodes int    `json:"maxNodes,omitempty"`
+	Model    string `json:"model,omitempty"`
+}
+
+type modelServerResponse struct {
+	Name  string   `json:"name"`
+	Nodes []aiNode `json:"nodes"`
+	Edges []aiEdge `json:"edges"`
 }
 
 type openAIRequest struct {
@@ -140,11 +157,6 @@ func (s *server) handleAIGraph(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.openAIKey == "" {
-		http.Error(w, "OpenAI is not configured", http.StatusNotImplemented)
-		return
-	}
-
 	body, err := readBody(r)
 	if err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
@@ -169,11 +181,29 @@ func (s *server) handleAIGraph(w http.ResponseWriter, r *http.Request) {
 	}
 
 	maxNodes := clampInt(req.MaxNodes, defaultMaxNodes, maxMaxNodes)
+	provider := resolveAIProvider(req.Provider, s.aiDefaultProvider)
 
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
 
-	graph, err := s.generateGraphFromPrompt(ctx, prompt, maxNodes)
+	var graph graphPayload
+	switch provider {
+	case aiProviderOpenAI:
+		if s.openAIKey == "" {
+			http.Error(w, "openai provider is not configured", http.StatusNotImplemented)
+			return
+		}
+		graph, err = s.generateGraphFromPrompt(ctx, prompt, maxNodes)
+	case aiProviderModelServer:
+		if strings.TrimSpace(s.modelServerEndpoint) == "" {
+			http.Error(w, "model_server provider is not configured", http.StatusNotImplemented)
+			return
+		}
+		graph, err = s.generateGraphFromModelServer(ctx, prompt, maxNodes)
+	default:
+		http.Error(w, "invalid provider", http.StatusBadRequest)
+		return
+	}
 	if err != nil {
 		logMsg := err.Error()
 		if len(logMsg) > 500 {
@@ -208,7 +238,7 @@ func (s *server) generateGraphFromPrompt(ctx context.Context, prompt string, max
 		MaxOutputTokens: 1200,
 	}
 
-	raw, err := s.callOpenAI(ctx, request)
+	raw, err := s.callOpenAI(ctx, request, s.openAIEndpoint, s.openAIKey)
 	if err != nil {
 		return graphPayload{}, err
 	}
@@ -236,6 +266,96 @@ func (s *server) generateGraphFromPrompt(ctx context.Context, prompt string, max
 		return graphPayload{}, err
 	}
 
+	return buildGraphPayload(graph, maxNodes)
+}
+
+func (s *server) generateGraphFromModelServer(ctx context.Context, prompt string, maxNodes int) (graphPayload, error) {
+	response, err := s.callModelServer(ctx, modelServerRequest{
+		Prompt:   prompt,
+		MaxNodes: maxNodes,
+		Model:    s.modelServerModel,
+	})
+	if err != nil {
+		return graphPayload{}, err
+	}
+	graph := aiGraphPayload{
+		Name:  response.Name,
+		Nodes: response.Nodes,
+		Edges: response.Edges,
+	}
+	return buildGraphPayload(graph, maxNodes)
+}
+
+func (s *server) callOpenAI(ctx context.Context, payload openAIRequest, endpoint, apiKey string) ([]byte, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(apiKey) != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 25 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode >= http.StatusBadRequest {
+		return nil, fmt.Errorf("openai request failed: %s", strings.TrimSpace(string(raw)))
+	}
+
+	return raw, nil
+}
+
+func (s *server) callModelServer(ctx context.Context, payload modelServerRequest) (modelServerResponse, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return modelServerResponse{}, err
+	}
+	endpoint := strings.TrimRight(s.modelServerEndpoint, "/") + "/generate"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return modelServerResponse{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if strings.TrimSpace(s.modelServerAPIKey) != "" {
+		req.Header.Set("Authorization", "Bearer "+s.modelServerAPIKey)
+	}
+	client := &http.Client{Timeout: 25 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return modelServerResponse{}, err
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return modelServerResponse{}, err
+	}
+	if resp.StatusCode >= http.StatusBadRequest {
+		return modelServerResponse{}, fmt.Errorf("model_server request failed: %s", strings.TrimSpace(string(raw)))
+	}
+	var parsed modelServerResponse
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return modelServerResponse{}, err
+	}
+	return parsed, nil
+}
+
+func buildGraphPayload(graph aiGraphPayload, maxNodes int) (graphPayload, error) {
 	sanitized := sanitizeAIGraph(graph, maxNodes)
 	nodesJSON, err := json.Marshal(sanitized.Nodes)
 	if err != nil {
@@ -258,36 +378,19 @@ func (s *server) generateGraphFromPrompt(ctx context.Context, prompt string, max
 	}, nil
 }
 
-func (s *server) callOpenAI(ctx context.Context, payload openAIRequest) ([]byte, error) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
+func resolveAIProvider(requested string, fallback string) string {
+	provider := strings.ToLower(strings.TrimSpace(requested))
+	if provider == "" {
+		provider = strings.ToLower(strings.TrimSpace(fallback))
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, openAIEndpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
+	switch provider {
+	case aiProviderOpenAI:
+		return aiProviderOpenAI
+	case aiProviderModelServer:
+		return aiProviderModelServer
+	default:
+		return aiProviderModelServer
 	}
-	req.Header.Set("Authorization", "Bearer "+s.openAIKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: 25 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode >= http.StatusBadRequest {
-		return nil, fmt.Errorf("openai request failed: %s", strings.TrimSpace(string(raw)))
-	}
-
-	return raw, nil
 }
 
 func extractOutputText(response openAIResponse) (string, string) {

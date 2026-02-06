@@ -9,6 +9,7 @@ export const ACCENT_KEY = 'gweb.accent.v1'
 export const MINIMAP_KEY = 'gweb.minimap.v1'
 export const BETA_KEY = 'gweb.beta.features.v1'
 export const NODE_DETAILS_LAYOUT_KEY = 'gweb.node.details.layout.v1'
+export const AI_PROVIDER_KEY = 'gweb.ai.provider.v1'
 
 export const GROUP_PADDING = 32
 export const DEFAULT_GROUP_SIZE = { width: 300, height: 180 }

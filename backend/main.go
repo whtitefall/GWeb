@@ -46,8 +46,31 @@ func main() {
 	if openAIModel == "" {
 		openAIModel = defaultOpenAIModel
 	}
+	openAIEndpoint := strings.TrimSpace(os.Getenv("OPENAI_ENDPOINT"))
+	if openAIEndpoint == "" {
+		openAIEndpoint = defaultOpenAIEndpoint
+	}
+
+	aiDefaultProvider := strings.TrimSpace(os.Getenv("AI_DEFAULT_PROVIDER"))
+	if aiDefaultProvider == "" {
+		aiDefaultProvider = aiProviderModelServer
+	}
+
+	modelServerEndpoint := strings.TrimSpace(os.Getenv("MODEL_SERVER_ENDPOINT"))
+	if modelServerEndpoint == "" {
+		modelServerEndpoint = defaultModelServerEndpoint
+	}
+	modelServerModel := strings.TrimSpace(os.Getenv("MODEL_SERVER_MODEL"))
+	if modelServerModel == "" {
+		modelServerModel = defaultModelServerModel
+	}
+	modelServerAPIKey := strings.TrimSpace(os.Getenv("MODEL_SERVER_API_KEY"))
+
 	if openAIKey == "" {
-		log.Print("OPENAI_API_KEY not set; /api/ai/graph will be disabled")
+		log.Print("OPENAI_API_KEY not set; OpenAI provider will be unavailable")
+	}
+	if modelServerEndpoint == "" {
+		log.Print("MODEL_SERVER_ENDPOINT not set; model_server provider will be unavailable")
 	}
 	supabaseJWTSecret := strings.TrimSpace(os.Getenv("SUPABASE_JWT_SECRET"))
 	if supabaseJWTSecret == "" {
@@ -76,13 +99,18 @@ func main() {
 	}
 
 	srv := &server{
-		pool:              pool,
-		graphID:           graphID,
-		corsOrigins:       parseOrigins(corsOrigin),
-		openAIKey:         openAIKey,
-		openAIModel:       openAIModel,
-		supabaseJWTSecret: supabaseJWTSecret,
-		jwkCache:          make(map[string]jwkCacheEntry),
+		pool:                pool,
+		graphID:             graphID,
+		corsOrigins:         parseOrigins(corsOrigin),
+		openAIKey:           openAIKey,
+		openAIModel:         openAIModel,
+		openAIEndpoint:      openAIEndpoint,
+		aiDefaultProvider:   aiDefaultProvider,
+		modelServerEndpoint: modelServerEndpoint,
+		modelServerModel:    modelServerModel,
+		modelServerAPIKey:   modelServerAPIKey,
+		supabaseJWTSecret:   supabaseJWTSecret,
+		jwkCache:            make(map[string]jwkCacheEntry),
 	}
 
 	mux := http.NewServeMux()

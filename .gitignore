@@ -2,3 +2,8 @@ backend/.env
 backend/*.exe
 frontend/.env
 PRIVATE_NOTES.md
+.vscode/
+ai-server/.env
+ai-server/.venv/
+ai-server/__pycache__/
+ai-server/*.pyc

@@ -1,11 +1,12 @@
 // Workspace settings modal (theme, accent, layout toggles).
 import { ACCENT_OPTIONS } from '../constants'
-import type { NodeDetailsLayout, ThemePreference } from '../types/ui'
+import type { AIProvider, NodeDetailsLayout, ThemePreference } from '../types/ui'
 import { useI18n } from '../i18n'
 
 type SettingsModalProps = {
   open: boolean
   themePreference: ThemePreference
+  aiProvider: AIProvider
   resolvedTheme: 'dark' | 'light'
   accentChoice: string
   nodeDetailsLayout: NodeDetailsLayout
@@ -14,6 +15,7 @@ type SettingsModalProps = {
   showMiniMap: boolean
   onClose: () => void
   onSetTheme: (value: ThemePreference) => void
+  onSetAIProvider: (value: AIProvider) => void
   onSetAccent: (value: string) => void
   onSetNodeDetailsLayout: (value: NodeDetailsLayout) => void
   onToggleSidebarExpanded: (expanded: boolean) => void
@@ -24,6 +26,7 @@ type SettingsModalProps = {
 export default function SettingsModal({
   open,
   themePreference,
+  aiProvider,
   resolvedTheme,
   accentChoice,
   nodeDetailsLayout,
@@ -32,6 +35,7 @@ export default function SettingsModal({
   showMiniMap,
   onClose,
   onSetTheme,
+  onSetAIProvider,
   onSetAccent,
   onSetNodeDetailsLayout,
   onToggleSidebarExpanded,
@@ -90,6 +94,26 @@ export default function SettingsModal({
             </button>
           </div>
           <div className="modal__hint">{t('settings.currentMode', { mode: modeLabel })}</div>
+        </div>
+        <div className="modal__section">
+          <div className="modal__label">{t('settings.aiProvider')}</div>
+          <div className="mode-toggle mode-toggle--2">
+            <button
+              type="button"
+              className={`mode-toggle__btn ${aiProvider === 'model_server' ? 'is-active' : ''}`}
+              onClick={() => onSetAIProvider('model_server')}
+            >
+              {t('settings.aiProvider.modelServer')}
+            </button>
+            <button
+              type="button"
+              className={`mode-toggle__btn ${aiProvider === 'openai' ? 'is-active' : ''}`}
+              onClick={() => onSetAIProvider('openai')}
+            >
+              {t('settings.aiProvider.openai')}
+            </button>
+          </div>
+          <div className="modal__hint">{t('settings.aiProviderHint')}</div>
         </div>
         <div className="modal__section">
           <div className="modal__label">{t('settings.accent')}</div>

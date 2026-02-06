@@ -1,5 +1,6 @@
 // Thin API client for the Go backend. Keep response shapes in sync with backend/types.go.
 import type { GraphKind, GraphPayload, GraphSummary } from './graphTypes'
+import type { AIProvider } from './types/ui'
 import { supabase } from './supabaseClient'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
@@ -85,14 +86,18 @@ export async function deleteGraph(graphId: string): Promise<void> {
   }
 }
 
-export async function generateGraph(prompt: string, maxNodes = 28): Promise<GraphPayload> {
+export async function generateGraph(
+  prompt: string,
+  maxNodes = 28,
+  provider: AIProvider = 'model_server',
+): Promise<GraphPayload> {
   const response = await fetch(`${API_URL}/api/ai/graph`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...(await authHeaders()),
     },
-    body: JSON.stringify({ prompt, maxNodes }),
+    body: JSON.stringify({ prompt, maxNodes, provider }),
   })
 
   if (!response.ok) {

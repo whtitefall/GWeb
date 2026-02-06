@@ -43,6 +43,7 @@ import { useGraphState } from './hooks/useGraphState'
 import {
   ACCENT_KEY,
   ACCENT_OPTIONS,
+  AI_PROVIDER_KEY,
   BETA_KEY,
   DEFAULT_GROUP_SIZE,
   DRAWER_MAX,
@@ -72,7 +73,7 @@ import { generateId } from './utils/id'
 import { resolveAuthName } from './utils/auth'
 import { readLocalGraphList } from './utils/storage'
 import { isLightColor, resolveTheme } from './utils/theme'
-import type { ChatMessage, FactKey, NodeDetailsLayout, SshConfig, ThemePreference, ViewMode } from './types/ui'
+import type { AIProvider, ChatMessage, FactKey, NodeDetailsLayout, SshConfig, ThemePreference, ViewMode } from './types/ui'
 import { supabase } from './supabaseClient'
 import { useI18n } from './i18n'
 
@@ -209,6 +210,13 @@ export default function App() {
       return stored
     }
     return 'dark'
+  })
+  const [aiProvider, setAIProvider] = useState<AIProvider>(() => {
+    if (typeof window === 'undefined') {
+      return 'model_server'
+    }
+    const stored = window.localStorage.getItem(AI_PROVIDER_KEY)
+    return stored === 'openai' ? 'openai' : 'model_server'
   })
   const [nodeDetailsLayout, setNodeDetailsLayout] = useState<NodeDetailsLayout>(() => {
     if (typeof window === 'undefined') {
@@ -389,6 +397,12 @@ export default function App() {
       window.localStorage.setItem(THEME_KEY, themePreference)
     }
   }, [themePreference])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(AI_PROVIDER_KEY, aiProvider)
+    }
+  }, [aiProvider])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1867,7 +1881,7 @@ export default function App() {
       setChatLoading(true)
 
       try {
-        const payload = await generateGraph(trimmed)
+        const payload = await generateGraph(trimmed, 28, aiProvider)
         const normalized = normalizeGraph(payload, graphKind)
         setGraphName(normalized.name)
         setNodes(normalized.nodes)
@@ -1896,7 +1910,7 @@ export default function App() {
         setChatLoading(false)
       }
     },
-    [chatInput, chatLoading, graphKind, setEdges, setGraphName, setHydrated, setNodes, t],
+    [aiProvider, chatInput, chatLoading, graphKind, setEdges, setGraphName, setHydrated, setNodes, t],
   )
 
   const handleExport = useCallback(() => {
@@ -2777,6 +2791,7 @@ export default function App() {
       <SettingsModal
         open={settingsOpen}
         themePreference={themePreference}
+        aiProvider={aiProvider}
         resolvedTheme={resolvedTheme}
         accentChoice={accentChoice}
         nodeDetailsLayout={nodeDetailsLayout}
@@ -2785,6 +2800,7 @@ export default function App() {
         showMiniMap={showMiniMap}
         onClose={() => setSettingsOpen(false)}
         onSetTheme={setThemePreference}
+        onSetAIProvider={setAIProvider}
         onSetAccent={setAccentChoice}
         onSetNodeDetailsLayout={handleSetNodeDetailsLayout}
         onToggleSidebarExpanded={(expanded) => setSidebarCollapsed(!expanded)}
