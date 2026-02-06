@@ -42,7 +42,7 @@ export default function TaskDrawer({
               </div>
               <div className="drawer__actions">
                 <button className="btn btn--ghost" type="button" onClick={onClose}>
-                  {t('task.close')}
+                  {t('task.minimize')}
                 </button>
                 <button className="btn btn--danger" type="button" onClick={() => onRemoveNode(activeNode.id)}>
                   {t('task.remove')}

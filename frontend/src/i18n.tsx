@@ -116,6 +116,7 @@ const messages: Record<Language, Record<string, string>> = {
     'drawer.nodeSettings': 'Node Settings',
     'drawer.nodeDetails': 'Node Details',
     'drawer.close': 'Close',
+    'drawer.minimize': 'Minimize',
     'drawer.removeFromGroup': 'Remove from Group',
     'drawer.remove': 'Remove',
     'drawer.title': 'Title',
@@ -124,6 +125,9 @@ const messages: Record<Language, Record<string, string>> = {
     'drawer.notesCount': '{count} notes',
     'drawer.addItemPlaceholder': 'Add an item...',
     'drawer.addItem': 'Add Item',
+    'drawer.minimizedLabel': 'Minimized node details',
+    'drawer.open': 'Open Panel',
+    'drawer.dismiss': 'Dismiss',
 
     'itemModal.eyebrow': 'Item Notes',
     'itemModal.close': 'Close',
@@ -205,6 +209,7 @@ const messages: Record<Language, Record<string, string>> = {
 
     'task.settings': 'Task Settings',
     'task.close': 'Close',
+    'task.minimize': 'Minimize',
     'task.remove': 'Remove',
     'task.name': 'Task Name',
     'task.uploadScript': 'Upload Script',
@@ -340,6 +345,7 @@ const messages: Record<Language, Record<string, string>> = {
     'drawer.nodeSettings': '节点设置',
     'drawer.nodeDetails': '节点详情',
     'drawer.close': '关闭',
+    'drawer.minimize': '最小化',
     'drawer.removeFromGroup': '移出分组',
     'drawer.remove': '删除',
     'drawer.title': '标题',
@@ -348,6 +354,9 @@ const messages: Record<Language, Record<string, string>> = {
     'drawer.notesCount': '{count} 条笔记',
     'drawer.addItemPlaceholder': '添加条目...',
     'drawer.addItem': '添加条目',
+    'drawer.minimizedLabel': '最小化节点详情',
+    'drawer.open': '打开面板',
+    'drawer.dismiss': '关闭',
 
     'itemModal.eyebrow': '条目笔记',
     'itemModal.close': '关闭',
@@ -429,6 +438,7 @@ const messages: Record<Language, Record<string, string>> = {
 
     'task.settings': '任务设置',
     'task.close': '关闭',
+    'task.minimize': '最小化',
     'task.remove': '删除',
     'task.name': '任务名称',
     'task.uploadScript': '上传脚本',

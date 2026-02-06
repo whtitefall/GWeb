@@ -57,7 +57,7 @@ export default function NoteDrawer({
               </div>
               <div className="drawer__actions">
                 <button className="btn btn--ghost" type="button" onClick={onClose}>
-                  {t('drawer.close')}
+                  {t('drawer.minimize')}
                 </button>
                 {!readOnly && activeNode.parentNode ? (
                   <button className="btn btn--ghost" type="button" onClick={() => onDetachFromGroup(activeNode.id)}>
