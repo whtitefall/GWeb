@@ -124,16 +124,13 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
             {!collapsed ? (
               <div className="graph-list__identity-copy">
                 <div className="graph-list__identity-title">{userName || 'Graph User'}</div>
-                <div className="graph-list__identity-subtitle">{t('nav.graph')}</div>
               </div>
             ) : null}
           </div>
           <div className="graph-list__head-actions">
-            {!collapsed ? (
-              <button className="icon-btn" type="button" title={t('graphs.newGraphPrefix')} onClick={onCreateGraph}>
-                +
-              </button>
-            ) : null}
+            <button className="icon-btn" type="button" title={t('graphs.newGraphPrefix')} onClick={onCreateGraph}>
+              +
+            </button>
             <button
               className="icon-btn"
               type="button"
@@ -145,39 +142,28 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
           </div>
         </div>
 
-        <div className="graph-list__nav">
-          <button
-            type="button"
-            className={`graph-list__nav-btn ${viewMode === 'graph' ? 'is-active' : ''}`}
-            onClick={() => onChangeView('graph')}
-            title={t('nav.graph')}
-          >
-            <span className="graph-list__nav-label">{t('nav.graph')}</span>
-            <span className="graph-list__nav-short">GN</span>
-          </button>
-          {showBetaTabs ? (
-            <>
-              <button
-                type="button"
-                className={`graph-list__nav-btn ${viewMode === 'application' ? 'is-active' : ''}`}
-                onClick={() => onChangeView('application')}
-                title={t('nav.application')}
-              >
-                <span className="graph-list__nav-label">{t('nav.application')}</span>
-                <span className="graph-list__nav-short">GA</span>
-              </button>
-              <button
-                type="button"
-                className={`graph-list__nav-btn ${viewMode === 'graph3d' ? 'is-active' : ''}`}
-                onClick={() => onChangeView('graph3d')}
-                title={t('nav.graph3d')}
-              >
-                <span className="graph-list__nav-label">{t('nav.graph3d')}</span>
-                <span className="graph-list__nav-short">3D</span>
-              </button>
-            </>
-          ) : null}
-        </div>
+        {showBetaTabs ? (
+          <div className="graph-list__nav">
+            <button
+              type="button"
+              className={`graph-list__nav-btn ${viewMode === 'application' ? 'is-active' : ''}`}
+              onClick={() => onChangeView('application')}
+              title={t('nav.application')}
+            >
+              <span className="graph-list__nav-label">{t('nav.application')}</span>
+              <span className="graph-list__nav-short">GA</span>
+            </button>
+            <button
+              type="button"
+              className={`graph-list__nav-btn ${viewMode === 'graph3d' ? 'is-active' : ''}`}
+              onClick={() => onChangeView('graph3d')}
+              title={t('nav.graph3d')}
+            >
+              <span className="graph-list__nav-label">{t('nav.graph3d')}</span>
+              <span className="graph-list__nav-short">3D</span>
+            </button>
+          </div>
+        ) : null}
         <input
           ref={fileInputRef}
           className="graph-list__file"

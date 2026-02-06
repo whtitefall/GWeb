@@ -258,10 +258,13 @@
   border: 1px solid transparent;
   font-size: 0.82rem;
   font-weight: 600;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .app-menu__item:hover {
+  background: var(--hover-surface);
   border-color: var(--stroke);
+  color: var(--ink);
 }
 
 .app-menu__item.is-active {
@@ -373,10 +376,13 @@
   color: var(--ink-soft);
   font-size: 0.82rem;
   font-weight: 600;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .graph-list__nav-btn:hover {
+  background: var(--hover-surface);
   border-color: var(--stroke);
+  color: var(--ink);
 }
 
 .graph-list__nav-btn.is-active {
@@ -465,6 +471,12 @@
   border: 1px solid var(--stroke);
   font-weight: 700;
   color: var(--ink);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.icon-btn:hover {
+  background: var(--hover-surface);
+  border-color: var(--stroke);
 }
 
 .graph-list__items {
@@ -487,6 +499,12 @@
   gap: 8px;
   padding: 8px;
   position: relative;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.graph-list__item:hover:not(.is-active) {
+  background: var(--hover-surface);
+  border-color: var(--stroke);
 }
 
 .graph-list__item.is-active {
@@ -502,6 +520,12 @@
   border: 0;
   padding: 2px 4px;
   min-width: 0;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.graph-list__item-main:hover {
+  background: var(--hover-surface);
 }
 
 .graph-list__item-edit {
@@ -554,7 +578,9 @@
 }
 
 .graph-list__item-menu button:hover {
+  background: var(--hover-surface);
   border-color: var(--stroke);
+  color: var(--ink);
 }
 
 .graph-list__item-menu-danger {
@@ -615,7 +641,17 @@
 }
 
 .graph-list--collapsed {
-  padding: 10px 8px;
+  top: 12px;
+  left: 12px;
+  bottom: auto;
+  width: auto;
+  max-width: calc(100vw - 24px);
+  padding: 6px;
+  border-right: 0;
+  background: transparent;
+  box-shadow: none;
+  gap: 0;
+  overflow: visible;
 }
 
 .graph-list--collapsed .graph-list__identity-copy,
@@ -625,18 +661,33 @@
 }
 
 .graph-list--collapsed .graph-list__head {
-  justify-content: center;
-  flex-direction: column;
-  gap: 8px;
+  justify-content: flex-start;
+  flex-direction: row;
+  gap: 6px;
+  padding: 0;
 }
 
 .graph-list--collapsed .graph-list__head-actions {
-  justify-content: center;
+  justify-content: flex-start;
+}
+
+.graph-list--collapsed .graph-list__identity {
+  gap: 6px;
 }
 
 .graph-list--collapsed .graph-list__nav-btn {
   justify-content: center;
-  padding: 8px;
+  width: auto;
+  min-width: 0;
+  padding: 6px 8px;
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+}
+
+.graph-list--collapsed .graph-list__nav {
+  flex-direction: row;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .graph-list--collapsed .graph-list__nav-label {
@@ -764,6 +815,10 @@
 
 .btn--ghost {
   background: var(--surface-strong);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--hover-surface);
 }
 
 .btn--danger {
@@ -1668,6 +1723,12 @@
   background: var(--surface-soft);
   color: var(--ink-soft);
   border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.items__item:hover {
+  background: var(--hover-surface);
+  border-color: var(--stroke);
 }
 
 .mode-toggle__btn.is-active {

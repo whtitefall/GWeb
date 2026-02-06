@@ -49,7 +49,6 @@ import {
   GROUP_PADDING,
   MINIMAP_KEY,
   NODE_DETAILS_LAYOUT_KEY,
-  SIDEBAR_COLLAPSED,
   SIDEBAR_MAX,
   SIDEBAR_MIN,
   STORAGE_ACTIVE_KEY,
@@ -270,7 +269,7 @@ export default function App() {
     if (!isApplicationView || !sshConsoleOpen) {
       return undefined
     }
-    const sidebarSpace = sidebarCollapsed ? SIDEBAR_COLLAPSED : sidebarWidth
+    const sidebarSpace = sidebarCollapsed ? 0 : sidebarWidth
     return { left: 16 + sidebarSpace + 12 }
   }, [isApplicationView, sshConsoleOpen, sidebarCollapsed, sidebarWidth])
 
@@ -1524,7 +1523,7 @@ export default function App() {
   const selectedNodeCount = nodes.filter((node) => node.selected).length
   const selectionCount = selectedNodeCount + edges.filter((edge) => edge.selected).length
 
-  const sidebarWidthValue = sidebarCollapsed ? SIDEBAR_COLLAPSED : sidebarWidth
+  const sidebarWidthValue = sidebarCollapsed ? 0 : sidebarWidth
   const workspaceStyle = useMemo(
     () => ({ ['--sidebar-width' as string]: `${sidebarWidthValue}px` } as CSSProperties),
     [sidebarWidthValue],
