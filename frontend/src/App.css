@@ -253,7 +253,7 @@
   text-align: left;
   padding: 8px 10px;
   border-radius: 4px;
-  background: var(--surface-soft);
+  background: transparent;
   color: var(--ink-soft);
   border: 1px solid transparent;
   font-size: 0.82rem;
@@ -263,7 +263,7 @@
 
 .app-menu__item:hover {
   background: var(--hover-surface);
-  border-color: var(--stroke);
+  border-color: transparent;
   color: var(--ink);
 }
 
@@ -275,8 +275,8 @@
 
 .app-menu__item--ai {
   color: var(--accent);
-  background: var(--accent-surface);
-  border-color: var(--accent-border);
+  background: transparent;
+  border-color: transparent;
 }
 
 .app-menu__item--danger {
@@ -467,16 +467,17 @@
   width: 30px;
   height: 30px;
   border-radius: 4px;
-  background: var(--surface-strong);
-  border: 1px solid var(--stroke);
+  background: transparent;
+  border: 1px solid transparent;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--muted);
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .icon-btn:hover {
   background: var(--hover-surface);
   border-color: var(--stroke);
+  color: var(--ink);
 }
 
 .graph-list__items {
@@ -518,14 +519,9 @@
   background: transparent;
   color: var(--ink);
   border: 0;
-  padding: 2px 4px;
+  padding: 6px 8px;
   min-width: 0;
   border-radius: 4px;
-  transition: background 0.15s ease;
-}
-
-.graph-list__item-main:hover {
-  background: var(--hover-surface);
 }
 
 .graph-list__item-edit {
@@ -546,8 +542,27 @@
 }
 
 .graph-list__item-menu-btn {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.graph-list__item:hover .graph-list__item-menu-btn,
+.graph-list__item-menu-wrap.is-open .graph-list__item-menu-btn,
+.graph-list__item-menu-btn:focus-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.graph-list__item-menu-btn:hover {
+  background: var(--hover-surface);
+  border-color: var(--stroke);
+  color: var(--ink);
 }
 
 .graph-list__item-menu {
@@ -571,7 +586,7 @@
   padding: 7px 8px;
   border-radius: 4px;
   border: 1px solid transparent;
-  background: var(--surface-soft);
+  background: transparent;
   color: var(--ink-soft);
   font-size: 0.8rem;
   font-weight: 600;
@@ -579,7 +594,7 @@
 
 .graph-list__item-menu button:hover {
   background: var(--hover-surface);
-  border-color: var(--stroke);
+  border-color: transparent;
   color: var(--ink);
 }
 
@@ -680,8 +695,8 @@
   width: auto;
   min-width: 0;
   padding: 6px 8px;
-  background: var(--panel);
-  border: 1px solid var(--stroke);
+  background: transparent;
+  border: 1px solid transparent;
 }
 
 .graph-list--collapsed .graph-list__nav {
@@ -791,10 +806,10 @@
   padding: 8px 12px;
   font-weight: 600;
   font-size: 0.85rem;
-  background: var(--surface-soft);
+  background: transparent;
   color: var(--ink);
-  border: 1px solid var(--stroke);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.2s ease;
 }
 
 .toolbar .btn {
@@ -814,29 +829,44 @@
 }
 
 .btn--ghost {
-  background: var(--surface-strong);
+  background: transparent;
+  color: var(--ink-soft);
 }
 
 .btn--ghost:hover:not(:disabled) {
   background: var(--hover-surface);
+  color: var(--ink);
+  border-color: transparent;
 }
 
 .btn--danger {
-  background: var(--danger-surface);
+  background: transparent;
   color: var(--danger);
-  border-color: var(--danger-border);
+  border-color: color-mix(in srgb, var(--danger) 18%, transparent);
 }
 
 .btn--ai {
   color: var(--accent);
-  background: var(--accent-surface);
-  border-color: var(--accent-border);
+  background: transparent;
+  border-color: transparent;
 }
 
 .btn:not(:disabled):hover {
-  transform: none;
-  box-shadow: none;
-  border-color: var(--stroke);
+  background: var(--hover-surface);
+  border-color: transparent;
+  color: var(--ink);
+}
+
+.btn--danger:not(:disabled):hover {
+  background: var(--danger-surface);
+  border-color: var(--danger-border);
+  color: var(--danger);
+}
+
+.btn--ai:not(:disabled):hover {
+  background: var(--accent-surface);
+  border-color: var(--accent-border);
+  color: var(--accent);
 }
 
 .drawer {

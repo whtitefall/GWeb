@@ -128,9 +128,11 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
             ) : null}
           </div>
           <div className="graph-list__head-actions">
-            <button className="icon-btn" type="button" title={t('graphs.newGraphPrefix')} onClick={onCreateGraph}>
-              +
-            </button>
+            {!collapsed ? (
+              <button className="icon-btn" type="button" title={t('graphs.newGraphPrefix')} onClick={onCreateGraph}>
+                +
+              </button>
+            ) : null}
             <button
               className="icon-btn"
               type="button"
@@ -218,10 +220,14 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
                           <div className="graph-list__name">{graph.name}</div>
                           <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
                         </button>
-                        <div className="graph-list__item-menu-wrap" ref={openGraphMenuId === graph.id ? menuRef : null}>
+                        <div
+                          className={`graph-list__item-menu-wrap ${openGraphMenuId === graph.id ? 'is-open' : ''}`}
+                          ref={openGraphMenuId === graph.id ? menuRef : null}
+                        >
                           <button
                             className="icon-btn graph-list__item-menu-btn"
                             type="button"
+                            aria-expanded={openGraphMenuId === graph.id}
                             onClick={(event) => {
                               event.stopPropagation()
                               setOpenGraphMenuId((current) => (current === graph.id ? null : graph.id))

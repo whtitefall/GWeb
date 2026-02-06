@@ -1524,17 +1524,23 @@ export default function App() {
   const selectionCount = selectedNodeCount + edges.filter((edge) => edge.selected).length
 
   const sidebarWidthValue = sidebarCollapsed ? 0 : sidebarWidth
+  const toolbarDefaultPosition = useMemo(
+    () => ({
+      x: sidebarWidthValue + 24,
+      y: sidebarCollapsed ? 72 : 16,
+    }),
+    [sidebarCollapsed, sidebarWidthValue],
+  )
   const workspaceStyle = useMemo(
     () => ({ ['--sidebar-width' as string]: `${sidebarWidthValue}px` } as CSSProperties),
     [sidebarWidthValue],
   )
   const toolbarStyle = useMemo(
     () => {
-      const fallback = { x: sidebarWidthValue + 24, y: 16 }
-      const position = toolbarPos ?? fallback
+      const position = toolbarPos ?? toolbarDefaultPosition
       return { left: `${position.x}px`, top: `${position.y}px` } as CSSProperties
     },
-    [sidebarWidthValue, toolbarPos],
+    [toolbarDefaultPosition, toolbarPos],
   )
   const effectiveDrawerWidth = useDockedNodeDrawer
     ? Math.max(drawerWidth, NODE_DOCK_WIDTH)
@@ -1608,9 +1614,9 @@ export default function App() {
 
   useEffect(() => {
     if (!toolbarMovedRef.current) {
-      setToolbarPos({ x: sidebarWidthValue + 24, y: 16 })
+      setToolbarPos(toolbarDefaultPosition)
     }
-  }, [sidebarWidthValue])
+  }, [toolbarDefaultPosition])
 
   const handleAuthSubmit = async (event: ReactFormEvent) => {
     event.preventDefault()
