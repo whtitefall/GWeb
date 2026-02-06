@@ -431,10 +431,19 @@ export default function App() {
   // Initial graph list load + hydration of the active graph.
   useEffect(() => {
     let isMounted = true
+    if (!supabaseLoggedIn) {
+      setGraphList([])
+      setActiveGraphId(null)
+      setHydrated(false)
+      return () => {
+        isMounted = false
+      }
+    }
     const loadGraphs = async () => {
       let graphs: GraphSummary[] = []
       try {
-        graphs = await listGraphs(graphKind)
+        const listed = await listGraphs(graphKind)
+        graphs = Array.isArray(listed) ? listed : []
       } catch {
         graphs = readLocalGraphList(listStorageKey)
       }
@@ -495,7 +504,7 @@ export default function App() {
   }, [activeGraphId, activeStorageKey])
 
   useEffect(() => {
-    if (!activeGraphId) {
+    if (!supabaseLoggedIn || !activeGraphId) {
       return
     }
     setHydrated(false)

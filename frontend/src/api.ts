@@ -24,7 +24,8 @@ export async function listGraphs(kind: GraphKind): Promise<GraphSummary[]> {
   if (!response.ok) {
     throw new Error(`Failed to list graphs: ${response.status}`)
   }
-  return response.json()
+  const payload = (await response.json()) as unknown
+  return Array.isArray(payload) ? (payload as GraphSummary[]) : []
 }
 
 export async function createGraph(payload: GraphPayload): Promise<GraphSummary> {
