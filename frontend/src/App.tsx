@@ -1302,6 +1302,12 @@ export default function App() {
     () => ({ ['--drawer-width' as string]: `${drawerWidthValue}px` } as CSSProperties),
     [drawerWidthValue],
   )
+  const drawerMiniTrayStyle = useMemo(() => {
+    // Keep minimized cards clear of the open right drawer and shift as it resizes.
+    const drawerVisible = is2DView && Boolean(activeNode)
+    const rightOffset = drawerVisible ? drawerWidthValue + 36 : 24
+    return { right: `${rightOffset}px` } as CSSProperties
+  }, [activeNode, drawerWidthValue, is2DView])
 
   const handleResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -1965,7 +1971,12 @@ export default function App() {
               ) : null}
 
               {is2DView && minimizedNodes.length > 0 ? (
-                <div className="drawer-mini-tray" role="region" aria-label={t('drawer.minimizedLabel')}>
+                <div
+                  className="drawer-mini-tray"
+                  style={drawerMiniTrayStyle}
+                  role="region"
+                  aria-label={t('drawer.minimizedLabel')}
+                >
                   {minimizedNodes.map((node) => (
                     <div key={node.id} className="drawer-mini">
                       <div className="drawer-mini__title">{node.data.label}</div>
