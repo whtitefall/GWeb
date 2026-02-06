@@ -1,5 +1,6 @@
 // Auth modal for Supabase OAuth + reserved email/password flow.
 import type { FormEvent } from 'react'
+import { useI18n } from '../i18n'
 
 type AuthModalProps = {
   open: boolean
@@ -34,6 +35,8 @@ export default function AuthModal({
   onChangeEmail,
   onChangePassword,
 }: AuthModalProps) {
+  const { t } = useI18n()
+
   if (!open) {
     return null
   }
@@ -47,50 +50,50 @@ export default function AuthModal({
             className={`modal__tab ${mode === 'register' ? 'is-active' : ''}`}
             onClick={() => onChangeMode('register')}
           >
-            Register
+            {t('auth.register')}
           </button>
           <button
             type="button"
             className={`modal__tab ${mode === 'login' ? 'is-active' : ''}`}
             onClick={() => onChangeMode('login')}
           >
-            Login
+            {t('auth.login')}
           </button>
         </div>
-        <h2>{mode === 'register' ? 'Create your account' : 'Welcome back'}</h2>
-        <p className="modal__subtitle">Authentication is a reserved feature for now.</p>
+        <h2>{mode === 'register' ? t('auth.createAccount') : t('auth.welcomeBack')}</h2>
+        <p className="modal__subtitle">{t('auth.subtitle')}</p>
         <div className="oauth">
           <button className="btn btn--oauth" type="button" onClick={() => onOAuthLogin('google')}>
-            Continue with Google
+            {t('auth.google')}
           </button>
           <button className="btn btn--oauth" type="button" onClick={() => onOAuthLogin('github')}>
-            Continue with GitHub
+            {t('auth.github')}
           </button>
         </div>
-        <div className="oauth__divider">or</div>
+        <div className="oauth__divider">{t('auth.or')}</div>
         <form className="modal__form" onSubmit={onSubmit}>
           {mode === 'register' ? (
             <label className="field">
-              <span>Name</span>
+              <span>{t('auth.name')}</span>
               <input
                 type="text"
                 value={authName}
                 onChange={(event) => onChangeName(event.target.value)}
-                placeholder="Graph explorer"
+                placeholder={t('auth.namePlaceholder')}
               />
             </label>
           ) : null}
           <label className="field">
-            <span>{mode === 'login' ? 'Email or username' : 'Email'}</span>
+            <span>{mode === 'login' ? t('auth.emailOrUsername') : t('auth.email')}</span>
             <input
               type={mode === 'login' ? 'text' : 'email'}
               value={authEmail}
               onChange={(event) => onChangeEmail(event.target.value)}
-              placeholder={mode === 'login' ? 'email or admin' : 'you@example.com'}
+              placeholder={mode === 'login' ? t('auth.loginPlaceholder') : t('auth.emailPlaceholder')}
             />
           </label>
           <label className="field">
-            <span>Password</span>
+            <span>{t('auth.password')}</span>
             <input
               type="password"
               value={authPassword}
@@ -102,10 +105,10 @@ export default function AuthModal({
           {authNotice ? <div className="auth-notice">{authNotice}</div> : null}
           <div className="modal__actions">
             <button className="btn btn--ghost" type="button" onClick={onClose}>
-              Cancel
+              {t('auth.cancel')}
             </button>
             <button className="btn btn--primary" type="submit">
-              {mode === 'register' ? 'Register' : 'Login'}
+              {mode === 'register' ? t('auth.register') : t('auth.login')}
             </button>
           </div>
         </form>

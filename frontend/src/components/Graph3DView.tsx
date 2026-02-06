@@ -17,6 +17,7 @@ import type { GraphNode } from '../graphTypes'
 import { resolvePosition3d } from '../utils/graph'
 import { isValidColor } from '../utils/theme'
 import { generateId } from '../utils/id'
+import { useI18n } from '../i18n'
 
 type Graph3DViewProps = {
   nodes: GraphNode[]
@@ -44,6 +45,7 @@ export default function Graph3DView({
   onToolbarDragStart,
   accentSeed,
 }: Graph3DViewProps) {
+  const { t } = useI18n()
   const graphRef = useRef<any>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -175,7 +177,7 @@ export default function Graph3DView({
       type: 'default',
       position: { x: 200 + nodes.length * 20, y: 200 + nodes.length * 20 },
       data: {
-        label: `Node ${nodes.length + 1}`,
+        label: `${t('graph3d.nodePrefix')} ${nodes.length + 1}`,
         items: [],
         position3d,
         progress: 0,
@@ -240,10 +242,10 @@ export default function Graph3DView({
       />
       <div className="toolbar toolbar--3d" style={toolbarStyle} ref={toolbarRef}>
         <div className="toolbar__label" onMouseDown={onToolbarDragStart}>
-          3D Actions
+          {t('graph3d.actions')}
         </div>
         <button className="btn btn--primary" type="button" onClick={handleAddNode}>
-          Add Node
+          {t('graph3d.addNode')}
         </button>
         <button
           className="btn btn--danger"
@@ -251,7 +253,7 @@ export default function Graph3DView({
           onClick={handleDeleteNode}
           disabled={selectedIds.length === 0}
         >
-          Delete Node
+          {t('graph3d.deleteNode')}
         </button>
         <button
           className="btn btn--ghost"
@@ -259,9 +261,9 @@ export default function Graph3DView({
           onClick={handleConnectNodes}
           disabled={selectedIds.length < 2}
         >
-          Connect Nodes
+          {t('graph3d.connectNodes')}
         </button>
-        <div className="toolbar__hint">{selectedIds.length} selected (shift-click to multi)</div>
+        <div className="toolbar__hint">{t('graph3d.selectedHint', { count: selectedIds.length })}</div>
       </div>
     </div>
   )

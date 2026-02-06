@@ -1,0 +1,513 @@
+import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+
+export type Language = 'en' | 'zh'
+
+const LANGUAGE_KEY = 'gweb.language.v1'
+
+type I18nContextValue = {
+  language: Language
+  setLanguage: (language: Language) => void
+  t: (key: string, vars?: Record<string, string | number>) => string
+}
+
+const messages: Record<Language, Record<string, string>> = {
+  en: {
+    'language.en': 'EN',
+    'language.zh': '中文',
+    'brand.title': 'Graph Note',
+    'brand.subtitle': 'Organize ideas into connected flows.',
+
+    'nav.graph': 'Graph Note',
+    'nav.application': 'Graph Application',
+    'nav.graph3d': '3D Graph',
+    'nav.facts': 'Quick Facts',
+
+    'status.idle': 'Idle',
+    'status.saving': 'Saving...',
+    'status.saved': 'Synced',
+    'status.offline': 'Local only',
+
+    'topbar.hi': 'Hi, {name}',
+    'topbar.displayMode': 'Display Mode',
+    'topbar.editMode': 'Edit Mode',
+    'topbar.settings': 'Settings',
+    'topbar.logout': 'Log out',
+    'topbar.register': 'Register',
+    'topbar.login': 'Login',
+    'topbar.ai': 'AI',
+
+    'actions.title': 'Actions',
+    'actions.addNode': 'Add Node',
+    'actions.addGroup': 'Add Group',
+    'actions.edgeMode': 'Edge: {mode}',
+    'actions.modeDirected': 'Directed',
+    'actions.modeUndirected': 'Undirected',
+    'actions.ssh': 'SSH',
+    'actions.groupSelected': 'Group Selected',
+    'actions.deleteSelected': 'Delete Selected',
+    'actions.console': 'Console',
+
+    'auth.register': 'Register',
+    'auth.login': 'Login',
+    'auth.createAccount': 'Create your account',
+    'auth.welcomeBack': 'Welcome back',
+    'auth.subtitle': 'Authentication is a reserved feature for now.',
+    'auth.google': 'Continue with Google',
+    'auth.github': 'Continue with GitHub',
+    'auth.or': 'or',
+    'auth.name': 'Name',
+    'auth.email': 'Email',
+    'auth.emailOrUsername': 'Email or username',
+    'auth.password': 'Password',
+    'auth.namePlaceholder': 'Graph explorer',
+    'auth.emailPlaceholder': 'you@example.com',
+    'auth.loginPlaceholder': 'email or admin',
+    'auth.cancel': 'Cancel',
+    'auth.error.enterCredentials': 'Enter both email and password to continue.',
+    'auth.notice.confirmEmail': 'Check your email to confirm your account before logging in.',
+    'auth.error.unable': 'Unable to authenticate right now.',
+
+    'chat.eyebrow': 'AI Assistant',
+    'chat.title': 'Describe your graph',
+    'chat.close': 'Close',
+    'chat.note': 'Describe the structure and the AI will sketch it instantly.',
+    'chat.placeholder': 'Tell us about your graph...',
+    'chat.send': 'Send',
+    'chat.sending': 'Sending...',
+    'chat.example1': 'Example: "Group nodes by theme and connect milestones."',
+    'chat.example2': 'Example: "Create a hub and spoke layout with 6 clusters."',
+    'chat.appExample1': 'Example: "Group scripts by server role."',
+    'chat.appExample2': 'Example: "Create a deployment flow with 6 tasks."',
+    'chat.result.generated': 'Graph generated and applied to the canvas.',
+    'chat.result.failed': 'Sorry, I could not generate a graph from that description.',
+    'chat.error.generateFailed': 'Unable to generate a graph right now.',
+
+    'graph.label.newNode': 'New node',
+    'graph.label.newGroup': 'New group',
+    'graph.label.group': 'Group',
+
+    'context.deleteNode': 'Delete Node',
+    'context.removeFromGroup': 'Remove from Group',
+    'context.ungroupChildren': 'Ungroup Children',
+    'context.makeUndirected': 'Make Undirected',
+    'context.makeDirected': 'Make Directed',
+    'context.deleteEdge': 'Delete Edge',
+
+    'graphs.title': 'Your Graphs',
+    'graphs.savedCount': '{count} saved',
+    'graphs.active': 'Active: {name}',
+    'graphs.graphNamePlaceholder': 'Graph name',
+    'graphs.save': 'Save',
+    'graphs.cancel': 'Cancel',
+    'graphs.untitled': 'Untitled',
+    'graphs.renameTitle': 'Rename graph',
+    'graphs.exportTitle': 'Export JSON',
+    'graphs.importTitle': 'Import JSON',
+    'graphs.deleteTitle': 'Delete graph',
+    'graphs.newGraphPrefix': 'New Graph',
+    'graphs.starterName': 'Starter Graph',
+    'graphs.untitledGraph': 'Untitled Graph',
+    'graphs.expandAria': 'Expand graphs panel',
+    'graphs.collapseAria': 'Collapse graphs panel',
+    'graphs.empty': 'Create your first graph.',
+    'graphs.error.parseJson': 'Unable to parse JSON.',
+    'graphs.error.delete': 'Failed to delete graph.',
+
+    'drawer.nodeSettings': 'Node Settings',
+    'drawer.nodeDetails': 'Node Details',
+    'drawer.close': 'Close',
+    'drawer.removeFromGroup': 'Remove from Group',
+    'drawer.remove': 'Remove',
+    'drawer.title': 'Title',
+    'drawer.items': 'Items',
+    'drawer.itemsCount': '{count} items',
+    'drawer.notesCount': '{count} notes',
+    'drawer.addItemPlaceholder': 'Add an item...',
+    'drawer.addItem': 'Add Item',
+
+    'itemModal.eyebrow': 'Item Notes',
+    'itemModal.close': 'Close',
+    'itemModal.notesCount': '{count} notes',
+    'itemModal.empty': 'No notes yet. Add the first one below.',
+    'itemModal.remove': 'Remove',
+    'itemModal.addPlaceholder': 'Add a note description...',
+    'itemModal.addNote': 'Add Note',
+
+    'facts.title': 'Quick Facts',
+    'facts.subtitle': 'Build sharper graphs with these core ideas from graph theory.',
+    'facts.deepDive': 'Deep Dive',
+    'facts.footer': 'Want more? Try describing your ideal layout in the AI panel.',
+
+    'facts.vertices.title': 'Vertices + Edges',
+    'facts.vertices.detail': 'A graph is made of vertices (nodes) and edges (links) that connect them.',
+    'facts.vertices.long':
+      'Vertices represent entities and edges represent relationships. Once you know the set of vertices and how they connect, you can analyze structure, reachability, and flow through the network.',
+    'facts.directed.title': 'Directed vs Undirected',
+    'facts.directed.detail': 'Directed graphs have arrows on edges, undirected graphs do not.',
+    'facts.directed.long':
+      'Directed graphs encode one-way relationships (like followers or prerequisites). Undirected graphs encode mutual relationships (like friendships). The choice impacts traversal and connectivity.',
+    'facts.trees.title': 'Trees',
+    'facts.trees.detail': 'A tree is a connected, acyclic graph with exactly n-1 edges.',
+    'facts.trees.long':
+      'Trees are hierarchical graphs with no cycles. They are efficient for representing parent-child relationships and allow unique paths between any two nodes.',
+    'facts.shortest.title': 'Shortest Paths',
+    'facts.shortest.detail': 'BFS solves unweighted shortest paths; Dijkstra handles weighted edges.',
+    'facts.shortest.long':
+      'Shortest-path algorithms find the minimal-cost route between nodes. BFS works in layers for unweighted graphs, while Dijkstra expands outward using cumulative weights.',
+    'facts.coloring.title': 'Graph Coloring',
+    'facts.coloring.detail': 'Coloring assigns labels so adjacent nodes never share the same color.',
+    'facts.coloring.long':
+      'Graph coloring is used to minimize conflicts, such as scheduling tasks without overlaps or assigning frequencies to radio towers to avoid interference.',
+    'facts.planar.title': 'Planar Graphs',
+    'facts.planar.detail': 'Planar graphs can be drawn without any edges crossing.',
+    'facts.planar.long':
+      'A planar graph can be embedded in the plane without edge intersections. Planarity matters for circuit design, map coloring, and layout readability.',
+
+    'settings.title': 'Settings',
+    'settings.subtitle': 'Tune the workspace to your style.',
+    'settings.theme': 'Theme',
+    'settings.dark': 'Dark',
+    'settings.light': 'Light',
+    'settings.system': 'System',
+    'settings.currentMode': 'Currently in {mode} mode.',
+    'settings.accent': 'Accent Color',
+    'settings.accent.blue': 'Blue',
+    'settings.accent.teal': 'Teal',
+    'settings.accent.purple': 'Purple',
+    'settings.accent.orange': 'Orange',
+    'settings.panel': 'Your Graphs Panel',
+    'settings.panelExpanded': 'Show expanded by default',
+    'settings.panelHint': 'When disabled, the widget starts minimized in new sessions.',
+    'settings.minimap': 'Mini Map',
+    'settings.minimapToggle': 'Show minimap thumbnail',
+    'settings.minimapHint': 'Toggle the bottom-left minimap for quick navigation.',
+    'settings.beta': 'Beta Features',
+    'settings.betaToggle': 'Show Graph Application + 3D Graph tabs',
+    'settings.betaHint': 'These beta tools are optional and may be less stable.',
+    'settings.close': 'Close',
+    'settings.language': 'Language',
+
+    'ssh.console': 'SSH Console',
+    'ssh.connecting': 'Connecting to {host}...',
+    'ssh.configureMessage': 'Configure SSH to connect to a server.',
+    'ssh.maximize': 'Maximize',
+    'ssh.minimize': 'Minimize',
+    'ssh.close': 'Close',
+    'ssh.tunnel': 'SSH Tunnel',
+    'ssh.configFor': 'Configure connection details for {graph}.',
+    'ssh.thisGraph': 'this graph',
+    'ssh.host': 'Host',
+    'ssh.port': 'Port',
+    'ssh.user': 'User',
+    'ssh.keyPath': 'Private key path',
+    'ssh.save': 'Save',
+    'ssh.cancel': 'Cancel',
+
+    'task.settings': 'Task Settings',
+    'task.close': 'Close',
+    'task.remove': 'Remove',
+    'task.name': 'Task Name',
+    'task.uploadScript': 'Upload Script',
+    'task.selected': 'Selected: {name}',
+    'task.progress': 'Progress',
+    'task.uploadButton': 'Upload Script',
+    'task.hint': 'Script upload will be wired to the SSH tunnel in a future backend step.',
+
+    'graph3d.loading': 'Loading 3D view...',
+    'graph3d.actions': '3D Actions',
+    'graph3d.addNode': 'Add Node',
+    'graph3d.deleteNode': 'Delete Node',
+    'graph3d.connectNodes': 'Connect Nodes',
+    'graph3d.selectedHint': '{count} selected (shift-click to multi)',
+    'graph3d.nodePrefix': 'Node',
+
+    'authGate.welcome': 'Welcome',
+    'authGate.subtitle':
+      'Create visual graph notes, store your progress, and sync across devices. Sign in to get started.',
+    'authGate.note': 'We keep your graphs private and synced to your account.',
+
+    'modal.newGraph': 'New Graph',
+    'modal.newGraphSubtitle': 'Name your graph to keep work organized.',
+    'modal.create': 'Create',
+    'modal.deleteGraph': 'Delete Graph',
+    'modal.deleteGraphSubtitle': 'Delete "{name}"? This cannot be undone.',
+    'modal.delete': 'Delete',
+    'modal.cancel': 'Cancel',
+    'footer.copyright': '© 2026 Graph Note. Powered by Yuanzheng Hu and Codex.',
+  },
+  zh: {
+    'language.en': 'EN',
+    'language.zh': '中文',
+    'brand.title': '图谱笔记',
+    'brand.subtitle': '用连接图组织你的想法。',
+
+    'nav.graph': '图谱笔记',
+    'nav.application': '图应用',
+    'nav.graph3d': '3D 图谱',
+    'nav.facts': '速览知识',
+
+    'status.idle': '空闲',
+    'status.saving': '保存中...',
+    'status.saved': '已同步',
+    'status.offline': '仅本地',
+
+    'topbar.hi': '你好，{name}',
+    'topbar.displayMode': '展示模式',
+    'topbar.editMode': '编辑模式',
+    'topbar.settings': '设置',
+    'topbar.logout': '退出登录',
+    'topbar.register': '注册',
+    'topbar.login': '登录',
+    'topbar.ai': 'AI',
+
+    'actions.title': '操作',
+    'actions.addNode': '添加节点',
+    'actions.addGroup': '添加分组',
+    'actions.edgeMode': '边类型：{mode}',
+    'actions.modeDirected': '有向',
+    'actions.modeUndirected': '无向',
+    'actions.ssh': 'SSH',
+    'actions.groupSelected': '分组选中节点',
+    'actions.deleteSelected': '删除选中项',
+    'actions.console': '控制台',
+
+    'auth.register': '注册',
+    'auth.login': '登录',
+    'auth.createAccount': '创建账号',
+    'auth.welcomeBack': '欢迎回来',
+    'auth.subtitle': '认证功能目前为保留功能。',
+    'auth.google': '使用 Google 继续',
+    'auth.github': '使用 GitHub 继续',
+    'auth.or': '或',
+    'auth.name': '名称',
+    'auth.email': '邮箱',
+    'auth.emailOrUsername': '邮箱或用户名',
+    'auth.password': '密码',
+    'auth.namePlaceholder': '图谱探索者',
+    'auth.emailPlaceholder': 'you@example.com',
+    'auth.loginPlaceholder': '邮箱或 admin',
+    'auth.cancel': '取消',
+    'auth.error.enterCredentials': '请输入邮箱和密码。',
+    'auth.notice.confirmEmail': '请先前往邮箱完成账号确认后再登录。',
+    'auth.error.unable': '当前无法完成认证，请稍后重试。',
+
+    'chat.eyebrow': 'AI 助手',
+    'chat.title': '描述你的图谱',
+    'chat.close': '关闭',
+    'chat.note': '描述结构，AI 会快速生成草图。',
+    'chat.placeholder': '告诉我你想要的图结构...',
+    'chat.send': '发送',
+    'chat.sending': '发送中...',
+    'chat.example1': '示例：“按主题分组节点并连接里程碑。”',
+    'chat.example2': '示例：“创建一个包含 6 个簇的中心辐射布局。”',
+    'chat.appExample1': '示例：“按服务器角色分组脚本任务。”',
+    'chat.appExample2': '示例：“创建一个包含 6 个任务的部署流程。”',
+    'chat.result.generated': '图谱已生成并应用到画布。',
+    'chat.result.failed': '抱歉，我无法根据这段描述生成图谱。',
+    'chat.error.generateFailed': '当前无法生成图谱，请稍后重试。',
+
+    'graph.label.newNode': '新节点',
+    'graph.label.newGroup': '新分组',
+    'graph.label.group': '分组',
+
+    'context.deleteNode': '删除节点',
+    'context.removeFromGroup': '移出分组',
+    'context.ungroupChildren': '取消分组子节点',
+    'context.makeUndirected': '改为无向边',
+    'context.makeDirected': '改为有向边',
+    'context.deleteEdge': '删除边',
+
+    'graphs.title': '我的图谱',
+    'graphs.savedCount': '已保存 {count} 个',
+    'graphs.active': '当前：{name}',
+    'graphs.graphNamePlaceholder': '图谱名称',
+    'graphs.save': '保存',
+    'graphs.cancel': '取消',
+    'graphs.untitled': '未命名',
+    'graphs.renameTitle': '重命名图谱',
+    'graphs.exportTitle': '导出 JSON',
+    'graphs.importTitle': '导入 JSON',
+    'graphs.deleteTitle': '删除图谱',
+    'graphs.newGraphPrefix': '新图谱',
+    'graphs.starterName': '起始图谱',
+    'graphs.untitledGraph': '未命名图谱',
+    'graphs.expandAria': '展开图谱面板',
+    'graphs.collapseAria': '收起图谱面板',
+    'graphs.empty': '创建你的第一个图谱。',
+    'graphs.error.parseJson': 'JSON 解析失败。',
+    'graphs.error.delete': '删除图谱失败。',
+
+    'drawer.nodeSettings': '节点设置',
+    'drawer.nodeDetails': '节点详情',
+    'drawer.close': '关闭',
+    'drawer.removeFromGroup': '移出分组',
+    'drawer.remove': '删除',
+    'drawer.title': '标题',
+    'drawer.items': '条目',
+    'drawer.itemsCount': '{count} 个条目',
+    'drawer.notesCount': '{count} 条笔记',
+    'drawer.addItemPlaceholder': '添加条目...',
+    'drawer.addItem': '添加条目',
+
+    'itemModal.eyebrow': '条目笔记',
+    'itemModal.close': '关闭',
+    'itemModal.notesCount': '{count} 条笔记',
+    'itemModal.empty': '暂无笔记。',
+    'itemModal.remove': '删除',
+    'itemModal.addPlaceholder': '添加笔记描述...',
+    'itemModal.addNote': '添加笔记',
+
+    'facts.title': '速览知识',
+    'facts.subtitle': '用这些图论核心概念构建更清晰的图谱。',
+    'facts.deepDive': '深入讲解',
+    'facts.footer': '想了解更多？在 AI 面板中描述你理想的布局。',
+
+    'facts.vertices.title': '顶点与边',
+    'facts.vertices.detail': '图由顶点（节点）和连接它们的边组成。',
+    'facts.vertices.long':
+      '顶点表示实体，边表示关系。明确顶点集合和连接方式后，就能分析结构、可达性和流向。',
+    'facts.directed.title': '有向图与无向图',
+    'facts.directed.detail': '有向图的边带箭头，无向图没有。',
+    'facts.directed.long':
+      '有向图适合表达单向关系（如依赖、关注），无向图适合表达双向关系（如好友）。选择会影响遍历和连通性分析。',
+    'facts.trees.title': '树',
+    'facts.trees.detail': '树是连通且无环的图，并且边数为 n-1。',
+    'facts.trees.long':
+      '树结构层级清晰、无环，任意两点之间路径唯一，适合表达父子关系与层级组织。',
+    'facts.shortest.title': '最短路径',
+    'facts.shortest.detail': '无权图可用 BFS；有权图常用 Dijkstra。',
+    'facts.shortest.long':
+      '最短路径算法用于寻找代价最小的路径。BFS 适用于无权图，Dijkstra 适用于非负权重图。',
+    'facts.coloring.title': '图着色',
+    'facts.coloring.detail': '给节点着色，使相邻节点颜色不同。',
+    'facts.coloring.long':
+      '图着色常用于冲突最小化场景，如排课、排班、频率分配等。',
+    'facts.planar.title': '平面图',
+    'facts.planar.detail': '平面图可以在平面上绘制且边不相交。',
+    'facts.planar.long':
+      '平面性在电路布局、地图着色和可视化排版中都很重要。',
+
+    'settings.title': '设置',
+    'settings.subtitle': '按你的习惯调整工作区。',
+    'settings.theme': '主题',
+    'settings.dark': '深色',
+    'settings.light': '浅色',
+    'settings.system': '跟随系统',
+    'settings.currentMode': '当前为 {mode} 模式。',
+    'settings.accent': '强调色',
+    'settings.accent.blue': '蓝色',
+    'settings.accent.teal': '青色',
+    'settings.accent.purple': '紫色',
+    'settings.accent.orange': '橙色',
+    'settings.panel': '我的图谱面板',
+    'settings.panelExpanded': '默认展开显示',
+    'settings.panelHint': '关闭后，新会话默认最小化显示。',
+    'settings.minimap': '缩略图',
+    'settings.minimapToggle': '显示左下角缩略图',
+    'settings.minimapHint': '用于快速导航当前画布。',
+    'settings.beta': '测试功能',
+    'settings.betaToggle': '显示 图应用 + 3D 图谱 标签',
+    'settings.betaHint': '测试功能可能不稳定。',
+    'settings.close': '关闭',
+    'settings.language': '语言',
+
+    'ssh.console': 'SSH 控制台',
+    'ssh.connecting': '正在连接 {host}...',
+    'ssh.configureMessage': '请先配置 SSH 连接信息。',
+    'ssh.maximize': '最大化',
+    'ssh.minimize': '最小化',
+    'ssh.close': '关闭',
+    'ssh.tunnel': 'SSH 隧道',
+    'ssh.configFor': '为 {graph} 配置连接信息。',
+    'ssh.thisGraph': '当前图谱',
+    'ssh.host': '主机',
+    'ssh.port': '端口',
+    'ssh.user': '用户',
+    'ssh.keyPath': '私钥路径',
+    'ssh.save': '保存',
+    'ssh.cancel': '取消',
+
+    'task.settings': '任务设置',
+    'task.close': '关闭',
+    'task.remove': '删除',
+    'task.name': '任务名称',
+    'task.uploadScript': '上传脚本',
+    'task.selected': '已选择：{name}',
+    'task.progress': '进度',
+    'task.uploadButton': '上传脚本',
+    'task.hint': '脚本上传将在后续后端版本中接入 SSH 隧道。',
+
+    'graph3d.loading': '正在加载 3D 视图...',
+    'graph3d.actions': '3D 操作',
+    'graph3d.addNode': '添加节点',
+    'graph3d.deleteNode': '删除节点',
+    'graph3d.connectNodes': '连接节点',
+    'graph3d.selectedHint': '已选中 {count} 个（按住 Shift 多选）',
+    'graph3d.nodePrefix': '节点',
+
+    'authGate.welcome': '欢迎',
+    'authGate.subtitle': '创建图谱笔记、保存进度并跨设备同步。请先登录。',
+    'authGate.note': '你的图谱仅对你可见并与账号绑定。',
+
+    'modal.newGraph': '新建图谱',
+    'modal.newGraphSubtitle': '为图谱命名，便于组织管理。',
+    'modal.create': '创建',
+    'modal.deleteGraph': '删除图谱',
+    'modal.deleteGraphSubtitle': '确认删除“{name}”？该操作不可撤销。',
+    'modal.delete': '删除',
+    'modal.cancel': '取消',
+    'footer.copyright': '© 2026 Graph Note。由 Yuanzheng Hu 与 Codex 提供支持。',
+  },
+}
+
+const I18nContext = createContext<I18nContextValue | null>(null)
+
+const interpolate = (template: string, vars?: Record<string, string | number>): string => {
+  if (!vars) {
+    return template
+  }
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => String(vars[key] ?? `{${key}}`))
+}
+
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [language, setLanguageState] = useState<Language>(() => {
+    if (typeof window === 'undefined') {
+      return 'en'
+    }
+    const stored = window.localStorage.getItem(LANGUAGE_KEY)
+    return stored === 'zh' ? 'zh' : 'en'
+  })
+
+  const setLanguage = (next: Language) => {
+    setLanguageState(next)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(LANGUAGE_KEY, next)
+    }
+  }
+
+  const t = (key: string, vars?: Record<string, string | number>) => {
+    const dictionary = messages[language]
+    const fallback = messages.en
+    const value = dictionary[key] ?? fallback[key] ?? key
+    return interpolate(value, vars)
+  }
+
+  const value = useMemo<I18nContextValue>(
+    () => ({
+      language,
+      setLanguage,
+      t,
+    }),
+    [language],
+  )
+
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
+}
+
+export function useI18n() {
+  const ctx = useContext(I18nContext)
+  if (!ctx) {
+    throw new Error('useI18n must be used within I18nProvider')
+  }
+  return ctx
+}

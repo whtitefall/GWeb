@@ -75,10 +75,12 @@ import { readLocalGraphList } from './utils/storage'
 import { isLightColor, resolveTheme } from './utils/theme'
 import type { ChatMessage, FactKey, SshConfig, ThemePreference, ViewMode } from './types/ui'
 import { supabase } from './supabaseClient'
+import { useI18n } from './i18n'
 
 const Graph3DView = lazy(() => import('./components/Graph3DView'))
 
 export default function App() {
+  const { t } = useI18n()
   // Core React Flow state for the active graph.
   const { nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange } = useGraphState()
   // Graph list + metadata for the current Graph Notes view.
@@ -237,10 +239,10 @@ export default function App() {
   }, [isApplicationView, sshConsoleOpen, sidebarCollapsed, sidebarWidth])
 
   const chatExamples = isApplicationView
-    ? ['Example: “Group scripts by server role.”', 'Example: “Create a deployment flow with 6 tasks.”']
+    ? [t('chat.appExample1'), t('chat.appExample2')]
     : [
-        'Example: “Group nodes by theme and connect milestones.”',
-        'Example: “Create a hub and spoke layout with 6 clusters.”',
+        t('chat.example1'),
+        t('chat.example2'),
       ]
 
   // Custom React Flow node renderers.
@@ -468,10 +470,10 @@ export default function App() {
       }
 
       if (graphs.length === 0) {
-        const payload =
-          graphKind === 'note'
-            ? defaultGraph
-            : createEmptyGraphPayload('Starter Graph', graphKind)
+          const payload =
+            graphKind === 'note'
+              ? defaultGraph
+              : createEmptyGraphPayload(t('graphs.starterName'), graphKind)
         try {
           const created = await createGraph(payload)
           graphs = [created]
@@ -507,7 +509,7 @@ export default function App() {
     return () => {
       isMounted = false
     }
-  }, [activeStorageKey, graphKind, graphStorageKey, listStorageKey, supabaseLoggedIn])
+  }, [activeStorageKey, graphKind, graphStorageKey, listStorageKey, supabaseLoggedIn, t])
 
   useEffect(() => {
     if (!activeGraphId) {
@@ -568,7 +570,7 @@ export default function App() {
             const fallback =
               graphKind === 'note'
                 ? defaultGraph
-                : createEmptyGraphPayload('Starter Graph', graphKind)
+                : createEmptyGraphPayload(t('graphs.starterName'), graphKind)
             setGraphName(fallback.name)
             setNodes(fallback.nodes)
             setEdges(fallback.edges)
@@ -577,7 +579,7 @@ export default function App() {
           const fallback =
             graphKind === 'note'
               ? defaultGraph
-              : createEmptyGraphPayload('Starter Graph', graphKind)
+              : createEmptyGraphPayload(t('graphs.starterName'), graphKind)
           setGraphName(fallback.name)
           setNodes(fallback.nodes)
           setEdges(fallback.edges)
@@ -595,7 +597,7 @@ export default function App() {
     return () => {
       isMounted = false
     }
-  }, [activeGraphId, graphKind, graphName, graphStorageKey, setEdges, setNodes])
+  }, [activeGraphId, graphKind, graphName, graphStorageKey, setEdges, setNodes, t])
 
   useEffect(() => {
     if (!activeGraphId || !hydrated) {
@@ -659,7 +661,7 @@ export default function App() {
     setGraphList((current) => [
       {
         id: activeGraphId,
-        name: graphName || 'Untitled Graph',
+        name: graphName || t('graphs.untitledGraph'),
         updatedAt: new Date().toISOString(),
       },
       ...current,
@@ -853,7 +855,7 @@ export default function App() {
       type: 'default',
       position: centerPosition,
       data: {
-        label: 'New node',
+        label: t('graph.label.newNode'),
         items: [],
         position3d: {
           x: (centerPosition.x - 200) * 0.6,
@@ -867,7 +869,7 @@ export default function App() {
 
     setNodes((current) => current.concat(newNode))
     setSelectedNodeId(id)
-  }, [setNodes])
+  }, [setNodes, t])
 
   const addGroup = useCallback(() => {
     const id = generateId()
@@ -885,7 +887,7 @@ export default function App() {
       type: 'group',
       position: centerPosition,
       data: {
-        label: 'New group',
+        label: t('graph.label.newGroup'),
         items: [],
         position3d: {
           x: (centerPosition.x - 200) * 0.6,
@@ -901,7 +903,7 @@ export default function App() {
 
     setNodes((current) => current.concat(newGroup))
     setSelectedNodeId(id)
-  }, [setNodes])
+  }, [setNodes, t])
 
   const groupSelected = useCallback(() => {
     const selectedNodes = nodes.filter((node) => node.selected)
@@ -977,7 +979,7 @@ export default function App() {
           type: 'group',
           position: groupPosition,
           data: {
-            label: 'Group',
+            label: t('graph.label.group'),
             items: [],
           },
           style: {
@@ -991,7 +993,7 @@ export default function App() {
     })
 
     setSelectedNodeId(groupId)
-  }, [nodes, setNodes])
+  }, [nodes, setNodes, t])
 
   const removeNode = useCallback(
     (nodeId: string) => {
@@ -1162,14 +1164,17 @@ export default function App() {
         return
       }
       const match = graphList.find((graph) => graph.id === graphId)
-      setDeleteGraphTarget({ id: graphId, name: match?.name ?? 'this graph' })
+      setDeleteGraphTarget({ id: graphId, name: match?.name ?? t('ssh.thisGraph') })
     },
-    [graphList],
+    [graphList, t],
   )
 
   const handleSubmitCreateGraph = useCallback(async () => {
     const name = createGraphName.trim()
-    const payload = createEmptyGraphPayload(name || `New Graph ${graphList.length + 1}`, graphKind)
+    const payload = createEmptyGraphPayload(
+      name || `${t('graphs.newGraphPrefix')} ${graphList.length + 1}`,
+      graphKind,
+    )
     try {
       const summary = await createGraph(payload)
       pendingGraphRef.current = { id: summary.id, payload, kind: graphKind }
@@ -1191,7 +1196,7 @@ export default function App() {
       setCreateGraphOpen(false)
       setCreateGraphName('')
     }
-  }, [createGraphName, graphKind, graphList.length, graphStorageKey])
+  }, [createGraphName, graphKind, graphList.length, graphStorageKey, t])
 
   const handleDeleteGraph = useCallback(
     async (graphId: string) => {
@@ -1210,7 +1215,7 @@ export default function App() {
         try {
           await deleteGraph(graphId)
         } catch (error) {
-          setImportError(error instanceof Error ? error.message : 'Failed to delete graph.')
+          setImportError(error instanceof Error ? error.message : t('graphs.error.delete'))
           return
         }
       }
@@ -1226,8 +1231,8 @@ export default function App() {
         } else {
           const payload =
             graphKind === 'note'
-              ? { ...defaultGraph, name: 'Starter Graph' }
-              : createEmptyGraphPayload('Starter Graph', graphKind)
+              ? { ...defaultGraph, name: t('graphs.starterName') }
+              : createEmptyGraphPayload(t('graphs.starterName'), graphKind)
           try {
             const summary = await createGraph(payload)
             pendingGraphRef.current = { id: summary.id, payload, kind: graphKind }
@@ -1257,7 +1262,7 @@ export default function App() {
         }
       }
     },
-    [activeGraphId, graphKind, graphList, graphStorageKey, listStorageKey],
+    [activeGraphId, graphKind, graphList, graphStorageKey, listStorageKey, t],
   )
 
   const selectedNodeCount = nodes.filter((node) => node.selected).length
@@ -1276,7 +1281,8 @@ export default function App() {
     },
     [sidebarWidthValue, toolbarPos],
   )
-  const drawerWidthValue = Math.min(DRAWER_MAX, Math.max(DRAWER_MIN, drawerWidth))
+  const effectiveDrawerWidth = isReadOnlyCanvas ? Math.max(drawerWidth, 460) : drawerWidth
+  const drawerWidthValue = Math.min(DRAWER_MAX, Math.max(DRAWER_MIN, effectiveDrawerWidth))
   const drawerStyle = useMemo(
     () => ({ ['--drawer-width' as string]: `${drawerWidthValue}px` } as CSSProperties),
     [drawerWidthValue],
@@ -1332,7 +1338,7 @@ export default function App() {
     setAuthError('')
     setAuthNotice('')
     if (!trimmedEmail || !trimmedPassword) {
-      setAuthError('Enter both email and password to continue.')
+      setAuthError(t('auth.error.enterCredentials'))
       return
     }
 
@@ -1358,7 +1364,7 @@ export default function App() {
           setAuthEmail('')
           setAuthPassword('')
         } else {
-          setAuthNotice('Check your email to confirm your account before logging in.')
+          setAuthNotice(t('auth.notice.confirmEmail'))
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -1378,7 +1384,7 @@ export default function App() {
         }
       }
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Unable to authenticate right now.')
+      setAuthError(error instanceof Error ? error.message : t('auth.error.unable'))
     }
   }
 
@@ -1445,25 +1451,25 @@ export default function App() {
           current.concat({
             id: generateId(),
             role: 'assistant',
-            content: 'Graph generated and applied to the canvas.',
+            content: t('chat.result.generated'),
           }),
         )
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : 'Unable to generate a graph right now.'
+          error instanceof Error ? error.message : t('chat.error.generateFailed')
         setChatError(message)
         setChatMessages((current) =>
           current.concat({
             id: generateId(),
             role: 'assistant',
-            content: 'Sorry, I could not generate a graph from that description.',
+            content: t('chat.result.failed'),
           }),
         )
       } finally {
         setChatLoading(false)
       }
     },
-    [chatInput, chatLoading, graphKind, setEdges, setGraphName, setHydrated, setNodes],
+    [chatInput, chatLoading, graphKind, setEdges, setGraphName, setHydrated, setNodes, t],
   )
 
   const handleExport = useCallback(() => {
@@ -1494,12 +1500,12 @@ export default function App() {
           setImportError('')
           setHydrated(true)
         } catch (error) {
-          setImportError(error instanceof Error ? error.message : 'Unable to parse JSON.')
+          setImportError(error instanceof Error ? error.message : t('graphs.error.parseJson'))
         }
       }
       reader.readAsText(file)
     },
-    [graphKind, setEdges, setNodes],
+    [graphKind, setEdges, setNodes, t],
   )
 
   // Seed the 3D view with a starter scene when it's empty.
@@ -1662,14 +1668,12 @@ export default function App() {
         <div className="brand auth-gate__brand">
           <div className="brand__mark" />
           <div>
-            <div className="brand__title">Graph Note</div>
-            <div className="brand__subtitle">Organize ideas into connected flows.</div>
+            <div className="brand__title">{t('brand.title')}</div>
+            <div className="brand__subtitle">{t('brand.subtitle')}</div>
           </div>
         </div>
-        <h1>Welcome</h1>
-        <p className="auth-gate__subtitle">
-          Create visual graph notes, store your progress, and sync across devices. Sign in to get started.
-        </p>
+        <h1>{t('authGate.welcome')}</h1>
+        <p className="auth-gate__subtitle">{t('authGate.subtitle')}</p>
         <div className="auth-gate__actions">
           <button
             className="btn btn--primary"
@@ -1679,7 +1683,7 @@ export default function App() {
               setAuthOpen(true)
             }}
           >
-            Register
+            {t('auth.register')}
           </button>
           <button
             className="btn btn--ghost"
@@ -1689,16 +1693,16 @@ export default function App() {
               setAuthOpen(true)
             }}
           >
-            Log in
+            {t('topbar.login')}
           </button>
         </div>
-        <div className="auth-gate__note">We keep your graphs private and synced to your account.</div>
+        <div className="auth-gate__note">{t('authGate.note')}</div>
       </div>
     </div>
   )
 
   return (
-    <div className={`app ${showAuthGate ? 'app--auth' : ''}`}>
+    <div className={`app ${showAuthGate ? 'app--auth' : ''} ${isReadOnlyCanvas ? 'app--display' : ''}`}>
       {showAuthGate ? (
         authGate
       ) : (
@@ -1824,7 +1828,7 @@ export default function App() {
                   ) : null}
                 </>
               ) : isGraph3dView ? (
-                <Suspense fallback={<div className="graph-3d__loading">Loading 3D view…</div>}>
+                <Suspense fallback={<div className="graph-3d__loading">{t('graph3d.loading')}</div>}>
                   <Graph3DView
                     nodes={nodes}
                     edges={edges}
@@ -1946,8 +1950,8 @@ export default function App() {
                 title={graphName}
                 message={
                   sshConfigs[activeGraphId ?? '']?.host
-                    ? `Connecting to ${sshConfigs[activeGraphId ?? '']?.host}...`
-                    : 'Configure SSH to connect to a server.'
+                    ? t('ssh.connecting', { host: sshConfigs[activeGraphId ?? '']?.host ?? '' })
+                    : t('ssh.configureMessage')
                 }
                 onToggleMinimize={() => setSshConsoleMinimized((current) => !current)}
                 onClose={() => setSshConsoleOpen(false)}
@@ -1990,7 +1994,9 @@ export default function App() {
 
       <SshModal
         open={Boolean(sshModal)}
-        graphName={sshModal ? graphList.find((graph) => graph.id === sshModal.graphId)?.name ?? 'this graph' : ''}
+        graphName={
+          sshModal ? graphList.find((graph) => graph.id === sshModal.graphId)?.name ?? t('ssh.thisGraph') : ''
+        }
         draft={sshDraft}
         onChangeDraft={setSshDraft}
         onClose={() => setSshModal(null)}
@@ -2000,8 +2006,8 @@ export default function App() {
       {createGraphOpen ? (
         <div className="modal-overlay" onClick={() => setCreateGraphOpen(false)}>
           <div className="modal" onClick={(event) => event.stopPropagation()}>
-            <h2>New Graph</h2>
-            <p className="modal__subtitle">Name your graph to keep work organized.</p>
+            <h2>{t('modal.newGraph')}</h2>
+            <p className="modal__subtitle">{t('modal.newGraphSubtitle')}</p>
             <div className="modal__form">
               <input
                 className="modal__input"
@@ -2016,16 +2022,16 @@ export default function App() {
                     setCreateGraphOpen(false)
                   }
                 }}
-                placeholder="Graph name"
+                placeholder={t('graphs.graphNamePlaceholder')}
                 autoFocus
               />
             </div>
             <div className="modal__actions">
               <button className="btn btn--ghost" type="button" onClick={() => setCreateGraphOpen(false)}>
-                Cancel
+                {t('modal.cancel')}
               </button>
               <button className="btn btn--primary" type="button" onClick={handleSubmitCreateGraph}>
-                Create
+                {t('modal.create')}
               </button>
             </div>
           </div>
@@ -2035,13 +2041,11 @@ export default function App() {
       {deleteGraphTarget ? (
         <div className="modal-overlay" onClick={() => setDeleteGraphTarget(null)}>
           <div className="modal" onClick={(event) => event.stopPropagation()}>
-            <h2>Delete Graph</h2>
-            <p className="modal__subtitle">
-              Delete "{deleteGraphTarget.name}"? This cannot be undone.
-            </p>
+            <h2>{t('modal.deleteGraph')}</h2>
+            <p className="modal__subtitle">{t('modal.deleteGraphSubtitle', { name: deleteGraphTarget.name })}</p>
             <div className="modal__actions">
               <button className="btn btn--ghost" type="button" onClick={() => setDeleteGraphTarget(null)}>
-                Cancel
+                {t('modal.cancel')}
               </button>
               <button
                 className="btn btn--danger"
@@ -2051,7 +2055,7 @@ export default function App() {
                   setDeleteGraphTarget(null)
                 }}
               >
-                Delete
+                {t('modal.delete')}
               </button>
             </div>
           </div>
@@ -2074,7 +2078,7 @@ export default function App() {
         onToggleMiniMap={setShowMiniMap}
       />
 
-      {showAuthGate ? <div className="app-footer">© 2026 Graph Note. Powered by Yuanzheng Hu and Codex.</div> : null}
+      {showAuthGate ? <div className="app-footer">{t('footer.copyright')}</div> : null}
     </div>
   )
 }

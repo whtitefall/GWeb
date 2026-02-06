@@ -1,5 +1,6 @@
 // Placeholder SSH console panel for the graph-application beta.
 import type { CSSProperties } from 'react'
+import { useI18n } from '../i18n'
 
 type SshConsoleProps = {
   open: boolean
@@ -20,6 +21,7 @@ export default function SshConsole({
   onToggleMinimize,
   onClose,
 }: SshConsoleProps) {
+  const { t } = useI18n()
   if (!open) {
     return null
   }
@@ -28,15 +30,15 @@ export default function SshConsole({
     <div className={`ssh-console ${minimized ? 'ssh-console--min' : ''}`} style={style}>
       <div className="ssh-console__header">
         <div>
-          <div className="ssh-console__eyebrow">SSH Console</div>
+          <div className="ssh-console__eyebrow">{t('ssh.console')}</div>
           <div className="ssh-console__title">{title}</div>
         </div>
         <div className="ssh-console__actions">
           <button className="btn btn--ghost" type="button" onClick={onToggleMinimize}>
-            {minimized ? 'Maximize' : 'Minimize'}
+            {minimized ? t('ssh.maximize') : t('ssh.minimize')}
           </button>
           <button className="btn btn--ghost" type="button" onClick={onClose}>
-            Close
+            {t('ssh.close')}
           </button>
         </div>
       </div>

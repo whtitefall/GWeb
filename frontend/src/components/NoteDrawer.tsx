@@ -1,6 +1,7 @@
 // Right-side drawer for editing a node's title, items, and notes.
 import type { CSSProperties, MouseEvent, RefObject } from 'react'
 import type { GraphNode } from '../graphTypes'
+import { useI18n } from '../i18n'
 
 type NoteDrawerProps = {
   activeNode: GraphNode | null
@@ -35,6 +36,7 @@ export default function NoteDrawer({
   onRemoveItem,
   onOpenItemModal,
 }: NoteDrawerProps) {
+  const { t } = useI18n()
   return (
     <aside
       className={`drawer ${activeNode ? 'drawer--open' : ''}`}
@@ -48,28 +50,30 @@ export default function NoteDrawer({
           <div className="drawer__content">
             <div className="drawer__header">
               <div>
-                <div className="drawer__eyebrow">{readOnly ? 'Node Details' : 'Node Settings'}</div>
+                <div className="drawer__eyebrow">
+                  {readOnly ? t('drawer.nodeDetails') : t('drawer.nodeSettings')}
+                </div>
                 <h2>{activeNode.data.label}</h2>
               </div>
               <div className="drawer__actions">
                 <button className="btn btn--ghost" type="button" onClick={onClose}>
-                  Close
+                  {t('drawer.close')}
                 </button>
                 {!readOnly && activeNode.parentNode ? (
                   <button className="btn btn--ghost" type="button" onClick={() => onDetachFromGroup(activeNode.id)}>
-                    Remove from Group
+                    {t('drawer.removeFromGroup')}
                   </button>
                 ) : null}
                 {!readOnly ? (
                   <button className="btn btn--danger" type="button" onClick={() => onRemoveNode(activeNode.id)}>
-                    Remove
+                    {t('drawer.remove')}
                   </button>
                 ) : null}
               </div>
             </div>
 
             <label className="field">
-              <span>Title</span>
+              <span>{t('drawer.title')}</span>
               <input
                 type="text"
                 value={activeNode.data.label}
@@ -81,8 +85,8 @@ export default function NoteDrawer({
 
             <div className="items">
               <div className="items__header">
-                <h3>Items</h3>
-                <span>{activeNode.data.items.length} items</span>
+                <h3>{t('drawer.items')}</h3>
+                <span>{t('drawer.itemsCount', { count: activeNode.data.items.length })}</span>
               </div>
               <ul className="items__list">
                 {activeNode.data.items.map((item) => (
@@ -93,11 +97,11 @@ export default function NoteDrawer({
                       onClick={() => onOpenItemModal(activeNode.id, item.id)}
                     >
                       <span>{item.title}</span>
-                      <span className="items__meta">{item.notes.length} notes</span>
+                      <span className="items__meta">{t('drawer.notesCount', { count: item.notes.length })}</span>
                     </button>
                     {!readOnly ? (
                       <button className="items__remove" type="button" onClick={() => onRemoveItem(activeNode.id, item.id)}>
-                        Remove
+                        {t('drawer.remove')}
                       </button>
                     ) : null}
                   </li>
@@ -114,12 +118,12 @@ export default function NoteDrawer({
                 >
                   <input
                     type="text"
-                    placeholder="Add an item..."
+                    placeholder={t('drawer.addItemPlaceholder')}
                     value={itemTitle}
                     onChange={(event) => onItemTitleChange(event.target.value)}
                   />
                   <button className="btn btn--primary" type="submit">
-                    Add Item
+                    {t('drawer.addItem')}
                   </button>
                 </form>
               ) : null}

@@ -1,6 +1,7 @@
 // Workspace settings modal (theme, accent, layout toggles).
 import { ACCENT_OPTIONS } from '../constants'
 import type { ThemePreference } from '../types/ui'
+import { useI18n } from '../i18n'
 
 type SettingsModalProps = {
   open: boolean
@@ -33,44 +34,61 @@ export default function SettingsModal({
   onToggleBetaFeatures,
   onToggleMiniMap,
 }: SettingsModalProps) {
+  const { t } = useI18n()
   if (!open) {
     return null
+  }
+
+  const modeLabel = resolvedTheme === 'dark' ? t('settings.dark') : t('settings.light')
+  const accentLabel = (id: string, fallback: string) => {
+    switch (id) {
+      case 'blue':
+        return t('settings.accent.blue')
+      case 'teal':
+        return t('settings.accent.teal')
+      case 'purple':
+        return t('settings.accent.purple')
+      case 'orange':
+        return t('settings.accent.orange')
+      default:
+        return fallback
+    }
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal--compact" onClick={(event) => event.stopPropagation()}>
-        <h2>Settings</h2>
-        <p className="modal__subtitle">Tune the workspace to your style.</p>
+        <h2>{t('settings.title')}</h2>
+        <p className="modal__subtitle">{t('settings.subtitle')}</p>
         <div className="modal__section">
-          <div className="modal__label">Theme</div>
+          <div className="modal__label">{t('settings.theme')}</div>
           <div className="mode-toggle">
             <button
               type="button"
               className={`mode-toggle__btn ${themePreference === 'dark' ? 'is-active' : ''}`}
               onClick={() => onSetTheme('dark')}
             >
-              Dark
+              {t('settings.dark')}
             </button>
             <button
               type="button"
               className={`mode-toggle__btn ${themePreference === 'light' ? 'is-active' : ''}`}
               onClick={() => onSetTheme('light')}
             >
-              Light
+              {t('settings.light')}
             </button>
             <button
               type="button"
               className={`mode-toggle__btn ${themePreference === 'system' ? 'is-active' : ''}`}
               onClick={() => onSetTheme('system')}
             >
-              System
+              {t('settings.system')}
             </button>
           </div>
-          <div className="modal__hint">Currently in {resolvedTheme} mode.</div>
+          <div className="modal__hint">{t('settings.currentMode', { mode: modeLabel })}</div>
         </div>
         <div className="modal__section">
-          <div className="modal__label">Accent Color</div>
+          <div className="modal__label">{t('settings.accent')}</div>
           <div className="palette">
             {ACCENT_OPTIONS.map((option) => (
               <button
@@ -80,50 +98,50 @@ export default function SettingsModal({
                 style={{ background: option.accent }}
                 onClick={() => onSetAccent(option.id)}
               >
-                <span>{option.label}</span>
+                <span>{accentLabel(option.id, option.label)}</span>
               </button>
             ))}
           </div>
         </div>
         <div className="modal__section">
-          <div className="modal__label">Your Graphs Panel</div>
+          <div className="modal__label">{t('settings.panel')}</div>
           <label className="toggle">
             <input
               type="checkbox"
               checked={!sidebarCollapsed}
               onChange={(event) => onToggleSidebarExpanded(event.target.checked)}
             />
-            <span>Show expanded by default</span>
+            <span>{t('settings.panelExpanded')}</span>
           </label>
-          <div className="modal__hint">When disabled, the widget starts minimized in new sessions.</div>
+          <div className="modal__hint">{t('settings.panelHint')}</div>
         </div>
         <div className="modal__section">
-          <div className="modal__label">Mini Map</div>
+          <div className="modal__label">{t('settings.minimap')}</div>
           <label className="toggle">
             <input
               type="checkbox"
               checked={showMiniMap}
               onChange={(event) => onToggleMiniMap(event.target.checked)}
             />
-            <span>Show minimap thumbnail</span>
+            <span>{t('settings.minimapToggle')}</span>
           </label>
-          <div className="modal__hint">Toggle the bottom-left minimap for quick navigation.</div>
+          <div className="modal__hint">{t('settings.minimapHint')}</div>
         </div>
         <div className="modal__section">
-          <div className="modal__label">Beta Features</div>
+          <div className="modal__label">{t('settings.beta')}</div>
           <label className="toggle">
             <input
               type="checkbox"
               checked={betaFeaturesEnabled}
               onChange={(event) => onToggleBetaFeatures(event.target.checked)}
             />
-            <span>Show Graph Application + 3D Graph tabs</span>
+            <span>{t('settings.betaToggle')}</span>
           </label>
-          <div className="modal__hint">These beta tools are optional and may be less stable.</div>
+          <div className="modal__hint">{t('settings.betaHint')}</div>
         </div>
         <div className="modal__actions">
           <button className="btn btn--ghost" type="button" onClick={onClose}>
-            Close
+            {t('settings.close')}
           </button>
         </div>
       </div>

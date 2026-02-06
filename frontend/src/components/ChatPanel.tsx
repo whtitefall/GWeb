@@ -1,6 +1,7 @@
 // Sliding chat panel for AI graph generation prompts.
 import type { FormEvent, RefObject } from 'react'
 import type { ChatMessage } from '../types/ui'
+import { useI18n } from '../i18n'
 
 type ChatPanelProps = {
   open: boolean
@@ -27,24 +28,25 @@ export default function ChatPanel({
   endRef,
   examples,
 }: ChatPanelProps) {
+  const { t } = useI18n()
   const placeholderExamples = examples ?? [
-    'Example: “Group nodes by theme and connect milestones.”',
-    'Example: “Create a hub and spoke layout with 6 clusters.”',
+    t('chat.example1'),
+    t('chat.example2'),
   ]
 
   return (
     <aside className={`chat-panel ${open ? 'chat-panel--open' : ''}`} aria-hidden={!open}>
       <div className="chat-panel__header">
         <div>
-          <div className="chat-panel__eyebrow">AI Assistant</div>
-          <h2>Describe your graph</h2>
+          <div className="chat-panel__eyebrow">{t('chat.eyebrow')}</div>
+          <h2>{t('chat.title')}</h2>
         </div>
         <button className="btn btn--ghost" type="button" onClick={onClose}>
-          Close
+          {t('chat.close')}
         </button>
       </div>
       <div className="chat-panel__body">
-        <p className="chat-panel__note">Describe the structure and the AI will sketch it instantly.</p>
+        <p className="chat-panel__note">{t('chat.note')}</p>
         {chatError ? <div className="chat-panel__error">{chatError}</div> : null}
         {chatMessages.length > 0 ? (
           <div className="chat-panel__messages">
@@ -68,13 +70,13 @@ export default function ChatPanel({
       <form className="chat-panel__input" onSubmit={onSubmit}>
         <input
           type="text"
-          placeholder="Tell us about your graph..."
+          placeholder={t('chat.placeholder')}
           value={chatInput}
           onChange={(event) => onInputChange(event.target.value)}
           disabled={chatLoading}
         />
         <button className="btn btn--ghost" type="submit" disabled={chatLoading}>
-          {chatLoading ? 'Sending...' : 'Send'}
+          {chatLoading ? t('chat.sending') : t('chat.send')}
         </button>
       </form>
     </aside>

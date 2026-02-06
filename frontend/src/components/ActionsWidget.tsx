@@ -1,5 +1,6 @@
 // Floating action palette for graph editing (draggable via the label).
 import type { CSSProperties, MouseEvent, RefObject } from 'react'
+import { useI18n } from '../i18n'
 
 type ActionsWidgetProps = {
   style: CSSProperties
@@ -38,36 +39,38 @@ export default function ActionsWidget({
   edgeMode,
   onToggleEdgeMode,
 }: ActionsWidgetProps) {
+  const { t } = useI18n()
+  const edgeModeLabel = edgeMode === 'directed' ? t('actions.modeDirected') : t('actions.modeUndirected')
   return (
     <div className="toolbar" style={style} ref={toolbarRef}>
       <div className="toolbar__label" onMouseDown={onDragStart}>
-        Actions
+        {t('actions.title')}
       </div>
       <button className="btn btn--primary" type="button" onClick={onAddNode}>
-        Add Node
+        {t('actions.addNode')}
       </button>
       <button className="btn btn--ghost" type="button" onClick={onAddGroup}>
-        Add Group
+        {t('actions.addGroup')}
       </button>
       <button className="btn btn--ghost" type="button" onClick={onToggleEdgeMode}>
-        Edge: {edgeMode === 'directed' ? 'Directed' : 'Undirected'}
+        {t('actions.edgeMode', { mode: edgeModeLabel })}
       </button>
       {isApplicationView ? (
         <button className="btn btn--ghost" type="button" onClick={onOpenSsh} disabled={!canOpenSsh}>
-          SSH
+          {t('actions.ssh')}
         </button>
       ) : null}
       <button className="btn btn--ghost" type="button" onClick={onGroupSelected} disabled={!canGroup}>
-        Group Selected
+        {t('actions.groupSelected')}
       </button>
       {isGraphNoteView ? (
         <button className="btn btn--danger" type="button" onClick={onDeleteSelected} disabled={!canDelete}>
-          Delete Selected
+          {t('actions.deleteSelected')}
         </button>
       ) : null}
       {isApplicationView ? (
         <button className="btn btn--ghost" type="button" onClick={onToggleConsole}>
-          Console
+          {t('actions.console')}
         </button>
       ) : null}
     </div>

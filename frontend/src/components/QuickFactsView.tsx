@@ -1,5 +1,6 @@
 // Quick Facts page with interactive cards + simple SVG illustrations.
 import { QUICK_FACTS, type QuickFactKey } from '../constants'
+import { useI18n } from '../i18n'
 
 type QuickFactsViewProps = {
   activeFactKey: QuickFactKey | null
@@ -91,13 +92,17 @@ const renderFactDiagram = (key: QuickFactKey) => {
 }
 
 export default function QuickFactsView({ activeFactKey, onSelectFact }: QuickFactsViewProps) {
+  const { t } = useI18n()
   const activeFact = QUICK_FACTS.find((fact) => fact.key === activeFactKey) ?? QUICK_FACTS[0]
+  const factTitle = (key: QuickFactKey) => t(`facts.${key}.title`)
+  const factDetail = (key: QuickFactKey) => t(`facts.${key}.detail`)
+  const factLong = (key: QuickFactKey) => t(`facts.${key}.long`)
 
   return (
     <div className="facts">
       <div className="facts__header">
-        <h2>Quick Facts</h2>
-        <p>Build sharper graphs with these core ideas from graph theory.</p>
+        <h2>{t('facts.title')}</h2>
+        <p>{t('facts.subtitle')}</p>
       </div>
       <div className="facts__grid">
         {QUICK_FACTS.map((fact) => (
@@ -107,22 +112,22 @@ export default function QuickFactsView({ activeFactKey, onSelectFact }: QuickFac
             className={`facts__card ${fact.key === activeFact?.key ? 'is-active' : ''}`}
             onClick={() => onSelectFact(fact.key)}
           >
-            <h3>{fact.title}</h3>
-            <p>{fact.detail}</p>
+            <h3>{factTitle(fact.key)}</h3>
+            <p>{factDetail(fact.key)}</p>
           </button>
         ))}
       </div>
       {activeFact ? (
         <div className="facts__detail">
           <div className="facts__detail-text">
-            <div className="facts__detail-label">Deep Dive</div>
-            <h3>{activeFact.title}</h3>
-            <p>{activeFact.long}</p>
+            <div className="facts__detail-label">{t('facts.deepDive')}</div>
+            <h3>{factTitle(activeFact.key)}</h3>
+            <p>{factLong(activeFact.key)}</p>
           </div>
           <div className="facts__detail-graph">{renderFactDiagram(activeFact.key)}</div>
         </div>
       ) : null}
-      <div className="facts__footer">Want more? Try describing your ideal layout in the AI panel.</div>
+      <div className="facts__footer">{t('facts.footer')}</div>
     </div>
   )
 }

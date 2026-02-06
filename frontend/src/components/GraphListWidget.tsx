@@ -2,6 +2,7 @@
 import { forwardRef, useRef, type ChangeEvent, type MouseEvent, type KeyboardEvent } from 'react'
 import type { GraphSummary } from '../graphTypes'
 import { formatUpdatedAt } from '../utils/time'
+import { useI18n } from '../i18n'
 
 type GraphListWidgetProps = {
   collapsed: boolean
@@ -48,6 +49,7 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
     },
     ref,
   ) => {
+    const { t } = useI18n()
     const fileInputRef = useRef<HTMLInputElement | null>(null)
 
     const handleImportChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -71,8 +73,8 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
       <aside className={`graph-list ${collapsed ? 'graph-list--collapsed' : ''}`} ref={ref}>
         <div className="graph-list__widget">
           <div className="graph-list__summary">
-            <div className="graph-list__title">Your Graphs</div>
-            <div className="graph-list__subtitle">{graphList.length} saved</div>
+            <div className="graph-list__title">{t('graphs.title')}</div>
+            <div className="graph-list__subtitle">{t('graphs.savedCount', { count: graphList.length })}</div>
             {isRenaming && !collapsed ? (
               <div className="graph-list__rename">
                 <input
@@ -81,23 +83,25 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
                   value={renameValue}
                   onChange={(event) => onRenameChange(event.target.value)}
                   onKeyDown={handleRenameKeyDown}
-                  placeholder="Graph name"
+                  placeholder={t('graphs.graphNamePlaceholder')}
                   autoFocus
                 />
                 <div className="graph-list__rename-actions">
                   <button className="btn btn--ghost" type="button" onClick={onSubmitRename}>
-                    Save
+                    {t('graphs.save')}
                   </button>
                   <button className="btn btn--ghost" type="button" onClick={onCancelRename}>
-                    Cancel
+                    {t('graphs.cancel')}
                   </button>
                 </div>
               </div>
             ) : (
               <div className="graph-list__active-row">
-                <div className="graph-list__active">Active: {graphName || 'Untitled'}</div>
+                <div className="graph-list__active">
+                  {t('graphs.active', { name: graphName || t('graphs.untitled') })}
+                </div>
                 {!collapsed ? (
-                  <button className="icon-btn" type="button" onClick={onStartRename} title="Rename graph">
+                  <button className="icon-btn" type="button" onClick={onStartRename} title={t('graphs.renameTitle')}>
                     ✎
                   </button>
                 ) : null}
@@ -111,7 +115,7 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
               </button>
             ) : null}
             {!collapsed ? (
-              <button className="icon-btn" type="button" onClick={onExport} title="Export JSON">
+              <button className="icon-btn" type="button" onClick={onExport} title={t('graphs.exportTitle')}>
                 ⤓
               </button>
             ) : null}
@@ -120,7 +124,7 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
                 className="icon-btn"
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                title="Import JSON"
+                title={t('graphs.importTitle')}
               >
                 ⤒
               </button>
@@ -130,7 +134,7 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
                 className="icon-btn graph-list__delete"
                 type="button"
                 onClick={() => onDeleteGraph(activeGraphId)}
-                title="Delete graph"
+                title={t('graphs.deleteTitle')}
               >
                 ×
               </button>
@@ -138,7 +142,7 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
             <button
               className="icon-btn"
               type="button"
-              aria-label={collapsed ? 'Expand graphs panel' : 'Collapse graphs panel'}
+              aria-label={collapsed ? t('graphs.expandAria') : t('graphs.collapseAria')}
               onClick={onToggleCollapse}
             >
               {collapsed ? '>' : '<'}
@@ -157,7 +161,7 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
           <>
             <div className="graph-list__items">
               {graphList.length === 0 ? (
-                <div className="graph-list__empty">Create your first graph.</div>
+                <div className="graph-list__empty">{t('graphs.empty')}</div>
               ) : (
                 graphList.map((graph) => (
                   <button

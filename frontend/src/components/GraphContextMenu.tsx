@@ -1,5 +1,6 @@
 // Context menu shown on right-click for nodes/edges.
 import type { GraphEdge, GraphNode } from '../graphTypes'
+import { useI18n } from '../i18n'
 
 export type ContextMenuState =
   | { kind: 'node'; id: string; x: number; y: number }
@@ -33,6 +34,7 @@ export default function GraphContextMenu({
   onDeleteEdge,
   onClose,
 }: GraphContextMenuProps) {
+  const { t } = useI18n()
   if (!contextMenu || !menuPosition) {
     return null
   }
@@ -52,7 +54,7 @@ export default function GraphContextMenu({
               onClose()
             }}
           >
-            Delete Node
+            {t('context.deleteNode')}
           </button>
           {contextNode.parentNode ? (
             <button
@@ -61,9 +63,9 @@ export default function GraphContextMenu({
                 onRemoveFromGroup(contextNode.id)
                 onClose()
               }}
-            >
-              Remove from Group
-            </button>
+              >
+                {t('context.removeFromGroup')}
+              </button>
           ) : null}
           {contextNode.type === 'group' ? (
             <button
@@ -72,9 +74,9 @@ export default function GraphContextMenu({
                 onUngroupChildren(contextNode.id)
                 onClose()
               }}
-            >
-              Ungroup Children
-            </button>
+              >
+                {t('context.ungroupChildren')}
+              </button>
           ) : null}
         </>
       ) : null}
@@ -87,7 +89,7 @@ export default function GraphContextMenu({
               onClose()
             }}
           >
-            {contextEdgeDirected ? 'Make Undirected' : 'Make Directed'}
+            {contextEdgeDirected ? t('context.makeUndirected') : t('context.makeDirected')}
           </button>
           <button
             type="button"
@@ -96,7 +98,7 @@ export default function GraphContextMenu({
               onClose()
             }}
           >
-            Delete Edge
+            {t('context.deleteEdge')}
           </button>
         </>
       ) : null}

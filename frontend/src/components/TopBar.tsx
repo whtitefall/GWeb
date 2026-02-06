@@ -1,6 +1,7 @@
 // Top navigation bar (view tabs, auth actions, AI toggle).
 import type { ViewMode } from '../types/ui'
 import { statusLabels } from '../constants'
+import { useI18n } from '../i18n'
 
 type TopBarProps = {
   viewMode: ViewMode
@@ -31,14 +32,15 @@ export default function TopBar({
   onOpenAuth,
   onToggleChat,
 }: TopBarProps) {
+  const { language, setLanguage, t } = useI18n()
   const canShowDisplayMode = viewMode === 'graph' || viewMode === 'application'
   return (
     <header className="topbar">
       <div className="brand">
         <div className="brand__mark" />
         <div>
-          <div className="brand__title">Graph Note</div>
-          <div className="brand__subtitle">Organize ideas into connected flows.</div>
+          <div className="brand__title">{t('brand.title')}</div>
+          <div className="brand__subtitle">{t('brand.subtitle')}</div>
         </div>
       </div>
 
@@ -48,7 +50,7 @@ export default function TopBar({
           className={`nav-btn ${viewMode === 'graph' ? 'is-active' : ''}`}
           onClick={() => onChangeView('graph')}
         >
-          Graph Note
+          {t('nav.graph')}
         </button>
         {showBetaTabs ? (
           <>
@@ -57,14 +59,14 @@ export default function TopBar({
               className={`nav-btn ${viewMode === 'application' ? 'is-active' : ''}`}
               onClick={() => onChangeView('application')}
             >
-              Graph Application
+              {t('nav.application')}
             </button>
             <button
               type="button"
               className={`nav-btn ${viewMode === 'graph3d' ? 'is-active' : ''}`}
               onClick={() => onChangeView('graph3d')}
             >
-              3D Graph
+              {t('nav.graph3d')}
             </button>
           </>
         ) : null}
@@ -73,42 +75,45 @@ export default function TopBar({
           className={`nav-btn ${viewMode === 'facts' ? 'is-active' : ''}`}
           onClick={() => onChangeView('facts')}
         >
-          Quick Facts
+          {t('nav.facts')}
         </button>
       </nav>
 
       <div className="topbar__actions">
         <div className={`status status--${saveState}`}>
           <span className="status__dot" />
-          <span>{statusLabels[saveState]}</span>
+          <span>{t(`status.${saveState}`)}</span>
         </div>
+        <button className="btn btn--ghost" type="button" onClick={() => setLanguage(language === 'en' ? 'zh' : 'en')}>
+          {language === 'en' ? t('language.zh') : t('language.en')}
+        </button>
         {isLoggedIn ? (
           <>
-            <div className="user-chip">Hi, {userName}</div>
+            <div className="user-chip">{t('topbar.hi', { name: userName })}</div>
             {canShowDisplayMode ? (
               <button className="btn btn--ghost" type="button" onClick={onToggleDisplayMode}>
-                {displayMode ? 'Edit Mode' : 'Display Mode'}
+                {displayMode ? t('topbar.editMode') : t('topbar.displayMode')}
               </button>
             ) : null}
             <button className="btn btn--ghost" type="button" onClick={onOpenSettings}>
-              Settings
+              {t('topbar.settings')}
             </button>
             <button className="btn btn--ghost" type="button" onClick={onLogout}>
-              Log out
+              {t('topbar.logout')}
             </button>
           </>
         ) : (
           <>
             <button className="btn btn--ghost" type="button" onClick={() => onOpenAuth('register')}>
-              Register
+              {t('topbar.register')}
             </button>
             <button className="btn btn--ghost" type="button" onClick={() => onOpenAuth('login')}>
-              Login
+              {t('topbar.login')}
             </button>
           </>
         )}
         <button className="btn btn--ai" type="button" onClick={onToggleChat}>
-          AI
+          {t('topbar.ai')}
         </button>
       </div>
     </header>

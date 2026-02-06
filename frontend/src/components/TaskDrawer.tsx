@@ -2,6 +2,7 @@
 import type { CSSProperties, MouseEvent, RefObject } from 'react'
 import type { GraphNode, NodeData } from '../graphTypes'
 import { coerceNumber } from '../utils/graph'
+import { useI18n } from '../i18n'
 
 type TaskDrawerProps = {
   activeNode: GraphNode | null
@@ -22,6 +23,7 @@ export default function TaskDrawer({
   onRemoveNode,
   updateNodeData,
 }: TaskDrawerProps) {
+  const { t } = useI18n()
   return (
     <aside
       className={`drawer ${activeNode ? 'drawer--open' : ''}`}
@@ -35,21 +37,21 @@ export default function TaskDrawer({
           <div className="drawer__content">
             <div className="drawer__header">
               <div>
-                <div className="drawer__eyebrow">Task Settings</div>
+                <div className="drawer__eyebrow">{t('task.settings')}</div>
                 <h2>{activeNode.data.label}</h2>
               </div>
               <div className="drawer__actions">
                 <button className="btn btn--ghost" type="button" onClick={onClose}>
-                  Close
+                  {t('task.close')}
                 </button>
                 <button className="btn btn--danger" type="button" onClick={() => onRemoveNode(activeNode.id)}>
-                  Remove
+                  {t('task.remove')}
                 </button>
               </div>
             </div>
 
             <label className="field">
-              <span>Task Name</span>
+              <span>{t('task.name')}</span>
               <input
                 type="text"
                 value={activeNode.data.label}
@@ -63,7 +65,7 @@ export default function TaskDrawer({
             </label>
 
             <label className="field">
-              <span>Upload Script</span>
+              <span>{t('task.uploadScript')}</span>
               <input
                 type="file"
                 onChange={(event) => {
@@ -78,11 +80,11 @@ export default function TaskDrawer({
               />
             </label>
             {activeNode.data.scriptName ? (
-              <div className="script-meta">Selected: {activeNode.data.scriptName}</div>
+              <div className="script-meta">{t('task.selected', { name: activeNode.data.scriptName })}</div>
             ) : null}
 
             <label className="field">
-              <span>Progress</span>
+              <span>{t('task.progress')}</span>
               <input
                 type="range"
                 min="0"
@@ -107,10 +109,10 @@ export default function TaskDrawer({
                 }))
               }
             >
-              Upload Script
+              {t('task.uploadButton')}
             </button>
             <p className="drawer__hint">
-              Script upload will be wired to the SSH tunnel in a future backend step.
+              {t('task.hint')}
             </p>
           </div>
         </>

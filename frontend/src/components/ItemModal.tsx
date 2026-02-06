@@ -1,6 +1,7 @@
 // Modal for editing an item's title and notes list.
 import type { FormEvent } from 'react'
 import type { GraphNode, Item } from '../graphTypes'
+import { useI18n } from '../i18n'
 
 type ItemModalProps = {
   open: boolean
@@ -29,6 +30,7 @@ export default function ItemModal({
   onRemoveNote,
   onClose,
 }: ItemModalProps) {
+  const { t } = useI18n()
   if (!open || !node || !item) {
     return null
   }
@@ -48,7 +50,7 @@ export default function ItemModal({
       <div className="modal item-modal" onClick={(event) => event.stopPropagation()}>
         <div className="item-modal__header">
           <div>
-            <div className="item-modal__eyebrow">Item Notes</div>
+            <div className="item-modal__eyebrow">{t('itemModal.eyebrow')}</div>
             <input
               className="item-modal__title-input"
               type="text"
@@ -59,12 +61,12 @@ export default function ItemModal({
             />
           </div>
           <button className="btn btn--ghost" type="button" onClick={onClose}>
-            Close
+            {t('itemModal.close')}
           </button>
         </div>
-        <div className="item-modal__count">{item.notes.length} notes</div>
+        <div className="item-modal__count">{t('itemModal.notesCount', { count: item.notes.length })}</div>
         {item.notes.length === 0 ? (
-          <div className="item-modal__empty">No notes yet. Add the first one below.</div>
+          <div className="item-modal__empty">{t('itemModal.empty')}</div>
         ) : (
           <ul className="item-modal__list">
             {item.notes.map((note) => (
@@ -85,7 +87,7 @@ export default function ItemModal({
                     type="button"
                     onClick={() => onRemoveNote(node.id, item.id, note.id)}
                   >
-                    Remove
+                    {t('itemModal.remove')}
                   </button>
                 ) : null}
               </li>
@@ -96,12 +98,12 @@ export default function ItemModal({
           <form className="item-modal__form" onSubmit={handleSubmit}>
             <textarea
               className="item-modal__textarea"
-              placeholder="Add a note description..."
+              placeholder={t('itemModal.addPlaceholder')}
               value={noteTitle}
               onChange={(event) => onChangeNoteTitle(event.target.value)}
             />
             <button className="btn btn--primary" type="submit">
-              Add Note
+              {t('itemModal.addNote')}
             </button>
           </form>
         ) : null}
