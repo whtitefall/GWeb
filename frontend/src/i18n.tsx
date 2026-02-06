@@ -18,6 +18,7 @@ const messages: Record<Language, Record<string, string>> = {
     'brand.subtitle': 'Organize ideas into connected flows.',
 
     'nav.graph': 'Graph Note',
+    'nav.home': 'Home',
     'nav.application': 'Graph Application',
     'nav.graph3d': '3D Graph',
     'nav.facts': 'Quick Facts',
@@ -170,6 +171,11 @@ const messages: Record<Language, Record<string, string>> = {
     'facts.planar.long':
       'A planar graph can be embedded in the plane without edge intersections. Planarity matters for circuit design, map coloring, and layout readability.',
 
+    'home.title': 'Home',
+    'home.subtitle': 'Recent graph pages',
+    'home.recent': 'Recent graphs',
+    'home.empty': 'No graphs yet. Create one to get started.',
+
     'settings.title': 'Settings',
     'settings.subtitle': 'Tune the workspace to your style.',
     'settings.theme': 'Theme',
@@ -254,6 +260,7 @@ const messages: Record<Language, Record<string, string>> = {
     'brand.subtitle': '用连接图组织你的想法。',
 
     'nav.graph': '图谱笔记',
+    'nav.home': '首页',
     'nav.application': '图应用',
     'nav.graph3d': '3D 图谱',
     'nav.facts': '速览知识',
@@ -378,6 +385,11 @@ const messages: Record<Language, Record<string, string>> = {
 
     'facts.title': '速览知识',
     'facts.subtitle': '用这些图论核心概念构建更清晰的图谱。',
+
+    'home.title': '首页',
+    'home.subtitle': '最近图谱页面',
+    'home.recent': '最近图谱',
+    'home.empty': '还没有图谱，先创建一个吧。',
     'facts.deepDive': '深入讲解',
     'facts.footer': '想了解更多？在 AI 面板中描述你理想的布局。',
 

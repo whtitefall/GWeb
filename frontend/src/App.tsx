@@ -30,6 +30,7 @@ import AuthModal from './components/AuthModal'
 import ChatPanel from './components/ChatPanel'
 import GraphContextMenu, { type ContextMenuState } from './components/GraphContextMenu'
 import GraphListWidget from './components/GraphListWidget'
+import HomeView from './components/HomeView'
 import ItemModal from './components/ItemModal'
 import NoteDrawer from './components/NoteDrawer'
 import QuickFactsView from './components/QuickFactsView'
@@ -123,7 +124,7 @@ export default function App() {
   const [itemNoteTitle, setItemNoteTitle] = useState('')
   const [saveState, setSaveState] = useState<keyof typeof statusLabels>('idle')
   const [hydrated, setHydrated] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>('graph')
+  const [viewMode, setViewMode] = useState<ViewMode>('home')
   const [appMenuOpen, setAppMenuOpen] = useState(false)
   // Graph kind keeps storage + API calls namespaced across app surfaces.
   const [graphKind, setGraphKind] = useState<GraphKind>('note')
@@ -260,6 +261,7 @@ export default function App() {
   )
   const graphContextKey = `${graphKind}:${activeGraphId ?? ''}`
 
+  const isHomeView = viewMode === 'home'
   const isGraphNoteView = viewMode === 'graph'
   const isApplicationView = viewMode === 'application'
   const isGraph3dView = viewMode === 'graph3d'
@@ -1544,6 +1546,16 @@ export default function App() {
     },
     [graphList],
   )
+  const handleOpenGraphFromHome = useCallback(
+    (graphId: string) => {
+      handleSelectGraph(graphId)
+      setViewMode('graph')
+      if (graphKind !== 'note') {
+        setGraphKind('note')
+      }
+    },
+    [graphKind, handleSelectGraph],
+  )
 
   const sidebarWidthValue = sidebarCollapsed ? 0 : sidebarWidth
   const toolbarDefaultPosition = useMemo(
@@ -1856,7 +1868,15 @@ export default function App() {
       return
     }
     const nextKind =
-      mode === 'graph' ? 'note' : mode === 'application' ? 'application' : mode === 'graph3d' ? 'graph3d' : null
+      mode === 'home'
+        ? 'note'
+        : mode === 'graph'
+          ? 'note'
+          : mode === 'application'
+            ? 'application'
+            : mode === 'graph3d'
+              ? 'graph3d'
+              : null
     if (nextKind && nextKind !== graphKind) {
       setGraphKind(nextKind)
     }
@@ -2274,7 +2294,13 @@ export default function App() {
             ) : null}
 
             <section className="flow-shell" ref={flowShellRef}>
-              {is2DView ? (
+              {isHomeView ? (
+                <HomeView
+                  graphList={graphList}
+                  activeGraphId={activeGraphId}
+                  onOpenGraph={handleOpenGraphFromHome}
+                />
+              ) : is2DView ? (
                 <>
                   <ReactFlow
                     nodes={nodes}
