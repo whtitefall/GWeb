@@ -3,9 +3,12 @@ import { forwardRef, useRef, type ChangeEvent, type MouseEvent, type KeyboardEve
 import type { GraphSummary } from '../graphTypes'
 import { formatUpdatedAt } from '../utils/time'
 import { useI18n } from '../i18n'
+import type { ViewMode } from '../types/ui'
 
 type GraphListWidgetProps = {
   collapsed: boolean
+  viewMode: ViewMode
+  showBetaTabs: boolean
   graphList: GraphSummary[]
   activeGraphId: string | null
   graphName: string
@@ -16,6 +19,7 @@ type GraphListWidgetProps = {
   onStartRename: () => void
   onCancelRename: () => void
   onSubmitRename: () => void
+  onChangeView: (mode: ViewMode) => void
   onSelectGraph: (id: string) => void
   onCreateGraph: () => void
   onDeleteGraph: (id: string) => void
@@ -29,6 +33,8 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
   (
     {
       collapsed,
+      viewMode,
+      showBetaTabs,
       graphList,
       activeGraphId,
       graphName,
@@ -39,6 +45,7 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
       onStartRename,
       onCancelRename,
       onSubmitRename,
+      onChangeView,
       onSelectGraph,
       onCreateGraph,
       onDeleteGraph,
@@ -71,6 +78,49 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
 
     return (
       <aside className={`graph-list ${collapsed ? 'graph-list--collapsed' : ''}`} ref={ref}>
+        <div className="graph-list__nav">
+          <button
+            type="button"
+            className={`graph-list__nav-btn ${viewMode === 'graph' ? 'is-active' : ''}`}
+            onClick={() => onChangeView('graph')}
+            title={t('nav.graph')}
+          >
+            <span className="graph-list__nav-label">{t('nav.graph')}</span>
+            <span className="graph-list__nav-short">GN</span>
+          </button>
+          <button
+            type="button"
+            className={`graph-list__nav-btn ${viewMode === 'facts' ? 'is-active' : ''}`}
+            onClick={() => onChangeView('facts')}
+            title={t('nav.facts')}
+          >
+            <span className="graph-list__nav-label">{t('nav.facts')}</span>
+            <span className="graph-list__nav-short">QF</span>
+          </button>
+          {showBetaTabs ? (
+            <>
+              <button
+                type="button"
+                className={`graph-list__nav-btn ${viewMode === 'application' ? 'is-active' : ''}`}
+                onClick={() => onChangeView('application')}
+                title={t('nav.application')}
+              >
+                <span className="graph-list__nav-label">{t('nav.application')}</span>
+                <span className="graph-list__nav-short">GA</span>
+              </button>
+              <button
+                type="button"
+                className={`graph-list__nav-btn ${viewMode === 'graph3d' ? 'is-active' : ''}`}
+                onClick={() => onChangeView('graph3d')}
+                title={t('nav.graph3d')}
+              >
+                <span className="graph-list__nav-label">{t('nav.graph3d')}</span>
+                <span className="graph-list__nav-short">3D</span>
+              </button>
+            </>
+          ) : null}
+        </div>
+
         <div className="graph-list__widget">
           <div className="graph-list__summary">
             <div className="graph-list__title">{t('graphs.title')}</div>

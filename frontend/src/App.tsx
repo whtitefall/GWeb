@@ -38,7 +38,6 @@ import SshConsole from './components/SshConsole'
 import SshModal from './components/SshModal'
 import SettingsModal from './components/SettingsModal'
 import TaskDrawer from './components/TaskDrawer'
-import TopBar from './components/TopBar'
 import { GroupNode, NoteNode, TaskNode } from './components/nodes'
 import { useGraphState } from './hooks/useGraphState'
 import {
@@ -90,7 +89,7 @@ type queuedSave = {
 }
 
 export default function App() {
-  const { t } = useI18n()
+  const { language, setLanguage, t } = useI18n()
   // Core React Flow state for the active graph.
   const { nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange } = useGraphState()
   // Graph list + metadata for the current Graph Notes view.
@@ -121,6 +120,7 @@ export default function App() {
   const [saveState, setSaveState] = useState<keyof typeof statusLabels>('idle')
   const [hydrated, setHydrated] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('graph')
+  const [appMenuOpen, setAppMenuOpen] = useState(false)
   // Graph kind keeps storage + API calls namespaced across app surfaces.
   const [graphKind, setGraphKind] = useState<GraphKind>('note')
   // Chat + quick facts state.
@@ -215,6 +215,7 @@ export default function App() {
   const drawerRef = useRef<HTMLElement | null>(null)
   const drawerResizingRef = useRef(false)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
+  const appMenuRef = useRef<HTMLDivElement | null>(null)
   const [drawerWidth, setDrawerWidth] = useState(340)
   const toolbarRef = useRef<HTMLDivElement | null>(null)
   const toolbarDragRef = useRef(false)
@@ -250,6 +251,7 @@ export default function App() {
   const isGraph3dView = viewMode === 'graph3d'
   const is2DView = isGraphNoteView || isApplicationView
   const isReadOnlyCanvas = is2DView && displayMode
+  const canShowDisplayMode = isGraphNoteView || isApplicationView
 
   const sshConsoleStyle = useMemo(() => {
     if (!isApplicationView || !sshConsoleOpen) {
@@ -1504,13 +1506,6 @@ export default function App() {
     }
   }, [sidebarWidthValue])
 
-  const handleOpenAuth = (mode: 'login' | 'register') => {
-    setAuthMode(mode)
-    setAuthOpen(true)
-    setAuthError('')
-    setAuthNotice('')
-  }
-
   const handleAuthSubmit = async (event: ReactFormEvent) => {
     event.preventDefault()
     const trimmedEmail = authEmail.trim()
@@ -1746,6 +1741,32 @@ export default function App() {
     }
   }, [displayMode, is2DView])
 
+  useEffect(() => {
+    if (!appMenuOpen) {
+      return
+    }
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) {
+        return
+      }
+      if (!appMenuRef.current?.contains(target)) {
+        setAppMenuOpen(false)
+      }
+    }
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAppMenuOpen(false)
+      }
+    }
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleEsc)
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleEsc)
+    }
+  }, [appMenuOpen])
+
   const handleToggleChat = useCallback(() => {
     setChatOpen((open) => {
       const next = !open
@@ -1863,6 +1884,7 @@ export default function App() {
   }, [itemModal, itemModalNode])
 
   const showAuthGate = !isLoggedIn
+  const showSideDrawer = !(is2DView && displayMode)
   const authGate = (
     <div className="auth-gate">
       <div className="auth-gate__panel">
@@ -1908,25 +1930,133 @@ export default function App() {
         authGate
       ) : (
         <>
-        <TopBar
-          viewMode={viewMode}
-          onChangeView={changeView}
-          saveState={saveState}
-          showBetaTabs={betaFeaturesEnabled}
-          displayMode={displayMode}
-          isLoggedIn={isLoggedIn}
-          userName={userName}
-          onToggleDisplayMode={() => setDisplayMode((current) => !current)}
-          onOpenSettings={() => setSettingsOpen(true)}
-            onLogout={handleLogout}
-            onOpenAuth={handleOpenAuth}
-            onToggleChat={handleToggleChat}
-          />
-
           <main
             className={`workspace ${viewMode === 'facts' ? 'workspace--facts' : ''}`}
             style={workspaceStyle}
           >
+            <div className={`app-menu ${appMenuOpen ? 'app-menu--open' : ''}`} ref={appMenuRef}>
+              <button
+                className="app-menu__trigger icon-btn"
+                type="button"
+                aria-expanded={appMenuOpen}
+                aria-label={t('topbar.settings')}
+                onClick={() => setAppMenuOpen((open) => !open)}
+              >
+                ⋯
+              </button>
+              {appMenuOpen ? (
+                <div className="app-menu__panel" role="menu">
+                  <div className="app-menu__section app-menu__section--status">
+                    <div className={`status status--${saveState}`}>
+                      <span className="status__dot" />
+                      <span>{t(`status.${saveState}`)}</span>
+                    </div>
+                    {userName ? <div className="user-chip">{t('topbar.hi', { name: userName })}</div> : null}
+                  </div>
+                  <div className="app-menu__section app-menu__section--nav">
+                    <button
+                      type="button"
+                      className={`app-menu__item ${viewMode === 'graph' ? 'is-active' : ''}`}
+                      onClick={() => {
+                        changeView('graph')
+                        setAppMenuOpen(false)
+                      }}
+                    >
+                      {t('nav.graph')}
+                    </button>
+                    <button
+                      type="button"
+                      className={`app-menu__item ${viewMode === 'facts' ? 'is-active' : ''}`}
+                      onClick={() => {
+                        changeView('facts')
+                        setAppMenuOpen(false)
+                      }}
+                    >
+                      {t('nav.facts')}
+                    </button>
+                    {betaFeaturesEnabled ? (
+                      <>
+                        <button
+                          type="button"
+                          className={`app-menu__item ${viewMode === 'application' ? 'is-active' : ''}`}
+                          onClick={() => {
+                            changeView('application')
+                            setAppMenuOpen(false)
+                          }}
+                        >
+                          {t('nav.application')}
+                        </button>
+                        <button
+                          type="button"
+                          className={`app-menu__item ${viewMode === 'graph3d' ? 'is-active' : ''}`}
+                          onClick={() => {
+                            changeView('graph3d')
+                            setAppMenuOpen(false)
+                          }}
+                        >
+                          {t('nav.graph3d')}
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+                  <div className="app-menu__section">
+                    <button
+                      className="app-menu__item"
+                      type="button"
+                      onClick={() => {
+                        setLanguage(language === 'en' ? 'zh' : 'en')
+                        setAppMenuOpen(false)
+                      }}
+                    >
+                      {language === 'en' ? t('language.zh') : t('language.en')}
+                    </button>
+                    {canShowDisplayMode ? (
+                      <button
+                        className="app-menu__item"
+                        type="button"
+                        onClick={() => {
+                          setDisplayMode((current) => !current)
+                          setAppMenuOpen(false)
+                        }}
+                      >
+                        {displayMode ? t('topbar.editMode') : t('topbar.displayMode')}
+                      </button>
+                    ) : null}
+                    <button
+                      className="app-menu__item"
+                      type="button"
+                      onClick={() => {
+                        setSettingsOpen(true)
+                        setAppMenuOpen(false)
+                      }}
+                    >
+                      {t('topbar.settings')}
+                    </button>
+                    <button
+                      className="app-menu__item app-menu__item--ai"
+                      type="button"
+                      onClick={() => {
+                        handleToggleChat()
+                        setAppMenuOpen(false)
+                      }}
+                    >
+                      {t('topbar.ai')}
+                    </button>
+                    <button
+                      className="app-menu__item app-menu__item--danger"
+                      type="button"
+                      onClick={() => {
+                        handleLogout()
+                        setAppMenuOpen(false)
+                      }}
+                    >
+                      {t('topbar.logout')}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
             <section className="flow-shell" ref={flowShellRef}>
               {is2DView ? (
                 <>
@@ -2045,10 +2175,12 @@ export default function App() {
                 <QuickFactsView activeFactKey={activeFactKey} onSelectFact={setActiveFactKey} />
               )}
 
-              {is2DView && !isReadOnlyCanvas ? (
+              {showSideDrawer ? (
                 <GraphListWidget
                   ref={sidebarRef}
                   collapsed={sidebarCollapsed}
+                  viewMode={viewMode}
+                  showBetaTabs={betaFeaturesEnabled}
                   graphList={graphList}
                   activeGraphId={activeGraphId}
                   graphName={graphName}
@@ -2059,6 +2191,7 @@ export default function App() {
                   onStartRename={handleStartRename}
                   onCancelRename={handleCancelRename}
                   onSubmitRename={handleSubmitRename}
+                  onChangeView={changeView}
                   onSelectGraph={setActiveGraphId}
                   onCreateGraph={handleCreateGraph}
                   onDeleteGraph={handleRequestDeleteGraph}

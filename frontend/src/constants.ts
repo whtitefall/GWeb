@@ -14,7 +14,7 @@ export const DEFAULT_GROUP_SIZE = { width: 300, height: 180 }
 export const DEFAULT_NODE_SIZE = { width: 150, height: 52 }
 export const SIDEBAR_MIN = 200
 export const SIDEBAR_MAX = 420
-export const SIDEBAR_COLLAPSED = 220
+export const SIDEBAR_COLLAPSED = 64
 export const DRAWER_MIN = 280
 export const DRAWER_MAX = 900
 
