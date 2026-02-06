@@ -1635,6 +1635,8 @@ export default function App() {
   const handleSelectGraphFromList = useCallback(
     (graphId: string) => {
       handleSelectGraph(graphId)
+      toolbarMovedRef.current = false
+      setToolbarPos(null)
       if (viewMode === 'home') {
         setViewMode('graph')
         if (graphKind !== 'note') {
@@ -1647,6 +1649,8 @@ export default function App() {
   const handleOpenGraphFromHome = useCallback(
     (graphId: string) => {
       handleSelectGraph(graphId)
+      toolbarMovedRef.current = false
+      setToolbarPos(null)
       setViewMode('graph')
       if (graphKind !== 'note') {
         setGraphKind('note')
