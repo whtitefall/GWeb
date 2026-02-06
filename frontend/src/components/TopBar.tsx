@@ -7,8 +7,10 @@ type TopBarProps = {
   onChangeView: (mode: ViewMode) => void
   saveState: keyof typeof statusLabels
   showBetaTabs: boolean
+  displayMode: boolean
   isLoggedIn: boolean
   userName: string
+  onToggleDisplayMode: () => void
   onOpenSettings: () => void
   onLogout: () => void
   onOpenAuth: (mode: 'login' | 'register') => void
@@ -20,13 +22,16 @@ export default function TopBar({
   onChangeView,
   saveState,
   showBetaTabs,
+  displayMode,
   isLoggedIn,
   userName,
+  onToggleDisplayMode,
   onOpenSettings,
   onLogout,
   onOpenAuth,
   onToggleChat,
 }: TopBarProps) {
+  const canShowDisplayMode = viewMode === 'graph' || viewMode === 'application'
   return (
     <header className="topbar">
       <div className="brand">
@@ -80,6 +85,11 @@ export default function TopBar({
         {isLoggedIn ? (
           <>
             <div className="user-chip">Hi, {userName}</div>
+            {canShowDisplayMode ? (
+              <button className="btn btn--ghost" type="button" onClick={onToggleDisplayMode}>
+                {displayMode ? 'Edit Mode' : 'Display Mode'}
+              </button>
+            ) : null}
             <button className="btn btn--ghost" type="button" onClick={onOpenSettings}>
               Settings
             </button>

@@ -117,6 +117,8 @@ export default function App() {
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const [chatError, setChatError] = useState('')
+  // Display mode is read-only and hides editing widgets for clean presentation.
+  const [displayMode, setDisplayMode] = useState(false)
   // Left panel sizing + collapse preferences (persisted in localStorage).
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window === 'undefined') {
@@ -224,6 +226,7 @@ export default function App() {
   const isApplicationView = viewMode === 'application'
   const isGraph3dView = viewMode === 'graph3d'
   const is2DView = isGraphNoteView || isApplicationView
+  const isReadOnlyCanvas = is2DView && displayMode
 
   const sshConsoleStyle = useMemo(() => {
     if (!isApplicationView || !sshConsoleOpen) {
@@ -360,6 +363,17 @@ export default function App() {
     setItemTitle('')
     setItemNoteTitle('')
   }, [graphKind])
+
+  useEffect(() => {
+    if (!isReadOnlyCanvas) {
+      return
+    }
+    // Close editable surfaces when entering display mode.
+    setSelectedNodeId(null)
+    setContextMenu(null)
+    setChatOpen(false)
+    setItemModal(null)
+  }, [isReadOnlyCanvas])
 
   useEffect(() => {
     if (!isRenamingGraph) {
@@ -1542,6 +1556,12 @@ export default function App() {
     }
   }, [betaFeaturesEnabled, graphKind, viewMode])
 
+  useEffect(() => {
+    if (!is2DView && displayMode) {
+      setDisplayMode(false)
+    }
+  }, [displayMode, is2DView])
+
   const handleToggleChat = useCallback(() => {
     setChatOpen((open) => {
       const next = !open
@@ -1690,8 +1710,10 @@ export default function App() {
           onChangeView={changeView}
           saveState={saveState}
           showBetaTabs={betaFeaturesEnabled}
+          displayMode={displayMode}
           isLoggedIn={isLoggedIn}
           userName={userName}
+          onToggleDisplayMode={() => setDisplayMode((current) => !current)}
           onOpenSettings={() => setSettingsOpen(true)}
             onLogout={handleLogout}
             onOpenAuth={handleOpenAuth}
@@ -1711,8 +1733,11 @@ export default function App() {
                     nodeTypes={nodeTypes}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
-                    onNodesDelete={onNodesDelete}
-                    onConnect={onConnect}
+                    onNodesDelete={isReadOnlyCanvas ? undefined : onNodesDelete}
+                    onConnect={isReadOnlyCanvas ? undefined : onConnect}
+                    nodesDraggable={!isReadOnlyCanvas}
+                    nodesConnectable={!isReadOnlyCanvas}
+                    elementsSelectable={!isReadOnlyCanvas}
                     onInit={(instance) => {
                       reactFlowInstance.current = instance
                       instance.fitView({ padding: 0.2 })
@@ -1720,11 +1745,19 @@ export default function App() {
                       instance.setViewport({ x: viewport.x, y: viewport.y, zoom: 0.9 }, { duration: 0 })
                     }}
                     onNodeClick={(_, node) => {
+                      if (isReadOnlyCanvas) {
+                        setSelectedNodeId(null)
+                        setContextMenu(null)
+                        return
+                      }
                       setChatOpen(false)
                       setContextMenu(null)
                       setSelectedNodeId(node.id)
                     }}
                     onNodeContextMenu={(event, node) => {
+                      if (isReadOnlyCanvas) {
+                        return
+                      }
                       event.preventDefault()
                       setSelectedNodeId(node.id)
                       const rect = flowShellRef.current?.getBoundingClientRect()
@@ -1738,6 +1771,9 @@ export default function App() {
                       })
                     }}
                     onEdgeContextMenu={(event, edge) => {
+                      if (isReadOnlyCanvas) {
+                        return
+                      }
                       event.preventDefault()
                       const rect = flowShellRef.current?.getBoundingClientRect()
                       const x = rect ? event.clientX - rect.left : event.clientX
@@ -1750,21 +1786,23 @@ export default function App() {
                       })
                     }}
                     onPaneClick={() => {
-                      setSelectedNodeId(null)
                       setContextMenu(null)
+                      if (!isReadOnlyCanvas) {
+                        setSelectedNodeId(null)
+                      }
                     }}
                     onPaneContextMenu={(event) => {
                       event.preventDefault()
                       setContextMenu(null)
                     }}
                     defaultViewport={{ x: 0, y: 0, zoom: 0.9 }}
-                    deleteKeyCode={['Backspace', 'Delete']}
+                    deleteKeyCode={isReadOnlyCanvas ? null : ['Backspace', 'Delete']}
                     defaultEdgeOptions={{
                       type: 'smoothstep',
                     }}
-                    selectionOnDrag
+                    selectionOnDrag={!isReadOnlyCanvas}
                     selectionMode={SelectionMode.Partial}
-                    panOnDrag={[2]}
+                    panOnDrag={isReadOnlyCanvas ? true : [2]}
                   >
                     <Background color="var(--grid)" gap={26} size={1} />
                     <Controls position="bottom-right" />
@@ -1778,19 +1816,21 @@ export default function App() {
                       />
                     ) : null}
                   </ReactFlow>
-                  <GraphContextMenu
-                    contextMenu={contextMenu}
-                    menuPosition={menuPosition}
-                    contextNode={contextNode}
-                    contextEdge={contextEdge}
-                    contextEdgeDirected={contextEdgeDirected}
-                    onDeleteNode={removeNode}
-                    onRemoveFromGroup={detachFromGroup}
-                    onUngroupChildren={ungroupChildren}
-                    onToggleEdgeDirection={toggleEdgeDirection}
-                    onDeleteEdge={removeEdgeById}
-                    onClose={() => setContextMenu(null)}
-                  />
+                  {!isReadOnlyCanvas ? (
+                    <GraphContextMenu
+                      contextMenu={contextMenu}
+                      menuPosition={menuPosition}
+                      contextNode={contextNode}
+                      contextEdge={contextEdge}
+                      contextEdgeDirected={contextEdgeDirected}
+                      onDeleteNode={removeNode}
+                      onRemoveFromGroup={detachFromGroup}
+                      onUngroupChildren={ungroupChildren}
+                      onToggleEdgeDirection={toggleEdgeDirection}
+                      onDeleteEdge={removeEdgeById}
+                      onClose={() => setContextMenu(null)}
+                    />
+                  ) : null}
                 </>
               ) : isGraph3dView ? (
                 <Suspense fallback={<div className="graph-3d__loading">Loading 3D view…</div>}>
@@ -1809,7 +1849,7 @@ export default function App() {
                 <QuickFactsView activeFactKey={activeFactKey} onSelectFact={setActiveFactKey} />
               )}
 
-              {is2DView ? (
+              {is2DView && !isReadOnlyCanvas ? (
                 <GraphListWidget
                   ref={sidebarRef}
                   collapsed={sidebarCollapsed}
@@ -1833,7 +1873,7 @@ export default function App() {
                 />
               ) : null}
 
-              {is2DView ? (
+              {is2DView && !isReadOnlyCanvas ? (
                 <ActionsWidget
                   style={toolbarStyle}
                   toolbarRef={toolbarRef}
@@ -1858,7 +1898,7 @@ export default function App() {
                 />
               ) : null}
 
-              {isGraphNoteView ? (
+              {isGraphNoteView && !isReadOnlyCanvas ? (
                 <NoteDrawer
                   activeNode={activeNode}
                   drawerStyle={drawerStyle}
@@ -1880,7 +1920,7 @@ export default function App() {
                   onOpenItemModal={handleOpenItemModal}
                 />
               ) : null}
-              {isApplicationView ? (
+              {isApplicationView && !isReadOnlyCanvas ? (
                 <TaskDrawer
                   activeNode={activeNode}
                   drawerStyle={drawerStyle}
@@ -1892,7 +1932,7 @@ export default function App() {
                 />
               ) : null}
 
-              {is2DView ? (
+              {is2DView && !isReadOnlyCanvas ? (
                 <ChatPanel
                   open={chatOpen}
                   chatMessages={chatMessages}
