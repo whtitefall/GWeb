@@ -51,7 +51,7 @@ func main() {
 	}
 	supabaseJWTSecret := strings.TrimSpace(os.Getenv("SUPABASE_JWT_SECRET"))
 	if supabaseJWTSecret == "" {
-		log.Fatal("SUPABASE_JWT_SECRET is required to authorize API requests")
+		log.Print("SUPABASE_JWT_SECRET not set; legacy HS256 tokens will not be accepted")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -74,6 +74,7 @@ func main() {
 		openAIKey:         openAIKey,
 		openAIModel:       openAIModel,
 		supabaseJWTSecret: supabaseJWTSecret,
+		jwkCache:          make(map[string]jwkCacheEntry),
 	}
 
 	mux := http.NewServeMux()
