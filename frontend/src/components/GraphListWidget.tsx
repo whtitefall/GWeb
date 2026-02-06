@@ -154,15 +154,6 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
             <span className="graph-list__nav-label">{t('nav.home')}</span>
             <span className="graph-list__nav-short">HM</span>
           </button>
-          <button
-            type="button"
-            className={`graph-list__nav-btn ${viewMode === 'graph' ? 'is-active' : ''}`}
-            onClick={() => onChangeView('graph')}
-            title={t('nav.graph')}
-          >
-            <span className="graph-list__nav-label">{t('nav.graph')}</span>
-            <span className="graph-list__nav-short">GN</span>
-          </button>
           {showBetaTabs ? (
             <>
               <button

@@ -175,6 +175,7 @@ const messages: Record<Language, Record<string, string>> = {
     'home.subtitle': 'Recent graph pages',
     'home.recent': 'Recent graphs',
     'home.empty': 'No graphs yet. Create one to get started.',
+    'home.thumbnailEmpty': 'No preview',
 
     'settings.title': 'Settings',
     'settings.subtitle': 'Tune the workspace to your style.',
@@ -390,6 +391,7 @@ const messages: Record<Language, Record<string, string>> = {
     'home.subtitle': '最近图谱页面',
     'home.recent': '最近图谱',
     'home.empty': '还没有图谱，先创建一个吧。',
+    'home.thumbnailEmpty': '暂无预览',
     'facts.deepDive': '深入讲解',
     'facts.footer': '想了解更多？在 AI 面板中描述你理想的布局。',
 

@@ -98,6 +98,7 @@ export default function App() {
   const { nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange } = useGraphState()
   // Graph list + metadata for the current Graph Notes view.
   const [graphList, setGraphList] = useState<GraphSummary[]>([])
+  const [homeThumbnails, setHomeThumbnails] = useState<Record<string, GraphPayload | null>>({})
   const [activeGraphId, setActiveGraphId] = useState<string | null>(null)
   const [graphName, setGraphName] = useState(defaultGraph.name)
   const [createGraphOpen, setCreateGraphOpen] = useState(false)
@@ -248,6 +249,7 @@ export default function App() {
     payloadHash: '',
   })
   const autosaveContextRef = useRef('')
+  const pendingViewportFocusRef = useRef(false)
 
   // Derived auth state (Supabase session only).
   const isLoggedIn = supabaseLoggedIn
@@ -483,6 +485,7 @@ export default function App() {
     setItemModal(null)
     setItemTitle('')
     setItemNoteTitle('')
+    setHomeThumbnails({})
   }, [graphKind])
 
   useEffect(() => {
@@ -631,6 +634,7 @@ export default function App() {
       const activeId = storedActive && graphs.some((graph) => graph.id === storedActive)
         ? storedActive
         : graphs[0].id
+      pendingViewportFocusRef.current = true
       setActiveGraphId(activeId)
     }
 
@@ -847,6 +851,72 @@ export default function App() {
       window.localStorage.setItem(listStorageKey, JSON.stringify(graphList))
     }
   }, [graphList, listStorageKey])
+
+  useEffect(() => {
+    if (graphKind !== 'note') {
+      return
+    }
+    setHomeThumbnails((current) => {
+      const kept = Object.fromEntries(graphList.filter((graph) => current[graph.id] !== undefined).map((graph) => [graph.id, current[graph.id]]))
+      return kept
+    })
+  }, [graphKind, graphList])
+
+  useEffect(() => {
+    if (!supabaseLoggedIn || graphKind !== 'note' || graphList.length === 0) {
+      return
+    }
+    let cancelled = false
+    const loadThumbnails = async () => {
+      const missingIds = graphList
+        .map((graph) => graph.id)
+        .filter((graphId) => homeThumbnails[graphId] === undefined)
+      if (missingIds.length === 0) {
+        return
+      }
+
+      const entries = await Promise.all(
+        missingIds.map(async (graphId) => {
+          if (typeof window !== 'undefined') {
+            const raw = window.localStorage.getItem(graphStorageKey(graphId))
+            if (raw) {
+              try {
+                const parsed = JSON.parse(raw) as GraphPayload
+                return [graphId, normalizeGraph(parsed, 'note')] as const
+              } catch {
+                // Fallback to API below.
+              }
+            }
+          }
+          if (graphId.startsWith('local-')) {
+            return [graphId, null] as const
+          }
+          try {
+            const payload = await fetchGraph(graphId)
+            return [graphId, normalizeGraph(payload, 'note')] as const
+          } catch {
+            return [graphId, null] as const
+          }
+        }),
+      )
+
+      if (cancelled) {
+        return
+      }
+      setHomeThumbnails((current) => {
+        const next = { ...current }
+        for (const [graphId, payload] of entries) {
+          next[graphId] = payload
+        }
+        return next
+      })
+    }
+
+    void loadThumbnails()
+    return () => {
+      cancelled = true
+    }
+  }, [graphKind, graphList, graphStorageKey, homeThumbnails, supabaseLoggedIn])
 
   useEffect(() => {
     if (!activeGraphId || !hydrated || hydratedKindRef.current !== graphKind) {
@@ -1446,6 +1516,7 @@ export default function App() {
     try {
       const summary = await createGraph(payload)
       pendingGraphRef.current = { id: summary.id, payload, kind: graphKind }
+      pendingViewportFocusRef.current = true
       setGraphList((current) => [summary, ...current])
       setActiveGraphId(summary.id)
       setCreateGraphOpen(false)
@@ -1458,6 +1529,7 @@ export default function App() {
         updatedAt: new Date().toISOString(),
       }
       pendingGraphRef.current = { id: localId, payload, kind: graphKind }
+      pendingViewportFocusRef.current = true
       setGraphList((current) => [summary, ...current])
       setActiveGraphId(localId)
       localStorage.setItem(graphStorageKey(localId), JSON.stringify(payload))
@@ -1495,6 +1567,7 @@ export default function App() {
 
       if (activeGraphId === graphId) {
         if (updatedList.length > 0) {
+          pendingViewportFocusRef.current = true
           setActiveGraphId(updatedList[0].id)
         } else {
           const payload =
@@ -1504,6 +1577,7 @@ export default function App() {
           try {
             const summary = await createGraph(payload)
             pendingGraphRef.current = { id: summary.id, payload, kind: graphKind }
+            pendingViewportFocusRef.current = true
             setGraphList([summary])
             setActiveGraphId(summary.id)
             if (typeof window !== 'undefined') {
@@ -1517,6 +1591,7 @@ export default function App() {
               updatedAt: new Date().toISOString(),
             }
             pendingGraphRef.current = { id: localId, payload, kind: graphKind }
+            pendingViewportFocusRef.current = true
             setGraphList([summary])
             setActiveGraphId(localId)
             if (typeof window !== 'undefined') {
@@ -1541,10 +1616,33 @@ export default function App() {
       if (selected) {
         setGraphName(selected.name)
       }
+      pendingViewportFocusRef.current = true
       setHydrated(false)
       setActiveGraphId(graphId)
     },
     [graphList],
+  )
+
+  useEffect(() => {
+    if (!pendingViewportFocusRef.current || !hydrated || !is2DView || !reactFlowInstance.current) {
+      return
+    }
+    pendingViewportFocusRef.current = false
+    window.requestAnimationFrame(() => {
+      reactFlowInstance.current?.fitView({ padding: 0.2, duration: 220 })
+    })
+  }, [activeGraphId, edges.length, hydrated, is2DView, nodes.length])
+  const handleSelectGraphFromList = useCallback(
+    (graphId: string) => {
+      handleSelectGraph(graphId)
+      if (viewMode === 'home') {
+        setViewMode('graph')
+        if (graphKind !== 'note') {
+          setGraphKind('note')
+        }
+      }
+    },
+    [graphKind, handleSelectGraph, viewMode],
   )
   const handleOpenGraphFromHome = useCallback(
     (graphId: string) => {
@@ -2283,7 +2381,7 @@ export default function App() {
                 onCancelRename={handleCancelRename}
                 onSubmitRename={handleSubmitRename}
                 onChangeView={changeView}
-                onSelectGraph={handleSelectGraph}
+                onSelectGraph={handleSelectGraphFromList}
                 onCreateGraph={handleCreateGraph}
                 onDeleteGraph={handleRequestDeleteGraph}
                 onExport={handleExport}
@@ -2298,6 +2396,7 @@ export default function App() {
                 <HomeView
                   graphList={graphList}
                   activeGraphId={activeGraphId}
+                  thumbnails={homeThumbnails}
                   onOpenGraph={handleOpenGraphFromHome}
                 />
               ) : is2DView ? (
