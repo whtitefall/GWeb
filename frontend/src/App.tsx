@@ -79,8 +79,9 @@ const Graph3DView = lazy(() => import('./components/Graph3DView'))
 
 const AUTOSAVE_IDLE_MS = 3000
 const CHAT_DOCK_WIDTH = 420
-const CHAT_MINI_WIDTH = 320
 const NODE_DOCK_WIDTH = 420
+const DRAWER_HEIGHT_MIN = 360
+const DRAWER_HEIGHT_MAX = 980
 
 type queuedSave = {
   graphId: string
@@ -225,9 +226,11 @@ export default function App() {
   const flowShellRef = useRef<HTMLElement | null>(null)
   const drawerRef = useRef<HTMLElement | null>(null)
   const drawerResizingRef = useRef(false)
+  const drawerHeightResizingRef = useRef(false)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
   const appMenuRef = useRef<HTMLDivElement | null>(null)
   const [drawerWidth, setDrawerWidth] = useState(340)
+  const [drawerHeight, setDrawerHeight] = useState(620)
   const toolbarRef = useRef<HTMLDivElement | null>(null)
   const toolbarDragRef = useRef(false)
   const toolbarOffsetRef = useRef({ x: 0, y: 0 })
@@ -516,6 +519,13 @@ export default function App() {
         setDrawerWidth(nextWidth)
       }
 
+      if (drawerHeightResizingRef.current && drawerRef.current) {
+        const rect = drawerRef.current.getBoundingClientRect()
+        const maxHeight = Math.max(DRAWER_HEIGHT_MIN, Math.min(DRAWER_HEIGHT_MAX, window.innerHeight - 48))
+        const nextHeight = Math.min(maxHeight, Math.max(DRAWER_HEIGHT_MIN, event.clientY - rect.top))
+        setDrawerHeight(nextHeight)
+      }
+
       if (toolbarDragRef.current && flowShellRef.current && toolbarRef.current) {
         const rect = flowShellRef.current.getBoundingClientRect()
         const toolbarRect = toolbarRef.current.getBoundingClientRect()
@@ -533,6 +543,7 @@ export default function App() {
     const handleUp = () => {
       resizingRef.current = false
       drawerResizingRef.current = false
+      drawerHeightResizingRef.current = false
       toolbarDragRef.current = false
     }
 
@@ -748,7 +759,7 @@ export default function App() {
     return () => {
       isMounted = false
     }
-  }, [activeGraphId, graphKind, graphName, graphStorageKey, hashPayload, setEdges, setNodes, t])
+  }, [activeGraphId, graphKind, graphStorageKey, hashPayload, setEdges, setNodes, t])
 
   useEffect(() => {
     if (!activeGraphId || !hydrated) {
@@ -1522,6 +1533,17 @@ export default function App() {
 
   const selectedNodeCount = nodes.filter((node) => node.selected).length
   const selectionCount = selectedNodeCount + edges.filter((edge) => edge.selected).length
+  const handleSelectGraph = useCallback(
+    (graphId: string) => {
+      const selected = graphList.find((graph) => graph.id === graphId)
+      if (selected) {
+        setGraphName(selected.name)
+      }
+      setHydrated(false)
+      setActiveGraphId(graphId)
+    },
+    [graphList],
+  )
 
   const sidebarWidthValue = sidebarCollapsed ? 0 : sidebarWidth
   const toolbarDefaultPosition = useMemo(
@@ -1546,24 +1568,22 @@ export default function App() {
     ? Math.max(drawerWidth, NODE_DOCK_WIDTH)
     : isReadOnlyCanvas
       ? Math.max(drawerWidth, 460)
-      : drawerWidth
+      : Math.max(drawerWidth, 420)
   const drawerWidthValue = Math.min(DRAWER_MAX, Math.max(DRAWER_MIN, effectiveDrawerWidth))
   const drawerStyle = useMemo(
-    () => ({ ['--drawer-width' as string]: `${drawerWidthValue}px` } as CSSProperties),
-    [drawerWidthValue],
+    () =>
+      ({
+        ['--drawer-width' as string]: `${drawerWidthValue}px`,
+        ['--drawer-height' as string]: `${drawerHeight}px`,
+      } as CSSProperties),
+    [drawerHeight, drawerWidthValue],
   )
+  const showChatMini = is2DView && !isReadOnlyCanvas && chatOpen && chatMinimized
+  const showMiniTray = is2DView && (minimizedNodes.length > 0 || showChatMini)
   const drawerMiniTrayStyle = useMemo(() => {
-    // Keep minimized node cards clear of right-side docked panels and the chat mini window.
+    // Keep minimized cards clear of right-side docked panels.
     const drawerVisible = is2DView && Boolean(activeNode)
-    const chatMiniVisible = is2DView && !isReadOnlyCanvas && chatOpen && chatMinimized
-    const chatMiniOffset = chatMiniVisible ? CHAT_MINI_WIDTH + 12 : 0
-    const rightOffset = (drawerVisible ? drawerWidthValue + 36 : 24) + chatMiniOffset
-    return { right: `${rightOffset}px` } as CSSProperties
-  }, [activeNode, chatMinimized, chatOpen, drawerWidthValue, is2DView, isReadOnlyCanvas])
-  const chatMiniStyle = useMemo(() => {
-    // Keep chat mini clear of the open node details panel.
-    const drawerVisible = is2DView && Boolean(activeNode)
-    const rightOffset = drawerVisible ? drawerWidthValue + 16 : 16
+    const rightOffset = drawerVisible ? drawerWidthValue + 36 : 24
     return { right: `${rightOffset}px` } as CSSProperties
   }, [activeNode, drawerWidthValue, is2DView])
   const appMenuStyle = useMemo(() => {
@@ -1595,6 +1615,12 @@ export default function App() {
     event.preventDefault()
     event.stopPropagation()
     drawerResizingRef.current = true
+  }
+
+  const handleDrawerHeightResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    drawerHeightResizingRef.current = true
   }
 
   const handleToolbarDragStart = (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -2091,18 +2117,8 @@ export default function App() {
                   <div className="app-menu__section app-menu__section--status">
                     {userName ? <div className="user-chip">{t('topbar.hi', { name: userName })}</div> : null}
                   </div>
-                  <div className="app-menu__section app-menu__section--nav">
-                    <button
-                      type="button"
-                      className={`app-menu__item ${viewMode === 'graph' ? 'is-active' : ''}`}
-                      onClick={() => {
-                        changeView('graph')
-                        setAppMenuOpen(false)
-                      }}
-                    >
-                      {t('nav.graph')}
-                    </button>
-                    {betaFeaturesEnabled ? (
+                  {betaFeaturesEnabled ? (
+                    <div className="app-menu__section app-menu__section--nav">
                       <>
                         <button
                           type="button"
@@ -2125,8 +2141,8 @@ export default function App() {
                           {t('nav.graph3d')}
                         </button>
                       </>
-                    ) : null}
-                  </div>
+                    </div>
+                  ) : null}
                   <div className="app-menu__section">
                     <button
                       className="app-menu__item"
@@ -2192,7 +2208,9 @@ export default function App() {
                 drawerRef={drawerRef}
                 docked
                 showResizer
+                showHeightResizer={false}
                 onResizeStart={handleDrawerResizeStart}
+                onResizeHeightStart={handleDrawerHeightResizeStart}
                 readOnly={isReadOnlyCanvas}
                 onClose={handleMinimizeNodeDrawer}
                 onRemoveNode={removeNode}
@@ -2217,10 +2235,41 @@ export default function App() {
                 drawerRef={drawerRef}
                 docked
                 showResizer
+                showHeightResizer={false}
                 onResizeStart={handleDrawerResizeStart}
+                onResizeHeightStart={handleDrawerHeightResizeStart}
                 onClose={handleMinimizeNodeDrawer}
                 onRemoveNode={removeNode}
                 updateNodeData={updateNodeData}
+              />
+            ) : null}
+
+            {showSideDrawer ? (
+              <GraphListWidget
+                ref={sidebarRef}
+                userName={userName}
+                collapsed={sidebarCollapsed}
+                viewMode={viewMode}
+                showBetaTabs={betaFeaturesEnabled}
+                graphList={graphList}
+                activeGraphId={activeGraphId}
+                graphName={graphName}
+                renameTargetGraphId={renameTargetGraphId}
+                renameValue={renameValue}
+                isRenaming={isRenamingGraph}
+                importError={importError}
+                onRenameChange={setRenameValue}
+                onStartRenameGraph={handleStartRenameGraph}
+                onCancelRename={handleCancelRename}
+                onSubmitRename={handleSubmitRename}
+                onChangeView={changeView}
+                onSelectGraph={handleSelectGraph}
+                onCreateGraph={handleCreateGraph}
+                onDeleteGraph={handleRequestDeleteGraph}
+                onExport={handleExport}
+                onImportFile={handleImportFile}
+                onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
+                onResizeStart={handleResizeStart}
               />
             ) : null}
 
@@ -2342,35 +2391,6 @@ export default function App() {
                 <QuickFactsView activeFactKey={activeFactKey} onSelectFact={setActiveFactKey} />
               )}
 
-              {showSideDrawer ? (
-                <GraphListWidget
-                  ref={sidebarRef}
-                  userName={userName}
-                  collapsed={sidebarCollapsed}
-                  viewMode={viewMode}
-                  showBetaTabs={betaFeaturesEnabled}
-                  graphList={graphList}
-                  activeGraphId={activeGraphId}
-                  graphName={graphName}
-                  renameTargetGraphId={renameTargetGraphId}
-                  renameValue={renameValue}
-                  isRenaming={isRenamingGraph}
-                  importError={importError}
-                  onRenameChange={setRenameValue}
-                  onStartRenameGraph={handleStartRenameGraph}
-                  onCancelRename={handleCancelRename}
-                  onSubmitRename={handleSubmitRename}
-                  onChangeView={changeView}
-                  onSelectGraph={setActiveGraphId}
-                  onCreateGraph={handleCreateGraph}
-                  onDeleteGraph={handleRequestDeleteGraph}
-                  onExport={handleExport}
-                  onImportFile={handleImportFile}
-                  onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
-                  onResizeStart={handleResizeStart}
-                />
-              ) : null}
-
               {is2DView && !isReadOnlyCanvas ? (
                 <ActionsWidget
                   style={toolbarStyle}
@@ -2402,7 +2422,9 @@ export default function App() {
                   drawerStyle={drawerStyle}
                   drawerRef={drawerRef}
                   showResizer
+                  showHeightResizer
                   onResizeStart={handleDrawerResizeStart}
+                  onResizeHeightStart={handleDrawerHeightResizeStart}
                   readOnly={isReadOnlyCanvas}
                   onClose={handleMinimizeNodeDrawer}
                   onRemoveNode={removeNode}
@@ -2426,14 +2448,16 @@ export default function App() {
                   drawerStyle={drawerStyle}
                   drawerRef={drawerRef}
                   showResizer
+                  showHeightResizer
                   onResizeStart={handleDrawerResizeStart}
+                  onResizeHeightStart={handleDrawerHeightResizeStart}
                   onClose={handleMinimizeNodeDrawer}
                   onRemoveNode={removeNode}
                   updateNodeData={updateNodeData}
                 />
               ) : null}
 
-              {is2DView && minimizedNodes.length > 0 ? (
+              {showMiniTray ? (
                 <div
                   className="drawer-mini-tray"
                   style={drawerMiniTrayStyle}
@@ -2465,6 +2489,24 @@ export default function App() {
                       </div>
                     </div>
                   ))}
+                  {showChatMini ? (
+                    <div className="drawer-mini drawer-mini--ai">
+                      <div className="drawer-mini__title">AI chat</div>
+                      <div className="drawer-mini__actions">
+                        <button className="icon-btn" type="button" onClick={handleRestoreChat} title={t('chat.restore')}>
+                          ⌃
+                        </button>
+                        <button
+                          className="icon-btn drawer-mini__dismiss"
+                          type="button"
+                          onClick={handleDismissChat}
+                          title={t('chat.dismiss')}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -2497,24 +2539,7 @@ export default function App() {
                 examples={chatExamples}
               />
             ) : null}
-            {is2DView && !isReadOnlyCanvas && chatOpen && chatMinimized ? (
-              <div className="chat-mini" style={chatMiniStyle}>
-                <div className="chat-mini__title">{t('chat.title')}</div>
-                <div className="chat-mini__actions">
-                  <button className="icon-btn" type="button" onClick={handleRestoreChat} title={t('chat.restore')}>
-                    ⌃
-                  </button>
-                  <button
-                    className="icon-btn drawer-mini__dismiss"
-                    type="button"
-                    onClick={handleDismissChat}
-                    title={t('chat.dismiss')}
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-            ) : null}
+            
           </main>
         </>
       )}

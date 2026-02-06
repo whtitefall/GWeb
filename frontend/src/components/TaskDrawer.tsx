@@ -10,7 +10,9 @@ type TaskDrawerProps = {
   drawerRef: RefObject<HTMLElement | null>
   docked?: boolean
   showResizer?: boolean
+  showHeightResizer?: boolean
   onResizeStart: (event: MouseEvent<HTMLDivElement>) => void
+  onResizeHeightStart?: (event: MouseEvent<HTMLDivElement>) => void
   onClose: () => void
   onRemoveNode: (nodeId: string) => void
   updateNodeData: (nodeId: string, updater: (data: NodeData) => NodeData) => void
@@ -22,7 +24,9 @@ export default function TaskDrawer({
   drawerRef,
   docked = false,
   showResizer = true,
+  showHeightResizer = false,
   onResizeStart,
+  onResizeHeightStart,
   onClose,
   onRemoveNode,
   updateNodeData,
@@ -30,7 +34,9 @@ export default function TaskDrawer({
   const { t } = useI18n()
   return (
     <aside
-      className={`drawer ${activeNode ? 'drawer--open' : ''} ${docked ? 'drawer--dock drawer--dock-right' : ''}`}
+      className={`drawer ${activeNode ? 'drawer--open' : ''} ${
+        docked ? 'drawer--dock drawer--dock-right' : 'drawer--panel'
+      }`}
       aria-hidden={!activeNode}
       ref={drawerRef}
       style={drawerStyle}
@@ -38,6 +44,9 @@ export default function TaskDrawer({
       {activeNode ? (
         <>
           {showResizer ? <div className="drawer__resizer" onMouseDown={onResizeStart} /> : null}
+          {showHeightResizer && onResizeHeightStart ? (
+            <div className="drawer__resizer-y" onMouseDown={onResizeHeightStart} />
+          ) : null}
           <div className="drawer__content">
             <div className="drawer__header">
               <div>

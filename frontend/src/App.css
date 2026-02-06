@@ -293,15 +293,14 @@
   flex-direction: column;
   gap: 12px;
   min-height: 0;
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
+  position: relative;
   width: var(--sidebar-width, 300px);
-  max-height: none;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
   min-width: 0;
-  z-index: 9;
+  flex-shrink: 0;
+  z-index: 2;
 }
 
 .graph-list__head {
@@ -656,6 +655,7 @@
 }
 
 .graph-list--collapsed {
+  position: absolute;
   top: 12px;
   left: 12px;
   bottom: auto;
@@ -871,11 +871,13 @@
 
 .drawer {
   position: absolute;
-  top: 24px;
-  right: 24px;
-  bottom: 24px;
-  width: var(--drawer-width, 340px);
-  max-width: calc(100vw - 48px);
+  top: 16px;
+  right: 16px;
+  bottom: auto;
+  width: min(var(--drawer-width, 420px), calc(100vw - 32px));
+  height: min(var(--drawer-height, 620px), calc(100vh - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
   background: var(--panel);
   border-radius: 4px;
   border: 1px solid var(--stroke);
@@ -891,6 +893,10 @@
   z-index: 5;
   overflow: hidden;
   min-height: 0;
+}
+
+.drawer--panel {
+  right: 16px;
 }
 
 .drawer--dock {
@@ -922,7 +928,9 @@
   top: 0;
   right: 0;
   bottom: 0;
+  height: 100%;
   max-width: min(560px, 100vw);
+  max-height: none;
 }
 
 .app--display .drawer.drawer--dock {
@@ -968,6 +976,20 @@
   z-index: 7;
 }
 
+.drawer-mini--ai {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--panel), var(--panel)) padding-box,
+    linear-gradient(120deg, #ff4d6d, #ffb703, #06d6a0, #4cc9f0, #7b2cbf) border-box;
+}
+
+.drawer-mini--ai .drawer-mini__title {
+  background: linear-gradient(120deg, #ff4d6d, #ffb703, #06d6a0, #4cc9f0, #7b2cbf);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 .drawer-mini__title {
   font-size: 0.9rem;
   font-weight: 600;
@@ -994,6 +1016,7 @@
   gap: 18px;
   animation: slideIn 0.35s ease;
   overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
   flex: 1;
   padding-right: 6px;
@@ -1026,6 +1049,26 @@
   position: absolute;
   inset: 0;
   border-left: 1px solid var(--stroke);
+  opacity: 0.5;
+}
+
+.drawer__resizer-y {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  cursor: row-resize;
+  z-index: 2;
+}
+
+.drawer__resizer-y::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-bottom: 1px solid var(--stroke);
   opacity: 0.5;
 }
 
@@ -1122,7 +1165,7 @@
 
 .items__form {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
 }
 
