@@ -1546,10 +1546,10 @@ export default function App() {
   )
   const drawerMiniTrayStyle = useMemo(() => {
     // Keep minimized cards clear of the open right drawer and shift as it resizes.
-    const drawerVisible = is2DView && nodeDetailsLayout === 'panel' && Boolean(activeNode)
+    const drawerVisible = is2DView && Boolean(activeNode)
     const rightOffset = drawerVisible ? drawerWidthValue + 36 : 24
     return { right: `${rightOffset}px` } as CSSProperties
-  }, [activeNode, drawerWidthValue, is2DView, nodeDetailsLayout])
+  }, [activeNode, drawerWidthValue, is2DView])
   const appMenuStyle = useMemo(() => {
     // Keep the top-right app menu clear only of the docked chat panel.
     const chatOffset = is2DView && !isReadOnlyCanvas && chatOpen && !chatMinimized ? CHAT_DOCK_WIDTH + 16 : 0
@@ -2046,22 +2046,24 @@ export default function App() {
             style={workspaceStyle}
           >
             <div className={`app-menu ${appMenuOpen ? 'app-menu--open' : ''}`} ref={appMenuRef} style={appMenuStyle}>
-              <button
-                className="app-menu__trigger icon-btn"
-                type="button"
-                aria-expanded={appMenuOpen}
-                aria-label={t('topbar.settings')}
-                onClick={() => setAppMenuOpen((open) => !open)}
-              >
-                ⋯
-              </button>
+              <div className="app-menu__bar">
+                <div className={`status status--${saveState} app-menu__status`}>
+                  <span className="status__dot" />
+                  <span>{t(`status.${saveState}`)}</span>
+                </div>
+                <button
+                  className="app-menu__trigger icon-btn"
+                  type="button"
+                  aria-expanded={appMenuOpen}
+                  aria-label={t('topbar.settings')}
+                  onClick={() => setAppMenuOpen((open) => !open)}
+                >
+                  ⋯
+                </button>
+              </div>
               {appMenuOpen ? (
                 <div className="app-menu__panel" role="menu">
                   <div className="app-menu__section app-menu__section--status">
-                    <div className={`status status--${saveState}`}>
-                      <span className="status__dot" />
-                      <span>{t(`status.${saveState}`)}</span>
-                    </div>
                     {userName ? <div className="user-chip">{t('topbar.hi', { name: userName })}</div> : null}
                   </div>
                   <div className="app-menu__section app-menu__section--nav">

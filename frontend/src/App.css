@@ -206,10 +206,22 @@
   top: 16px;
   right: 16px;
   z-index: 12;
-  width: 36px;
+  width: auto;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+}
+
+.app-menu__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-menu__status {
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  line-height: 1;
 }
 
 .app-menu__trigger {
@@ -240,10 +252,6 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.app-menu__section--status .status {
-  justify-content: center;
 }
 
 .app-menu__section--nav {
@@ -818,7 +826,7 @@
   height: 100%;
   border-radius: 0;
   border: 0;
-  border-right: 1px solid var(--stroke);
+  border-left: 1px solid var(--stroke);
   box-shadow: none;
   transform: none;
   opacity: 1;
@@ -827,8 +835,8 @@
   z-index: 3;
 }
 
-.drawer--dock-left {
-  order: -1;
+.drawer--dock-right {
+  order: 2;
 }
 
 /* Display mode uses a taller, presentation-friendly details panel. */

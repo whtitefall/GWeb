@@ -43,7 +43,7 @@ export default function NoteDrawer({
   const { t } = useI18n()
   return (
     <aside
-      className={`drawer ${activeNode ? 'drawer--open' : ''} ${docked ? 'drawer--dock drawer--dock-left' : ''}`}
+      className={`drawer ${activeNode ? 'drawer--open' : ''} ${docked ? 'drawer--dock drawer--dock-right' : ''}`}
       aria-hidden={!activeNode}
       ref={drawerRef}
       style={drawerStyle}
