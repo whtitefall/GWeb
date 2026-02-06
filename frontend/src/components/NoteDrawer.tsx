@@ -6,6 +6,7 @@ type NoteDrawerProps = {
   activeNode: GraphNode | null
   drawerStyle: CSSProperties
   drawerRef: RefObject<HTMLElement | null>
+  readOnly?: boolean
   onResizeStart: (event: MouseEvent<HTMLDivElement>) => void
   onClose: () => void
   onRemoveNode: (nodeId: string) => void
@@ -22,6 +23,7 @@ export default function NoteDrawer({
   activeNode,
   drawerStyle,
   drawerRef,
+  readOnly = false,
   onResizeStart,
   onClose,
   onRemoveNode,
@@ -46,21 +48,23 @@ export default function NoteDrawer({
           <div className="drawer__content">
             <div className="drawer__header">
               <div>
-                <div className="drawer__eyebrow">Node Settings</div>
+                <div className="drawer__eyebrow">{readOnly ? 'Node Details' : 'Node Settings'}</div>
                 <h2>{activeNode.data.label}</h2>
               </div>
               <div className="drawer__actions">
                 <button className="btn btn--ghost" type="button" onClick={onClose}>
                   Close
                 </button>
-                {activeNode.parentNode ? (
+                {!readOnly && activeNode.parentNode ? (
                   <button className="btn btn--ghost" type="button" onClick={() => onDetachFromGroup(activeNode.id)}>
                     Remove from Group
                   </button>
                 ) : null}
-                <button className="btn btn--danger" type="button" onClick={() => onRemoveNode(activeNode.id)}>
-                  Remove
-                </button>
+                {!readOnly ? (
+                  <button className="btn btn--danger" type="button" onClick={() => onRemoveNode(activeNode.id)}>
+                    Remove
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -70,6 +74,8 @@ export default function NoteDrawer({
                 type="text"
                 value={activeNode.data.label}
                 onChange={(event) => onUpdateLabel(activeNode.id, event.target.value)}
+                readOnly={readOnly}
+                disabled={readOnly}
               />
             </label>
 
@@ -89,30 +95,34 @@ export default function NoteDrawer({
                       <span>{item.title}</span>
                       <span className="items__meta">{item.notes.length} notes</span>
                     </button>
-                    <button className="items__remove" type="button" onClick={() => onRemoveItem(activeNode.id, item.id)}>
-                      Remove
-                    </button>
+                    {!readOnly ? (
+                      <button className="items__remove" type="button" onClick={() => onRemoveItem(activeNode.id, item.id)}>
+                        Remove
+                      </button>
+                    ) : null}
                   </li>
                 ))}
               </ul>
-              <form
-                className="items__form"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  onAddItem(activeNode.id, itemTitle)
-                  onItemTitleChange('')
-                }}
-              >
-                <input
-                  type="text"
-                  placeholder="Add an item..."
-                  value={itemTitle}
-                  onChange={(event) => onItemTitleChange(event.target.value)}
-                />
-                <button className="btn btn--primary" type="submit">
-                  Add Item
-                </button>
-              </form>
+              {!readOnly ? (
+                <form
+                  className="items__form"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    onAddItem(activeNode.id, itemTitle)
+                    onItemTitleChange('')
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Add an item..."
+                    value={itemTitle}
+                    onChange={(event) => onItemTitleChange(event.target.value)}
+                  />
+                  <button className="btn btn--primary" type="submit">
+                    Add Item
+                  </button>
+                </form>
+              ) : null}
             </div>
           </div>
         </>

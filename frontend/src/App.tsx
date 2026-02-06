@@ -368,11 +368,9 @@ export default function App() {
     if (!isReadOnlyCanvas) {
       return
     }
-    // Close editable surfaces when entering display mode.
-    setSelectedNodeId(null)
+    // Close only mutation surfaces when entering display mode.
     setContextMenu(null)
     setChatOpen(false)
-    setItemModal(null)
   }, [isReadOnlyCanvas])
 
   useEffect(() => {
@@ -1745,11 +1743,6 @@ export default function App() {
                       instance.setViewport({ x: viewport.x, y: viewport.y, zoom: 0.9 }, { duration: 0 })
                     }}
                     onNodeClick={(_, node) => {
-                      if (isReadOnlyCanvas) {
-                        setSelectedNodeId(null)
-                        setContextMenu(null)
-                        return
-                      }
                       setChatOpen(false)
                       setContextMenu(null)
                       setSelectedNodeId(node.id)
@@ -1786,10 +1779,8 @@ export default function App() {
                       })
                     }}
                     onPaneClick={() => {
+                      setSelectedNodeId(null)
                       setContextMenu(null)
-                      if (!isReadOnlyCanvas) {
-                        setSelectedNodeId(null)
-                      }
                     }}
                     onPaneContextMenu={(event) => {
                       event.preventDefault()
@@ -1898,12 +1889,13 @@ export default function App() {
                 />
               ) : null}
 
-              {isGraphNoteView && !isReadOnlyCanvas ? (
+              {isGraphNoteView ? (
                 <NoteDrawer
                   activeNode={activeNode}
                   drawerStyle={drawerStyle}
                   drawerRef={drawerRef}
                   onResizeStart={handleDrawerResizeStart}
+                  readOnly={isReadOnlyCanvas}
                   onClose={() => setSelectedNodeId(null)}
                   onRemoveNode={removeNode}
                   onDetachFromGroup={detachFromGroup}
@@ -1986,6 +1978,7 @@ export default function App() {
         open={Boolean(itemModal)}
         node={itemModalNode}
         item={itemModalItem}
+        readOnly={isReadOnlyCanvas}
         noteTitle={itemNoteTitle}
         onChangeNoteTitle={setItemNoteTitle}
         onUpdateItemTitle={updateItemTitle}

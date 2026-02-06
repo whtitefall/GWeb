@@ -6,6 +6,7 @@ type ItemModalProps = {
   open: boolean
   node: GraphNode | null
   item: Item | null
+  readOnly?: boolean
   noteTitle: string
   onChangeNoteTitle: (value: string) => void
   onUpdateItemTitle: (nodeId: string, itemId: string, title: string) => void
@@ -19,6 +20,7 @@ export default function ItemModal({
   open,
   node,
   item,
+  readOnly = false,
   noteTitle,
   onChangeNoteTitle,
   onUpdateItemTitle,
@@ -33,6 +35,9 @@ export default function ItemModal({
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
+    if (readOnly) {
+      return
+    }
     onAddNote(node.id, item.id, noteTitle)
     onChangeNoteTitle('')
     onClose()
@@ -49,6 +54,8 @@ export default function ItemModal({
               type="text"
               value={item.title}
               onChange={(event) => onUpdateItemTitle(node.id, item.id, event.target.value)}
+              readOnly={readOnly}
+              disabled={readOnly}
             />
           </div>
           <button className="btn btn--ghost" type="button" onClick={onClose}>
@@ -69,29 +76,35 @@ export default function ItemModal({
                   onChange={(event) =>
                     onUpdateNoteTitle(node.id, item.id, note.id, event.target.value)
                   }
+                  readOnly={readOnly}
+                  disabled={readOnly}
                 />
-                <button
-                  className="item-modal__remove"
-                  type="button"
-                  onClick={() => onRemoveNote(node.id, item.id, note.id)}
-                >
-                  Remove
-                </button>
+                {!readOnly ? (
+                  <button
+                    className="item-modal__remove"
+                    type="button"
+                    onClick={() => onRemoveNote(node.id, item.id, note.id)}
+                  >
+                    Remove
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>
         )}
-        <form className="item-modal__form" onSubmit={handleSubmit}>
-          <textarea
-            className="item-modal__textarea"
-            placeholder="Add a note description..."
-            value={noteTitle}
-            onChange={(event) => onChangeNoteTitle(event.target.value)}
-          />
-          <button className="btn btn--primary" type="submit">
-            Add Note
-          </button>
-        </form>
+        {!readOnly ? (
+          <form className="item-modal__form" onSubmit={handleSubmit}>
+            <textarea
+              className="item-modal__textarea"
+              placeholder="Add a note description..."
+              value={noteTitle}
+              onChange={(event) => onChangeNoteTitle(event.target.value)}
+            />
+            <button className="btn btn--primary" type="submit">
+              Add Note
+            </button>
+          </form>
+        ) : null}
       </div>
     </div>
   )
