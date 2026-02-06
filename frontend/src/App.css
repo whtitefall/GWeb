@@ -568,12 +568,24 @@
   pointer-events: auto;
 }
 
-.drawer-mini {
+.drawer-mini-tray {
   position: absolute;
   right: 24px;
   bottom: 16px;
+  max-width: calc(100% - 48px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 7;
+  overflow-x: auto;
+  padding: 2px 0;
+  scrollbar-gutter: stable;
+}
+
+.drawer-mini {
+  position: relative;
   min-width: 280px;
-  max-width: min(460px, calc(100% - 48px));
+  max-width: 320px;
   background: var(--panel);
   border: 1px solid var(--stroke);
   border-radius: 4px;
@@ -1515,9 +1527,14 @@
   }
 
   .drawer-mini {
+    position: relative;
+    min-width: 220px;
+    max-width: 260px;
+  }
+
+  .drawer-mini-tray {
     left: 16px;
     right: 16px;
-    min-width: 0;
     max-width: none;
   }
 }

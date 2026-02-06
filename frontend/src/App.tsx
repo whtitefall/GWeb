@@ -104,7 +104,7 @@ export default function App() {
   const [sshConsoleMinimized, setSshConsoleMinimized] = useState(false)
   // Selected node/item state for the drawer + item modal.
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
-  const [nodeDrawerMinimized, setNodeDrawerMinimized] = useState(false)
+  const [minimizedNodeIds, setMinimizedNodeIds] = useState<string[]>([])
   const [itemTitle, setItemTitle] = useState('')
   const [itemModal, setItemModal] = useState<{ nodeId: string; itemId: string } | null>(null)
   const [itemNoteTitle, setItemNoteTitle] = useState('')
@@ -673,11 +673,12 @@ export default function App() {
     if (selectedNodeId && !nodes.some((node) => node.id === selectedNodeId)) {
       setSelectedNodeId(null)
     }
+    setMinimizedNodeIds((current) => current.filter((id) => nodes.some((node) => node.id === id)))
   }, [nodes, selectedNodeId])
 
   useEffect(() => {
-    if (!selectedNodeId) {
-      setNodeDrawerMinimized(false)
+    if (selectedNodeId) {
+      setMinimizedNodeIds((current) => current.filter((id) => id !== selectedNodeId))
     }
   }, [selectedNodeId])
 
@@ -696,7 +697,13 @@ export default function App() {
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId],
   )
-  const drawerVisibleNode = nodeDrawerMinimized ? null : activeNode
+  const minimizedNodes = useMemo(
+    () =>
+      minimizedNodeIds
+        .map((id) => nodes.find((node) => node.id === id) ?? null)
+        .filter((node): node is GraphNode => node !== null),
+    [minimizedNodeIds, nodes],
+  )
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -877,7 +884,6 @@ export default function App() {
 
     setNodes((current) => current.concat(newNode))
     setSelectedNodeId(id)
-    setNodeDrawerMinimized(false)
   }, [setNodes, t])
 
   const addGroup = useCallback(() => {
@@ -912,7 +918,6 @@ export default function App() {
 
     setNodes((current) => current.concat(newGroup))
     setSelectedNodeId(id)
-    setNodeDrawerMinimized(false)
   }, [setNodes, t])
 
   const groupSelected = useCallback(() => {
@@ -1003,7 +1008,6 @@ export default function App() {
     })
 
     setSelectedNodeId(groupId)
-    setNodeDrawerMinimized(false)
   }, [nodes, setNodes, t])
 
   const removeNode = useCallback(
@@ -1624,16 +1628,21 @@ export default function App() {
     if (!activeNode) {
       return
     }
-    setNodeDrawerMinimized(true)
+    setMinimizedNodeIds((current) => {
+      const next = [...current.filter((id) => id !== activeNode.id), activeNode.id]
+      return next.length > 5 ? next.slice(next.length - 5) : next
+    })
+    setSelectedNodeId(null)
   }, [activeNode])
 
-  const handleRestoreNodeDrawer = useCallback(() => {
-    setNodeDrawerMinimized(false)
+  const handleRestoreNodeDrawer = useCallback((nodeId: string) => {
+    setMinimizedNodeIds((current) => current.filter((id) => id !== nodeId))
+    setSelectedNodeId(nodeId)
   }, [])
 
-  const handleDismissNodeDrawer = useCallback(() => {
-    setNodeDrawerMinimized(false)
-    setSelectedNodeId(null)
+  const handleDismissNodeDrawer = useCallback((nodeId: string) => {
+    setMinimizedNodeIds((current) => current.filter((id) => id !== nodeId))
+    setSelectedNodeId((current) => (current === nodeId ? null : current))
   }, [])
 
   const handleToggleBetaFeatures = useCallback((enabled: boolean) => {
@@ -1777,7 +1786,6 @@ export default function App() {
                       setChatOpen(false)
                       setContextMenu(null)
                       setSelectedNodeId(node.id)
-                      setNodeDrawerMinimized(false)
                     }}
                     onNodeContextMenu={(event, node) => {
                       if (isReadOnlyCanvas) {
@@ -1923,7 +1931,7 @@ export default function App() {
 
               {isGraphNoteView ? (
                 <NoteDrawer
-                  activeNode={drawerVisibleNode}
+                  activeNode={activeNode}
                   drawerStyle={drawerStyle}
                   drawerRef={drawerRef}
                   onResizeStart={handleDrawerResizeStart}
@@ -1946,7 +1954,7 @@ export default function App() {
               ) : null}
               {isApplicationView && !isReadOnlyCanvas ? (
                 <TaskDrawer
-                  activeNode={drawerVisibleNode}
+                  activeNode={activeNode}
                   drawerStyle={drawerStyle}
                   drawerRef={drawerRef}
                   onResizeStart={handleDrawerResizeStart}
@@ -1956,29 +1964,33 @@ export default function App() {
                 />
               ) : null}
 
-              {is2DView && activeNode && nodeDrawerMinimized ? (
-                <div className="drawer-mini" role="region" aria-label={t('drawer.minimizedLabel')}>
-                  <div className="drawer-mini__title">{activeNode.data.label}</div>
-                  <div className="drawer-mini__actions">
-                    <button
-                      className="icon-btn"
-                      type="button"
-                      title={t('drawer.open')}
-                      aria-label={t('drawer.open')}
-                      onClick={handleRestoreNodeDrawer}
-                    >
-                      ⌃
-                    </button>
-                    <button
-                      className="icon-btn drawer-mini__dismiss"
-                      type="button"
-                      title={t('drawer.dismiss')}
-                      aria-label={t('drawer.dismiss')}
-                      onClick={handleDismissNodeDrawer}
-                    >
-                      ×
-                    </button>
-                  </div>
+              {is2DView && minimizedNodes.length > 0 ? (
+                <div className="drawer-mini-tray" role="region" aria-label={t('drawer.minimizedLabel')}>
+                  {minimizedNodes.map((node) => (
+                    <div key={node.id} className="drawer-mini">
+                      <div className="drawer-mini__title">{node.data.label}</div>
+                      <div className="drawer-mini__actions">
+                        <button
+                          className="icon-btn"
+                          type="button"
+                          title={t('drawer.open')}
+                          aria-label={t('drawer.open')}
+                          onClick={() => handleRestoreNodeDrawer(node.id)}
+                        >
+                          ⌃
+                        </button>
+                        <button
+                          className="icon-btn drawer-mini__dismiss"
+                          type="button"
+                          title={t('drawer.dismiss')}
+                          aria-label={t('drawer.dismiss')}
+                          onClick={() => handleDismissNodeDrawer(node.id)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : null}
 
