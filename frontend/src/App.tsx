@@ -393,15 +393,17 @@ export default function App() {
   useEffect(() => {
     const selected = ACCENT_OPTIONS.find((option) => option.id === accentChoice) ?? ACCENT_OPTIONS[0]
     if (typeof window !== 'undefined') {
+      const nodeFill = resolvedTheme === 'light' ? selected.nodeFillLight : selected.nodeFill
+      const nodeBorder = resolvedTheme === 'light' ? selected.nodeBorderLight : selected.nodeBorder
       window.localStorage.setItem(ACCENT_KEY, selected.id)
       const root = document.documentElement
       root.style.setProperty('--accent', selected.accent)
       root.style.setProperty('--accent-strong', selected.accentStrong)
-      root.style.setProperty('--node-fill', selected.nodeFill)
-      root.style.setProperty('--node-border', selected.nodeBorder)
-      root.style.setProperty('--node-text', isLightColor(selected.accent) ? '#0f1114' : '#f5f6f8')
+      root.style.setProperty('--node-fill', nodeFill)
+      root.style.setProperty('--node-border', nodeBorder)
+      root.style.setProperty('--node-text', isLightColor(nodeFill) ? '#0f1114' : '#f5f6f8')
     }
-  }, [accentChoice])
+  }, [accentChoice, resolvedTheme])
 
   useEffect(() => {
     let isMounted = true
