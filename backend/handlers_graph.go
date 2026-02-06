@@ -97,11 +97,14 @@ func (s *server) handlePutGraph(w http.ResponseWriter, r *http.Request) {
 	graphID := userGraphID(userID, s.graphID)
 	_, err = s.pool.Exec(
 		ctx,
-		`INSERT INTO graphs (id, user_id, data, updated_at)
-		 VALUES ($1, $2, $3, now())
-		 ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+		`INSERT INTO graphs (id, user_id, name, kind, data, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, now())
+		 ON CONFLICT (id) DO UPDATE
+		 SET name = EXCLUDED.name, kind = EXCLUDED.kind, data = EXCLUDED.data, updated_at = now()`,
 		graphID,
 		userID,
+		payload.Name,
+		payload.Kind,
 		body,
 	)
 	if err != nil {
@@ -163,9 +166,9 @@ func (s *server) handleListGraphs(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := s.pool.Query(
 		ctx,
-		`SELECT id, COALESCE(data->>'name', 'Untitled Graph') AS name, updated_at
+		`SELECT id, name, updated_at
 		 FROM graphs
-		 WHERE user_id = $1 AND COALESCE(data->>'kind', 'note') = $2
+		 WHERE user_id = $1 AND kind = $2
 		 ORDER BY updated_at DESC`,
 		userID,
 		kind,
@@ -253,11 +256,13 @@ func (s *server) handleCreateGraph(w http.ResponseWriter, r *http.Request) {
 	var updatedAt time.Time
 	err = s.pool.QueryRow(
 		ctx,
-		`INSERT INTO graphs (id, user_id, data, updated_at)
-		 VALUES ($1, $2, $3, now())
+		`INSERT INTO graphs (id, user_id, name, kind, data, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, now())
 		 RETURNING updated_at`,
 		id,
 		userID,
+		payload.Name,
+		payload.Kind,
 		data,
 	).Scan(&updatedAt)
 	if err != nil {
@@ -337,11 +342,14 @@ func (s *server) handlePutGraphByID(w http.ResponseWriter, r *http.Request, id s
 
 	_, err = s.pool.Exec(
 		ctx,
-		`INSERT INTO graphs (id, user_id, data, updated_at)
-		 VALUES ($1, $2, $3, now())
-		 ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+		`INSERT INTO graphs (id, user_id, name, kind, data, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, now())
+		 ON CONFLICT (id) DO UPDATE
+		 SET name = EXCLUDED.name, kind = EXCLUDED.kind, data = EXCLUDED.data, updated_at = now()`,
 		id,
 		userID,
+		payload.Name,
+		payload.Kind,
 		body,
 	)
 	if err != nil {

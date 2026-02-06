@@ -79,6 +79,16 @@ import { useI18n } from './i18n'
 
 const Graph3DView = lazy(() => import('./components/Graph3DView'))
 
+const AUTOSAVE_IDLE_MS = 3000
+
+type queuedSave = {
+  graphId: string
+  payload: GraphPayload
+  payloadHash: string
+  storageKey: string
+  contextKey: string
+}
+
 export default function App() {
   const { t } = useI18n()
   // Core React Flow state for the active graph.
@@ -213,6 +223,15 @@ export default function App() {
   const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number } | null>(null)
   const seeded3dGraphsRef = useRef<Set<string>>(new Set())
   const didMountRef = useRef(false)
+  // Autosave queue: one in-flight request with dedupe by payload hash.
+  const autosaveTimerRef = useRef<number | null>(null)
+  const autosaveInFlightRef = useRef(false)
+  const autosavePendingRef = useRef<queuedSave | null>(null)
+  const autosaveLastCommittedRef = useRef<{ graphId: string; payloadHash: string }>({
+    graphId: '',
+    payloadHash: '',
+  })
+  const autosaveContextRef = useRef('')
 
   // Derived auth state (Supabase session only).
   const isLoggedIn = supabaseLoggedIn
@@ -224,6 +243,7 @@ export default function App() {
     (graphId: string) => `${STORAGE_GRAPH_PREFIX}${graphKind}.${graphId}`,
     [graphKind],
   )
+  const graphContextKey = `${graphKind}:${activeGraphId ?? ''}`
 
   const isGraphNoteView = viewMode === 'graph'
   const isApplicationView = viewMode === 'application'
@@ -254,6 +274,77 @@ export default function App() {
     }),
     [viewMode],
   )
+
+  const hashPayload = useCallback((payload: GraphPayload) => JSON.stringify(payload), [])
+
+  const persistQueuedSave = useCallback(async () => {
+    if (autosaveInFlightRef.current) {
+      return
+    }
+
+    const queued = autosavePendingRef.current
+    if (!queued) {
+      return
+    }
+
+    // Skip duplicate writes for already-persisted payload snapshots.
+    if (
+      autosaveLastCommittedRef.current.graphId === queued.graphId &&
+      autosaveLastCommittedRef.current.payloadHash === queued.payloadHash
+    ) {
+      autosavePendingRef.current = null
+      if (queued.contextKey === autosaveContextRef.current) {
+        setSaveState('saved')
+      }
+      return
+    }
+
+    autosavePendingRef.current = null
+    autosaveInFlightRef.current = true
+    try {
+      await saveGraph(queued.graphId, queued.payload)
+      window.localStorage.setItem(queued.storageKey, JSON.stringify(queued.payload))
+      setGraphList((current) =>
+        current.map((graph) =>
+          graph.id === queued.graphId
+            ? { ...graph, name: queued.payload.name, updatedAt: new Date().toISOString() }
+            : graph,
+        ),
+      )
+      autosaveLastCommittedRef.current = {
+        graphId: queued.graphId,
+        payloadHash: queued.payloadHash,
+      }
+      if (queued.contextKey === autosaveContextRef.current) {
+        setSaveState('saved')
+      }
+    } catch {
+      window.localStorage.setItem(queued.storageKey, JSON.stringify(queued.payload))
+      if (queued.contextKey === autosaveContextRef.current) {
+        setSaveState('offline')
+      }
+    } finally {
+      autosaveInFlightRef.current = false
+      // If new edits arrived while saving, flush the newest snapshot immediately.
+      if (autosavePendingRef.current) {
+        void persistQueuedSave()
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    autosaveContextRef.current = graphContextKey
+  }, [graphContextKey])
+
+  useEffect(() => {
+    // Reset queued state when switching graph/view namespace.
+    autosavePendingRef.current = null
+    autosaveLastCommittedRef.current = { graphId: '', payloadHash: '' }
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+  }, [graphContextKey])
 
   // Theme + appearance: sync CSS variables with user preference/system theme.
   useEffect(() => {
@@ -538,6 +629,15 @@ export default function App() {
         pendingGraphRef.current = null
         const normalized = normalizeGraph(pending.payload, graphKind)
         if (!isMounted) return
+        autosaveLastCommittedRef.current = {
+          graphId: activeGraphId,
+          payloadHash: hashPayload({
+            name: normalized.name,
+            nodes: normalized.nodes,
+            edges: normalized.edges,
+            kind: graphKind,
+          }),
+        }
         setGraphName(normalized.name)
         setNodes(normalized.nodes)
         setEdges(normalized.edges)
@@ -551,6 +651,15 @@ export default function App() {
         const payload = await fetchGraph(activeGraphId)
         if (!isMounted) return
         const normalized = normalizeGraph(payload, graphKind)
+        autosaveLastCommittedRef.current = {
+          graphId: activeGraphId,
+          payloadHash: hashPayload({
+            name: normalized.name,
+            nodes: normalized.nodes,
+            edges: normalized.edges,
+            kind: graphKind,
+          }),
+        }
         setGraphName(normalized.name)
         setNodes(normalized.nodes)
         setEdges(normalized.edges)
@@ -564,6 +673,15 @@ export default function App() {
           try {
             const parsed = JSON.parse(local) as GraphPayload
             const normalized = normalizeGraph(parsed, graphKind)
+            autosaveLastCommittedRef.current = {
+              graphId: activeGraphId,
+              payloadHash: hashPayload({
+                name: normalized.name,
+                nodes: normalized.nodes,
+                edges: normalized.edges,
+                kind: graphKind,
+              }),
+            }
             setGraphName(normalized.name)
             setNodes(normalized.nodes)
             setEdges(normalized.edges)
@@ -572,6 +690,10 @@ export default function App() {
               graphKind === 'note'
                 ? defaultGraph
                 : createEmptyGraphPayload(t('graphs.starterName'), graphKind)
+            autosaveLastCommittedRef.current = {
+              graphId: activeGraphId,
+              payloadHash: hashPayload(fallback),
+            }
             setGraphName(fallback.name)
             setNodes(fallback.nodes)
             setEdges(fallback.edges)
@@ -581,6 +703,10 @@ export default function App() {
             graphKind === 'note'
               ? defaultGraph
               : createEmptyGraphPayload(t('graphs.starterName'), graphKind)
+          autosaveLastCommittedRef.current = {
+            graphId: activeGraphId,
+            payloadHash: hashPayload(fallback),
+          }
           setGraphName(fallback.name)
           setNodes(fallback.nodes)
           setEdges(fallback.edges)
@@ -598,7 +724,7 @@ export default function App() {
     return () => {
       isMounted = false
     }
-  }, [activeGraphId, graphKind, graphName, graphStorageKey, setEdges, setNodes, t])
+  }, [activeGraphId, graphKind, graphName, graphStorageKey, hashPayload, setEdges, setNodes, t])
 
   useEffect(() => {
     if (!activeGraphId || !hydrated) {
@@ -617,34 +743,67 @@ export default function App() {
     }
 
     const payload: GraphPayload = { name: graphName, nodes, edges, kind: graphKind }
+    const payloadHash = hashPayload(payload)
+    const storageKey = graphStorageKey(activeGraphId)
+    const contextKey = graphContextKey
+    // Keep a local snapshot of every edit for fast recovery/offline fallback.
+    window.localStorage.setItem(storageKey, JSON.stringify(payload))
+
+    if (activeGraphId.startsWith('local-')) {
+      autosaveLastCommittedRef.current = { graphId: activeGraphId, payloadHash }
+      setSaveState('offline')
+      return
+    }
+
+    if (
+      autosaveLastCommittedRef.current.graphId === activeGraphId &&
+      autosaveLastCommittedRef.current.payloadHash === payloadHash &&
+      autosavePendingRef.current === null &&
+      !autosaveInFlightRef.current
+    ) {
+      setSaveState('saved')
+      return
+    }
+
+    autosavePendingRef.current = {
+      graphId: activeGraphId,
+      payload,
+      payloadHash,
+      storageKey,
+      contextKey,
+    }
     setSaveState('saving')
-    const timer = window.setTimeout(() => {
-      if (activeGraphId.startsWith('local-')) {
-        localStorage.setItem(graphStorageKey(activeGraphId), JSON.stringify(payload))
-        setSaveState('offline')
+
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current)
+    }
+    autosaveTimerRef.current = window.setTimeout(() => {
+      autosaveTimerRef.current = null
+      void persistQueuedSave()
+    }, AUTOSAVE_IDLE_MS)
+  }, [activeGraphId, edges, graphContextKey, graphKind, graphName, graphStorageKey, hashPayload, hydrated, nodes, persistQueuedSave])
+
+  useEffect(() => {
+    const flushOnHidden = () => {
+      if (document.visibilityState !== 'hidden') {
         return
       }
+      if (autosaveTimerRef.current !== null) {
+        window.clearTimeout(autosaveTimerRef.current)
+        autosaveTimerRef.current = null
+      }
+      void persistQueuedSave()
+    }
 
-      saveGraph(activeGraphId, payload)
-        .then(() => {
-          localStorage.setItem(graphStorageKey(activeGraphId), JSON.stringify(payload))
-          setGraphList((current) =>
-            current.map((graph) =>
-              graph.id === activeGraphId
-                ? { ...graph, name: graphName, updatedAt: new Date().toISOString() }
-                : graph,
-            ),
-          )
-          setSaveState('saved')
-        })
-        .catch(() => {
-          localStorage.setItem(graphStorageKey(activeGraphId), JSON.stringify(payload))
-          setSaveState('offline')
-        })
-    }, 700)
-
-    return () => window.clearTimeout(timer)
-  }, [activeGraphId, edges, graphKind, graphName, graphStorageKey, hydrated, nodes])
+    document.addEventListener('visibilitychange', flushOnHidden)
+    return () => {
+      document.removeEventListener('visibilitychange', flushOnHidden)
+      if (autosaveTimerRef.current !== null) {
+        window.clearTimeout(autosaveTimerRef.current)
+        autosaveTimerRef.current = null
+      }
+    }
+  }, [persistQueuedSave])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {

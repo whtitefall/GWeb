@@ -55,16 +55,24 @@ func main() {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	pool, err := pgxpool.New(ctx, databaseURL)
+	cancel()
 	if err != nil {
 		log.Fatalf("failed to create pool: %v", err)
 	}
 	defer pool.Close()
 
-	if err := pool.Ping(ctx); err != nil {
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer pingCancel()
+	if err := pool.Ping(pingCtx); err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
+	}
+
+	migrateCtx, migrateCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer migrateCancel()
+	if err := ensureSchema(migrateCtx, pool); err != nil {
+		log.Fatalf("failed to ensure schema: %v", err)
 	}
 
 	srv := &server{
