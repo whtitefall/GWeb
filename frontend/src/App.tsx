@@ -80,6 +80,7 @@ const Graph3DView = lazy(() => import('./components/Graph3DView'))
 
 const AUTOSAVE_IDLE_MS = 3000
 const CHAT_DOCK_WIDTH = 420
+const CHAT_MINI_WIDTH = 320
 const NODE_DOCK_WIDTH = 420
 
 type queuedSave = {
@@ -1545,17 +1546,34 @@ export default function App() {
     [drawerWidthValue],
   )
   const drawerMiniTrayStyle = useMemo(() => {
-    // Keep minimized cards clear of the open right drawer and shift as it resizes.
+    // Keep minimized node cards clear of right-side docked panels and the chat mini window.
     const drawerVisible = is2DView && Boolean(activeNode)
-    const rightOffset = drawerVisible ? drawerWidthValue + 36 : 24
+    const chatMiniVisible = is2DView && !isReadOnlyCanvas && chatOpen && chatMinimized
+    const chatMiniOffset = chatMiniVisible ? CHAT_MINI_WIDTH + 12 : 0
+    const rightOffset = (drawerVisible ? drawerWidthValue + 36 : 24) + chatMiniOffset
+    return { right: `${rightOffset}px` } as CSSProperties
+  }, [activeNode, chatMinimized, chatOpen, drawerWidthValue, is2DView, isReadOnlyCanvas])
+  const chatMiniStyle = useMemo(() => {
+    // Keep chat mini clear of the open node details panel.
+    const drawerVisible = is2DView && Boolean(activeNode)
+    const rightOffset = drawerVisible ? drawerWidthValue + 16 : 16
     return { right: `${rightOffset}px` } as CSSProperties
   }, [activeNode, drawerWidthValue, is2DView])
   const appMenuStyle = useMemo(() => {
-    // Keep the top-right app menu clear only of the docked chat panel.
-    const chatOffset = is2DView && !isReadOnlyCanvas && chatOpen && !chatMinimized ? CHAT_DOCK_WIDTH + 16 : 0
-    const rightOffset = 16 + chatOffset
+    // Keep the top-right app menu clear of right-side docked panels.
+    const chatOffset = is2DView && !isReadOnlyCanvas && chatOpen && !chatMinimized ? CHAT_DOCK_WIDTH : 0
+    const nodeDrawerOffset = useDockedNodeDrawer && activeNode ? drawerWidthValue : 0
+    const rightOffset = 16 + chatOffset + nodeDrawerOffset
     return { right: `${rightOffset}px` } as CSSProperties
-  }, [chatMinimized, chatOpen, is2DView, isReadOnlyCanvas])
+  }, [
+    activeNode,
+    chatMinimized,
+    chatOpen,
+    drawerWidthValue,
+    is2DView,
+    isReadOnlyCanvas,
+    useDockedNodeDrawer,
+  ])
 
   const handleResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -2166,7 +2184,7 @@ export default function App() {
                 drawerStyle={drawerStyle}
                 drawerRef={drawerRef}
                 docked
-                showResizer={false}
+                showResizer
                 onResizeStart={handleDrawerResizeStart}
                 readOnly={isReadOnlyCanvas}
                 onClose={handleMinimizeNodeDrawer}
@@ -2191,7 +2209,7 @@ export default function App() {
                 drawerStyle={drawerStyle}
                 drawerRef={drawerRef}
                 docked
-                showResizer={false}
+                showResizer
                 onResizeStart={handleDrawerResizeStart}
                 onClose={handleMinimizeNodeDrawer}
                 onRemoveNode={removeNode}
@@ -2473,7 +2491,7 @@ export default function App() {
               />
             ) : null}
             {is2DView && !isReadOnlyCanvas && chatOpen && chatMinimized ? (
-              <div className="chat-mini">
+              <div className="chat-mini" style={chatMiniStyle}>
                 <div className="chat-mini__title">{t('chat.title')}</div>
                 <div className="chat-mini__actions">
                   <button className="icon-btn" type="button" onClick={handleRestoreChat} title={t('chat.restore')}>
