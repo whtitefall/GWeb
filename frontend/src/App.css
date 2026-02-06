@@ -188,7 +188,8 @@
 
 .workspace {
   flex: 1;
-  display: block;
+  display: flex;
+  align-items: stretch;
   padding: 0;
   position: relative;
   min-height: 0;
@@ -201,6 +202,10 @@
   top: 16px;
   right: 16px;
   z-index: 12;
+  width: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .app-menu__trigger {
@@ -212,7 +217,9 @@
 }
 
 .app-menu__panel {
-  margin-top: 8px;
+  position: absolute;
+  top: 44px;
+  right: 0;
   min-width: 220px;
   max-width: min(320px, calc(100vw - 32px));
   padding: 10px;
@@ -292,6 +299,57 @@
   backdrop-filter: blur(10px);
 }
 
+.graph-list__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.graph-list__identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.graph-list__identity-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(120deg, var(--accent), var(--accent-strong));
+}
+
+.graph-list__identity-copy {
+  min-width: 0;
+}
+
+.graph-list__identity-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.graph-list__identity-subtitle {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.graph-list__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .graph-list__nav {
   display: flex;
   flex-direction: column;
@@ -330,17 +388,6 @@
   font-weight: 700;
 }
 
-.graph-list__widget {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 4px;
-  background: var(--panel-elevated);
-  border: none;
-}
-
 .graph-list__file {
   display: none;
 }
@@ -359,14 +406,7 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-}
-
-.graph-list__actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  padding: 8px 4px 0;
 }
 
 .graph-list__title {
@@ -421,8 +461,8 @@
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--stroke);
   font-weight: 700;
+  color: var(--ink);
 }
-
 
 .graph-list__items {
   flex: 1;
@@ -436,17 +476,14 @@
 }
 
 .graph-list__item {
-  text-align: left;
-  padding: 10px 12px;
   border-radius: 4px;
   background: var(--panel-elevated);
   border: 1px solid transparent;
-  color: var(--ink);
-  transition: transform 0.2s ease, border-color 0.2s ease;
-}
-
-.graph-list__item:hover {
-  transform: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  position: relative;
 }
 
 .graph-list__item.is-active {
@@ -454,20 +491,72 @@
   background: rgba(86, 216, 163, 0.14);
 }
 
-.graph-list__delete {
-  width: 30px;
-  height: 30px;
-  border-radius: 4px;
-  border: 1px solid transparent;
-  background: rgba(255, 107, 107, 0.12);
-  color: var(--danger);
-  font-weight: 700;
-  display: grid;
-  place-items: center;
+.graph-list__item-main {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  color: var(--ink);
+  border: 0;
+  padding: 2px 4px;
+  min-width: 0;
 }
 
-.graph-list__delete:hover {
-  border-color: rgba(255, 107, 107, 0.4);
+.graph-list__item-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.graph-list__item-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.graph-list__item-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.graph-list__item-menu-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.graph-list__item-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 150px;
+  border-radius: 4px;
+  border: 1px solid var(--stroke);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 4;
+}
+
+.graph-list__item-menu button {
+  text-align: left;
+  padding: 7px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.graph-list__item-menu button:hover {
+  border-color: var(--stroke);
+}
+
+.graph-list__item-menu-danger {
+  color: var(--danger) !important;
+  background: rgba(255, 107, 107, 0.12) !important;
 }
 
 .graph-list__name {
@@ -487,6 +576,23 @@
   padding: 10px;
 }
 
+.graph-list__footer {
+  border-top: 1px solid var(--stroke);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.graph-list__footer-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.graph-list__footer-btn {
+  text-align: center;
+}
 
 .graph-list__resizer {
   position: absolute;
@@ -509,16 +615,19 @@
   padding: 10px 8px;
 }
 
-.graph-list--collapsed .graph-list__summary {
+.graph-list--collapsed .graph-list__identity-copy,
+.graph-list--collapsed .graph-list__summary,
+.graph-list--collapsed .graph-list__footer {
   display: none;
 }
 
-.graph-list--collapsed .graph-list__widget {
+.graph-list--collapsed .graph-list__head {
   justify-content: center;
-  padding: 8px;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.graph-list--collapsed .graph-list__actions {
+.graph-list--collapsed .graph-list__head-actions {
   justify-content: center;
 }
 
@@ -536,7 +645,6 @@
 }
 
 .graph-list--collapsed .graph-list__items,
-
 .graph-list--collapsed .graph-list__resizer {
   display: none;
 }
@@ -551,7 +659,8 @@
   min-height: 0;
   height: 100%;
   min-width: 0;
-  width: 100%;
+  width: auto;
+  flex: 1;
 }
 
 .flow-shell .react-flow {
@@ -908,30 +1017,24 @@
 }
 
 .chat-panel {
-  position: absolute;
-  top: 24px;
-  right: 24px;
-  bottom: 24px;
-  width: 360px;
+  position: relative;
+  width: min(420px, 38vw);
+  min-width: 340px;
   background: var(--panel);
-  border-radius: 4px;
-  border: 1px solid var(--stroke);
-  box-shadow: var(--shadow);
+  border-radius: 0;
+  border: 0;
+  border-left: 1px solid var(--stroke);
+  box-shadow: none;
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  transform: translateX(120%);
-  opacity: 0;
-  pointer-events: none;
-  transition: transform 0.3s ease, opacity 0.3s ease;
-  z-index: 6;
+  z-index: 3;
+  min-height: 0;
 }
 
 .chat-panel--open {
-  transform: translateX(0);
   opacity: 1;
-  pointer-events: auto;
 }
 
 .chat-panel__header {
@@ -1647,11 +1750,22 @@
     width: min(280px, 76vw);
   }
 
-  .drawer,
-  .chat-panel {
+  .drawer {
     left: 16px;
     right: 16px;
     width: auto;
+  }
+
+  .workspace--chat-open {
+    flex-direction: column;
+  }
+
+  .workspace--chat-open .chat-panel {
+    width: 100%;
+    min-width: 0;
+    max-height: 46vh;
+    border-left: 0;
+    border-top: 1px solid var(--stroke);
   }
 
   .drawer-mini {

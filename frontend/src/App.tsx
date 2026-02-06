@@ -15,7 +15,6 @@ import {
 import ReactFlow, {
   addEdge,
   Background,
-  Controls,
   MiniMap,
   SelectionMode,
   type Connection,
@@ -79,6 +78,7 @@ import { useI18n } from './i18n'
 const Graph3DView = lazy(() => import('./components/Graph3DView'))
 
 const AUTOSAVE_IDLE_MS = 3000
+const CHAT_DOCK_WIDTH = 420
 
 type queuedSave = {
   graphId: string
@@ -100,6 +100,7 @@ export default function App() {
   const [createGraphName, setCreateGraphName] = useState('')
   const [deleteGraphTarget, setDeleteGraphTarget] = useState<{ id: string; name: string } | null>(null)
   const [isRenamingGraph, setIsRenamingGraph] = useState(false)
+  const [renameTargetGraphId, setRenameTargetGraphId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [sshConfigs, setSshConfigs] = useState<Record<string, SshConfig>>({})
   const [sshModal, setSshModal] = useState<{ graphId: string } | null>(null)
@@ -477,6 +478,7 @@ export default function App() {
 
   useEffect(() => {
     setIsRenamingGraph(false)
+    setRenameTargetGraphId(null)
   }, [activeGraphId])
 
   // Global mouse handlers for panel resizing + toolbar drag.
@@ -1311,23 +1313,80 @@ export default function App() {
     [setEdges],
   )
 
-  const handleStartRename = useCallback(() => {
+  const updateGraphNameInList = useCallback(
+    (graphId: string, name: string) => {
+      setGraphList((current) => {
+        const next = current.map((graph) => (graph.id === graphId ? { ...graph, name } : graph))
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(listStorageKey, JSON.stringify(next))
+        }
+        return next
+      })
+    },
+    [listStorageKey],
+  )
+
+  const handleStartRenameGraph = useCallback((graphId: string, currentName: string) => {
     setIsRenamingGraph(true)
-    setRenameValue(graphName)
-  }, [graphName])
+    setRenameTargetGraphId(graphId)
+    setRenameValue(currentName)
+  }, [])
 
   const handleCancelRename = useCallback(() => {
     setIsRenamingGraph(false)
-    setRenameValue(graphName)
-  }, [graphName])
+    setRenameTargetGraphId(null)
+    setRenameValue('')
+  }, [])
 
-  const handleSubmitRename = useCallback(() => {
+  const handleSubmitRename = useCallback(async () => {
     const trimmed = renameValue.trim()
-    if (trimmed) {
-      setGraphName(trimmed)
+    if (!trimmed || !renameTargetGraphId) {
+      setIsRenamingGraph(false)
+      setRenameTargetGraphId(null)
+      return
     }
+
+    if (renameTargetGraphId === activeGraphId) {
+      setGraphName(trimmed)
+      updateGraphNameInList(renameTargetGraphId, trimmed)
+    } else if (renameTargetGraphId.startsWith('local-')) {
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = window.localStorage.getItem(graphStorageKey(renameTargetGraphId))
+          if (raw) {
+            const payload = JSON.parse(raw) as GraphPayload
+            window.localStorage.setItem(
+              graphStorageKey(renameTargetGraphId),
+              JSON.stringify({ ...payload, name: trimmed }),
+            )
+          }
+        } catch (error) {
+          setImportError(error instanceof Error ? error.message : t('graphs.error.parseJson'))
+          return
+        }
+      }
+      updateGraphNameInList(renameTargetGraphId, trimmed)
+    } else {
+      try {
+        const payload = await fetchGraph(renameTargetGraphId)
+        await saveGraph(renameTargetGraphId, { ...payload, name: trimmed })
+        updateGraphNameInList(renameTargetGraphId, trimmed)
+      } catch (error) {
+        setImportError(error instanceof Error ? error.message : t('graphs.error.delete'))
+        return
+      }
+    }
+
     setIsRenamingGraph(false)
-  }, [renameValue])
+    setRenameTargetGraphId(null)
+  }, [
+    activeGraphId,
+    graphStorageKey,
+    renameTargetGraphId,
+    renameValue,
+    t,
+    updateGraphNameInList,
+  ])
 
   const handleCreateGraph = useCallback(() => {
     setCreateGraphName('')
@@ -1466,9 +1525,17 @@ export default function App() {
   const drawerMiniTrayStyle = useMemo(() => {
     // Keep minimized cards clear of the open right drawer and shift as it resizes.
     const drawerVisible = is2DView && Boolean(activeNode)
-    const rightOffset = drawerVisible ? drawerWidthValue + 36 : 24
+    const chatOffset = is2DView && !isReadOnlyCanvas && chatOpen ? CHAT_DOCK_WIDTH + 16 : 0
+    const rightOffset = (drawerVisible ? drawerWidthValue + 36 : 24) + chatOffset
     return { right: `${rightOffset}px` } as CSSProperties
-  }, [activeNode, drawerWidthValue, is2DView])
+  }, [activeNode, chatOpen, drawerWidthValue, is2DView, isReadOnlyCanvas])
+  const appMenuStyle = useMemo(() => {
+    // Keep the top-right app menu clear of the open node/task details drawer.
+    const drawerVisible = is2DView && Boolean(activeNode)
+    const chatOffset = is2DView && !isReadOnlyCanvas && chatOpen ? CHAT_DOCK_WIDTH + 16 : 0
+    const rightOffset = (drawerVisible ? drawerWidthValue + 16 : 16) + chatOffset
+    return { right: `${rightOffset}px` } as CSSProperties
+  }, [activeNode, chatOpen, drawerWidthValue, is2DView, isReadOnlyCanvas])
 
   const handleResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -1931,10 +1998,10 @@ export default function App() {
       ) : (
         <>
           <main
-            className={`workspace ${viewMode === 'facts' ? 'workspace--facts' : ''}`}
+            className={`workspace ${viewMode === 'facts' ? 'workspace--facts' : ''} ${chatOpen && is2DView && !isReadOnlyCanvas ? 'workspace--chat-open' : ''}`}
             style={workspaceStyle}
           >
-            <div className={`app-menu ${appMenuOpen ? 'app-menu--open' : ''}`} ref={appMenuRef}>
+            <div className={`app-menu ${appMenuOpen ? 'app-menu--open' : ''}`} ref={appMenuRef} style={appMenuStyle}>
               <button
                 className="app-menu__trigger icon-btn"
                 type="button"
@@ -1963,16 +2030,6 @@ export default function App() {
                       }}
                     >
                       {t('nav.graph')}
-                    </button>
-                    <button
-                      type="button"
-                      className={`app-menu__item ${viewMode === 'facts' ? 'is-active' : ''}`}
-                      onClick={() => {
-                        changeView('facts')
-                        setAppMenuOpen(false)
-                      }}
-                    >
-                      {t('nav.facts')}
                     </button>
                     {betaFeaturesEnabled ? (
                       <>
@@ -2129,9 +2186,9 @@ export default function App() {
                     selectionOnDrag={!isReadOnlyCanvas}
                     selectionMode={SelectionMode.Partial}
                     panOnDrag={isReadOnlyCanvas ? true : [2]}
+                    proOptions={{ hideAttribution: true }}
                   >
                     <Background color="var(--grid)" gap={26} size={1} />
-                    <Controls position="bottom-right" />
                     {showMiniMap ? (
                       <MiniMap
                         pannable
@@ -2178,17 +2235,19 @@ export default function App() {
               {showSideDrawer ? (
                 <GraphListWidget
                   ref={sidebarRef}
+                  userName={userName}
                   collapsed={sidebarCollapsed}
                   viewMode={viewMode}
                   showBetaTabs={betaFeaturesEnabled}
                   graphList={graphList}
                   activeGraphId={activeGraphId}
                   graphName={graphName}
+                  renameTargetGraphId={renameTargetGraphId}
                   renameValue={renameValue}
                   isRenaming={isRenamingGraph}
                   importError={importError}
                   onRenameChange={setRenameValue}
-                  onStartRename={handleStartRename}
+                  onStartRenameGraph={handleStartRenameGraph}
                   onCancelRename={handleCancelRename}
                   onSubmitRename={handleSubmitRename}
                   onChangeView={changeView}
@@ -2297,21 +2356,6 @@ export default function App() {
                 </div>
               ) : null}
 
-              {is2DView && !isReadOnlyCanvas ? (
-                <ChatPanel
-                  open={chatOpen}
-                  chatMessages={chatMessages}
-                  chatError={chatError}
-                  chatInput={chatInput}
-                  chatLoading={chatLoading}
-                  onClose={() => setChatOpen(false)}
-                  onInputChange={setChatInput}
-                  onSubmit={handleChatSend}
-                  endRef={chatEndRef}
-                  examples={chatExamples}
-                />
-              ) : null}
-
               <SshConsole
                 open={isApplicationView && sshConsoleOpen}
                 minimized={sshConsoleMinimized}
@@ -2326,6 +2370,20 @@ export default function App() {
                 onClose={() => setSshConsoleOpen(false)}
               />
             </section>
+            {is2DView && !isReadOnlyCanvas && chatOpen ? (
+              <ChatPanel
+                open={chatOpen}
+                chatMessages={chatMessages}
+                chatError={chatError}
+                chatInput={chatInput}
+                chatLoading={chatLoading}
+                onClose={() => setChatOpen(false)}
+                onInputChange={setChatInput}
+                onSubmit={handleChatSend}
+                endRef={chatEndRef}
+                examples={chatExamples}
+              />
+            ) : null}
           </main>
         </>
       )}

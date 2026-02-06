@@ -1,22 +1,32 @@
-// Collapsible graph list widget with rename, import/export, and resize handle.
-import { forwardRef, useRef, type ChangeEvent, type MouseEvent, type KeyboardEvent } from 'react'
+// Collapsible graph list widget with per-graph action menu, import/export, and resize handle.
+import {
+  forwardRef,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type MouseEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react'
 import type { GraphSummary } from '../graphTypes'
 import { formatUpdatedAt } from '../utils/time'
 import { useI18n } from '../i18n'
 import type { ViewMode } from '../types/ui'
 
 type GraphListWidgetProps = {
+  userName: string
   collapsed: boolean
   viewMode: ViewMode
   showBetaTabs: boolean
   graphList: GraphSummary[]
   activeGraphId: string | null
   graphName: string
+  renameTargetGraphId: string | null
   renameValue: string
   isRenaming: boolean
   importError: string
   onRenameChange: (value: string) => void
-  onStartRename: () => void
+  onStartRenameGraph: (graphId: string, graphName: string) => void
   onCancelRename: () => void
   onSubmitRename: () => void
   onChangeView: (mode: ViewMode) => void
@@ -32,17 +42,19 @@ type GraphListWidgetProps = {
 const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
   (
     {
+      userName,
       collapsed,
       viewMode,
       showBetaTabs,
       graphList,
       activeGraphId,
       graphName,
+      renameTargetGraphId,
       renameValue,
       isRenaming,
       importError,
       onRenameChange,
-      onStartRename,
+      onStartRenameGraph,
       onCancelRename,
       onSubmitRename,
       onChangeView,
@@ -58,6 +70,34 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
   ) => {
     const { t } = useI18n()
     const fileInputRef = useRef<HTMLInputElement | null>(null)
+    const menuRef = useRef<HTMLDivElement | null>(null)
+    const [openGraphMenuId, setOpenGraphMenuId] = useState<string | null>(null)
+
+    useEffect(() => {
+      if (!openGraphMenuId) {
+        return
+      }
+      const handlePointerDown = (event: PointerEvent) => {
+        const target = event.target
+        if (!(target instanceof Node)) {
+          return
+        }
+        if (!menuRef.current?.contains(target)) {
+          setOpenGraphMenuId(null)
+        }
+      }
+      const handleEsc = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          setOpenGraphMenuId(null)
+        }
+      }
+      window.addEventListener('pointerdown', handlePointerDown)
+      window.addEventListener('keydown', handleEsc)
+      return () => {
+        window.removeEventListener('pointerdown', handlePointerDown)
+        window.removeEventListener('keydown', handleEsc)
+      }
+    }, [openGraphMenuId])
 
     const handleImportChange = (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0]
@@ -67,7 +107,7 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
       event.target.value = ''
     }
 
-    const handleRenameKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    const handleRenameKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
       if (event.key === 'Enter') {
         onSubmitRename()
       }
@@ -78,6 +118,33 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
 
     return (
       <aside className={`graph-list ${collapsed ? 'graph-list--collapsed' : ''}`} ref={ref}>
+        <div className="graph-list__head">
+          <div className="graph-list__identity">
+            <div className="graph-list__identity-mark">{(userName || 'G').slice(0, 1).toUpperCase()}</div>
+            {!collapsed ? (
+              <div className="graph-list__identity-copy">
+                <div className="graph-list__identity-title">{userName || 'Graph User'}</div>
+                <div className="graph-list__identity-subtitle">{t('nav.graph')}</div>
+              </div>
+            ) : null}
+          </div>
+          <div className="graph-list__head-actions">
+            {!collapsed ? (
+              <button className="icon-btn" type="button" title={t('graphs.newGraphPrefix')} onClick={onCreateGraph}>
+                +
+              </button>
+            ) : null}
+            <button
+              className="icon-btn"
+              type="button"
+              aria-label={collapsed ? t('graphs.expandAria') : t('graphs.collapseAria')}
+              onClick={onToggleCollapse}
+            >
+              {collapsed ? '»' : '«'}
+            </button>
+          </div>
+        </div>
+
         <div className="graph-list__nav">
           <button
             type="button"
@@ -87,15 +154,6 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
           >
             <span className="graph-list__nav-label">{t('nav.graph')}</span>
             <span className="graph-list__nav-short">GN</span>
-          </button>
-          <button
-            type="button"
-            className={`graph-list__nav-btn ${viewMode === 'facts' ? 'is-active' : ''}`}
-            onClick={() => onChangeView('facts')}
-            title={t('nav.facts')}
-          >
-            <span className="graph-list__nav-label">{t('nav.facts')}</span>
-            <span className="graph-list__nav-short">QF</span>
           </button>
           {showBetaTabs ? (
             <>
@@ -120,85 +178,6 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
             </>
           ) : null}
         </div>
-
-        <div className="graph-list__widget">
-          <div className="graph-list__summary">
-            <div className="graph-list__title">{t('graphs.title')}</div>
-            <div className="graph-list__subtitle">{t('graphs.savedCount', { count: graphList.length })}</div>
-            {isRenaming && !collapsed ? (
-              <div className="graph-list__rename">
-                <input
-                  className="graph-list__input"
-                  type="text"
-                  value={renameValue}
-                  onChange={(event) => onRenameChange(event.target.value)}
-                  onKeyDown={handleRenameKeyDown}
-                  placeholder={t('graphs.graphNamePlaceholder')}
-                  autoFocus
-                />
-                <div className="graph-list__rename-actions">
-                  <button className="btn btn--ghost" type="button" onClick={onSubmitRename}>
-                    {t('graphs.save')}
-                  </button>
-                  <button className="btn btn--ghost" type="button" onClick={onCancelRename}>
-                    {t('graphs.cancel')}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="graph-list__active-row">
-                <div className="graph-list__active">
-                  {t('graphs.active', { name: graphName || t('graphs.untitled') })}
-                </div>
-                {!collapsed ? (
-                  <button className="icon-btn" type="button" onClick={onStartRename} title={t('graphs.renameTitle')}>
-                    ✎
-                  </button>
-                ) : null}
-              </div>
-            )}
-          </div>
-          <div className="graph-list__actions">
-            {!collapsed ? (
-              <button className="icon-btn" type="button" onClick={onCreateGraph}>
-                +
-              </button>
-            ) : null}
-            {!collapsed ? (
-              <button className="icon-btn" type="button" onClick={onExport} title={t('graphs.exportTitle')}>
-                ⤓
-              </button>
-            ) : null}
-            {!collapsed ? (
-              <button
-                className="icon-btn"
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                title={t('graphs.importTitle')}
-              >
-                ⤒
-              </button>
-            ) : null}
-            {!collapsed && activeGraphId ? (
-              <button
-                className="icon-btn graph-list__delete"
-                type="button"
-                onClick={() => onDeleteGraph(activeGraphId)}
-                title={t('graphs.deleteTitle')}
-              >
-                ×
-              </button>
-            ) : null}
-            <button
-              className="icon-btn"
-              type="button"
-              aria-label={collapsed ? t('graphs.expandAria') : t('graphs.collapseAria')}
-              onClick={onToggleCollapse}
-            >
-              {collapsed ? '>' : '<'}
-            </button>
-          </div>
-        </div>
         <input
           ref={fileInputRef}
           className="graph-list__file"
@@ -209,24 +188,107 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
 
         {!collapsed ? (
           <>
+            <div className="graph-list__summary">
+              <div className="graph-list__title">{t('graphs.title')}</div>
+              <div className="graph-list__subtitle">{t('graphs.savedCount', { count: graphList.length })}</div>
+            </div>
+
             <div className="graph-list__items">
               {graphList.length === 0 ? (
                 <div className="graph-list__empty">{t('graphs.empty')}</div>
               ) : (
                 graphList.map((graph) => (
-                  <button
-                    key={graph.id}
-                    type="button"
-                    className={`graph-list__item ${graph.id === activeGraphId ? 'is-active' : ''}`}
-                    onClick={() => onSelectGraph(graph.id)}
-                  >
-                    <div className="graph-list__name">{graph.name}</div>
-                    <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
-                  </button>
+                  <div key={graph.id} className={`graph-list__item ${graph.id === activeGraphId ? 'is-active' : ''}`}>
+                    {isRenaming && renameTargetGraphId === graph.id ? (
+                      <div className="graph-list__item-edit">
+                        <input
+                          className="graph-list__input"
+                          type="text"
+                          value={renameValue}
+                          onChange={(event) => onRenameChange(event.target.value)}
+                          onKeyDown={handleRenameKeyDown}
+                          placeholder={t('graphs.graphNamePlaceholder')}
+                          autoFocus
+                        />
+                        <div className="graph-list__item-edit-actions">
+                          <button className="btn btn--ghost" type="button" onClick={onSubmitRename}>
+                            {t('graphs.save')}
+                          </button>
+                          <button className="btn btn--ghost" type="button" onClick={onCancelRename}>
+                            {t('graphs.cancel')}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="graph-list__item-main"
+                          onClick={() => {
+                            onSelectGraph(graph.id)
+                            setOpenGraphMenuId(null)
+                          }}
+                        >
+                          <div className="graph-list__name">{graph.name}</div>
+                          <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
+                        </button>
+                        <div className="graph-list__item-menu-wrap" ref={openGraphMenuId === graph.id ? menuRef : null}>
+                          <button
+                            className="icon-btn graph-list__item-menu-btn"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setOpenGraphMenuId((current) => (current === graph.id ? null : graph.id))
+                            }}
+                          >
+                            ⋯
+                          </button>
+                          {openGraphMenuId === graph.id ? (
+                            <div className="graph-list__item-menu">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onStartRenameGraph(graph.id, graph.name)
+                                  setOpenGraphMenuId(null)
+                                }}
+                              >
+                                {t('graphs.renameTitle')}
+                              </button>
+                              <button
+                                type="button"
+                                className="graph-list__item-menu-danger"
+                                onClick={() => {
+                                  onDeleteGraph(graph.id)
+                                  setOpenGraphMenuId(null)
+                                }}
+                              >
+                                {t('graphs.deleteTitle')}
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 ))
               )}
             </div>
 
+            <div className="graph-list__footer">
+              <div className="graph-list__subtitle">{t('graphs.active', { name: graphName || t('graphs.untitled') })}</div>
+              <div className="graph-list__footer-actions">
+                <button className="btn btn--ghost graph-list__footer-btn" type="button" onClick={onExport}>
+                  {t('graphs.exportTitle')}
+                </button>
+                <button
+                  className="btn btn--ghost graph-list__footer-btn"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {t('graphs.importTitle')}
+                </button>
+              </div>
+            </div>
             {importError ? <div className="graph-list__error">{importError}</div> : null}
             <div className="graph-list__resizer" onMouseDown={onResizeStart} />
           </>
