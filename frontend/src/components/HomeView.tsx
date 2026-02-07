@@ -8,7 +8,6 @@ type HomeViewProps = {
   activeGraphId: string | null
   thumbnails: Record<string, GraphPayload | null>
   onOpenGraph: (graphId: string) => void
-  userName?: string
 }
 
 type PreviewNode = {
@@ -182,12 +181,9 @@ const resolveGreetingKey = (date: Date) => {
   return 'home.greeting.evening'
 }
 
-export default function HomeView({ graphList, activeGraphId, thumbnails, onOpenGraph, userName }: HomeViewProps) {
+export default function HomeView({ graphList, activeGraphId, thumbnails, onOpenGraph }: HomeViewProps) {
   const { t } = useI18n()
   const greeting = t(resolveGreetingKey(new Date()))
-  const greetingTitle = userName
-    ? t('home.greeting.withName', { greeting, name: userName })
-    : greeting
 
   const snapshots = graphList.map((graph) => ({
     id: graph.id,
@@ -200,8 +196,7 @@ export default function HomeView({ graphList, activeGraphId, thumbnails, onOpenG
       <section className="home-view">
         <div className="home-view__content">
           <header className="home-view__header">
-            <h1>{greetingTitle}</h1>
-            <p>{t('home.subtitle')}</p>
+            <h1>{greeting}</h1>
           </header>
           <div className="home-view__empty">{t('home.empty')}</div>
         </div>
@@ -213,8 +208,7 @@ export default function HomeView({ graphList, activeGraphId, thumbnails, onOpenG
     <section className="home-view">
       <div className="home-view__content">
         <header className="home-view__header">
-          <h1>{greetingTitle}</h1>
-          <p>{t('home.subtitle')}</p>
+          <h1>{greeting}</h1>
         </header>
         <div className="home-view__section-title">{t('home.recent')}</div>
         <div className="home-grid" role="list" aria-label={t('home.recent')}>

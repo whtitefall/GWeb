@@ -41,7 +41,6 @@ export default function ChatPanel({
       <div className="chat-panel__header">
         <div>
           <div className="chat-panel__eyebrow">{t('chat.eyebrow')}</div>
-          <h2>{t('chat.title')}</h2>
         </div>
         <div className="chat-panel__header-actions">
           <button className="btn btn--ghost" type="button" onClick={onMinimize}>

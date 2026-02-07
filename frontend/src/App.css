@@ -613,6 +613,20 @@
   font-weight: 600;
 }
 
+.graph-list__name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.graph-list__pin {
+  font-size: 0.82rem;
+  line-height: 1;
+  color: var(--muted);
+  opacity: 0.9;
+}
+
 .graph-list__meta {
   font-size: 0.7rem;
   color: var(--muted);
@@ -671,7 +685,9 @@
   border-right: 0;
   background: transparent;
   box-shadow: none;
-  gap: 0;
+  gap: 6px;
+  flex-direction: row;
+  align-items: center;
   overflow: visible;
 }
 
@@ -708,7 +724,7 @@
 .graph-list--collapsed .graph-list__nav {
   flex-direction: row;
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 .graph-list--collapsed .graph-list__nav-label {
@@ -764,13 +780,6 @@
   font-size: clamp(1.9rem, 2.8vw, 2.9rem);
   font-weight: 700;
   letter-spacing: -0.03em;
-  text-align: center;
-}
-
-.home-view__header p {
-  margin: 10px 0 0;
-  color: var(--muted);
-  font-size: 0.95rem;
   text-align: center;
 }
 

@@ -2774,7 +2774,6 @@ export default function App() {
                   graphList={graphList}
                   activeGraphId={activeGraphId}
                   thumbnails={homeThumbnails}
-                  userName={userName}
                   onOpenGraph={handleOpenGraphFromHome}
                 />
               ) : is2DView ? (

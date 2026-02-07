@@ -237,7 +237,14 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
                               setOpenGraphMenuId(null)
                             }}
                           >
-                            <div className="graph-list__name">{graph.name}</div>
+                            <div className="graph-list__name-row">
+                              <div className="graph-list__name">{graph.name}</div>
+                              {isPinned ? (
+                                <span className="graph-list__pin" title={t('graphs.pinned')} aria-label={t('graphs.pinned')}>
+                                  {'\u{1F4CC}'}
+                                </span>
+                              ) : null}
+                            </div>
                             <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
                           </button>
                           <div
