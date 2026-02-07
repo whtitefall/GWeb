@@ -1,6 +1,6 @@
 // Right-side drawer for editing a node's title, items, and notes.
-import type { CSSProperties, MouseEvent, RefObject } from 'react'
-import type { GraphNode } from '../graphTypes'
+import { useEffect, useState, type CSSProperties, type MouseEvent, type RefObject } from 'react'
+import type { GraphNode, Item } from '../graphTypes'
 import { useI18n } from '../i18n'
 
 type NoteDrawerProps = {
@@ -20,6 +20,7 @@ type NoteDrawerProps = {
   onItemTitleChange: (value: string) => void
   onAddItem: (nodeId: string, title: string) => void
   onRemoveItem: (nodeId: string, itemId: string) => void
+  onMoveItemIntoItem: (nodeId: string, itemId: string, targetItemId: string) => void
   onOpenItemModal: (nodeId: string, itemId: string) => void
 }
 
@@ -40,9 +41,97 @@ export default function NoteDrawer({
   onItemTitleChange,
   onAddItem,
   onRemoveItem,
+  onMoveItemIntoItem,
   onOpenItemModal,
 }: NoteDrawerProps) {
   const { t } = useI18n()
+  const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(new Set())
+  const [draggingItemId, setDraggingItemId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setExpandedItemIds(new Set())
+    setDraggingItemId(null)
+  }, [activeNode?.id])
+
+  const toggleItemExpanded = (itemId: string) => {
+    setExpandedItemIds((current) => {
+      const next = new Set(current)
+      if (next.has(itemId)) {
+        next.delete(itemId)
+      } else {
+        next.add(itemId)
+      }
+      return next
+    })
+  }
+
+  const handleDropItem = (nodeId: string, targetItemId: string) => {
+    if (!draggingItemId || draggingItemId === targetItemId) {
+      setDraggingItemId(null)
+      return
+    }
+    onMoveItemIntoItem(nodeId, draggingItemId, targetItemId)
+    setExpandedItemIds((current) => new Set(current).add(targetItemId))
+    setDraggingItemId(null)
+  }
+
+  const renderItemTree = (nodeId: string, item: Item, depth: number) => {
+    const hasChildren = (item.children ?? []).length > 0
+    const isExpanded = expandedItemIds.has(item.id)
+    return (
+      <li key={item.id} className={`items__tree-node items__tree-node--depth-${Math.min(depth, 6)}`}>
+        <div
+          className={`items__item ${draggingItemId === item.id ? 'is-dragging' : ''}`}
+          style={{ marginLeft: `${depth * 14}px` }}
+          draggable={!readOnly}
+          onDragStart={() => setDraggingItemId(item.id)}
+          onDragEnd={() => setDraggingItemId(null)}
+          onDragOver={(event) => {
+            if (readOnly) {
+              return
+            }
+            event.preventDefault()
+          }}
+          onDrop={(event) => {
+            event.preventDefault()
+            if (readOnly) {
+              return
+            }
+            handleDropItem(nodeId, item.id)
+          }}
+        >
+          <button
+            className={`items__expand ${hasChildren ? '' : 'is-leaf'}`}
+            type="button"
+            onClick={() => toggleItemExpanded(item.id)}
+            title={hasChildren ? t('drawer.toggleChildren') : t('drawer.noSubitems')}
+          >
+            {hasChildren ? (isExpanded ? '▾' : '▸') : '•'}
+          </button>
+          <button className="items__button" type="button" onClick={() => toggleItemExpanded(item.id)}>
+            <span>{item.title}</span>
+            <span className="items__meta">{t('drawer.notesCount', { count: item.notes.length })}</span>
+          </button>
+          <div className="items__actions">
+            <button className="items__open" type="button" onClick={() => onOpenItemModal(nodeId, item.id)}>
+              {t('drawer.openItem')}
+            </button>
+            {!readOnly ? (
+              <button className="items__remove" type="button" onClick={() => onRemoveItem(nodeId, item.id)}>
+                {t('drawer.remove')}
+              </button>
+            ) : null}
+          </div>
+        </div>
+        {hasChildren && isExpanded ? (
+          <ul className="items__tree">
+            {item.children.map((child) => renderItemTree(nodeId, child, depth + 1))}
+          </ul>
+        ) : null}
+      </li>
+    )
+  }
+
   return (
     <aside
       className={`drawer ${activeNode ? 'drawer--open' : ''} ${
@@ -97,24 +186,8 @@ export default function NoteDrawer({
                 <h3>{t('drawer.items')}</h3>
                 <span>{t('drawer.itemsCount', { count: activeNode.data.items.length })}</span>
               </div>
-              <ul className="items__list">
-                {activeNode.data.items.map((item) => (
-                  <li key={item.id} className="items__item">
-                    <button
-                      className="items__button"
-                      type="button"
-                      onClick={() => onOpenItemModal(activeNode.id, item.id)}
-                    >
-                      <span>{item.title}</span>
-                      <span className="items__meta">{t('drawer.notesCount', { count: item.notes.length })}</span>
-                    </button>
-                    {!readOnly ? (
-                      <button className="items__remove" type="button" onClick={() => onRemoveItem(activeNode.id, item.id)}>
-                        {t('drawer.remove')}
-                      </button>
-                    ) : null}
-                  </li>
-                ))}
+              <ul className="items__list items__tree">
+                {activeNode.data.items.map((item) => renderItemTree(activeNode.id, item, 0))}
               </ul>
               {!readOnly ? (
                 <form

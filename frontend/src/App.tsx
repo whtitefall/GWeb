@@ -70,6 +70,7 @@ import {
   withEdgeDirection,
 } from './utils/graph'
 import { generateId } from './utils/id'
+import { cloneItemsWithNewIds, findItemById, moveItemUnderItem, removeItemById, updateItemById } from './utils/items'
 import { resolveAuthName } from './utils/auth'
 import { readLocalGraphList } from './utils/storage'
 import { isLightColor, resolveTheme } from './utils/theme'
@@ -101,6 +102,108 @@ type nodeClipboardPayload = {
   absolutePositions: Record<string, { x: number; y: number }>
 }
 
+type temporaryGraphState = {
+  sourceNodeId: string
+  sourceGraphId: string | null
+  name: string
+}
+
+type visualItemNode = {
+  id: string
+  label: string
+  children: visualItemNode[]
+}
+
+const ITEM_GRAPH_H_GAP = 220
+const ITEM_GRAPH_V_GAP = 130
+
+const buildVisualItemTree = (label: string, items: NodeData['items']): visualItemNode => ({
+  id: generateId(),
+  label,
+  children: items.map((item) => ({
+    id: generateId(),
+    label: item.title,
+    children: (item.children ?? []).map(function mapChild(child): visualItemNode {
+      return {
+        id: generateId(),
+        label: child.title,
+        children: (child.children ?? []).map(mapChild),
+      }
+    }),
+  })),
+})
+
+const layoutVisualTree = (root: visualItemNode) => {
+  const positions = new Map<string, { x: number; y: number }>()
+  let cursor = 0
+  const visit = (node: visualItemNode, depth: number): number => {
+    if (node.children.length === 0) {
+      const x = cursor * ITEM_GRAPH_H_GAP
+      cursor += 1
+      positions.set(node.id, { x, y: depth * ITEM_GRAPH_V_GAP })
+      return x
+    }
+    const childXs = node.children.map((child) => visit(child, depth + 1))
+    const x = (Math.min(...childXs) + Math.max(...childXs)) / 2
+    positions.set(node.id, { x, y: depth * ITEM_GRAPH_V_GAP })
+    return x
+  }
+  visit(root, 0)
+  return positions
+}
+
+const buildTemporaryGraphFromNode = (node: GraphNode, fallbackName: string): GraphPayload => {
+  const root = buildVisualItemTree(node.data.label, node.data.items)
+  const positions = layoutVisualTree(root)
+  const allPositions = Array.from(positions.values())
+  const minX = Math.min(...allPositions.map((position) => position.x))
+  const shiftX = 200 - minX
+  const shiftY = 100
+  const nodes: GraphNode[] = []
+  const edges: GraphEdge[] = []
+  const visit = (entry: visualItemNode) => {
+    const position = positions.get(entry.id) ?? { x: 0, y: 0 }
+    nodes.push({
+      id: entry.id,
+      type: 'default',
+      position: {
+        x: position.x + shiftX,
+        y: position.y + shiftY,
+      },
+      data: {
+        label: entry.label,
+        items: [],
+      },
+    })
+    for (const child of entry.children) {
+      edges.push(
+        withEdgeDirection(
+          {
+            id: generateId(),
+            source: entry.id,
+            target: child.id,
+            type: 'smoothstep',
+            sourceHandle: 'bottom-out',
+            targetHandle: 'top-in',
+            data: {
+              directed: false,
+            },
+          } as GraphEdge,
+          false,
+        ),
+      )
+      visit(child)
+    }
+  }
+  visit(root)
+  return {
+    name: `${fallbackName} - ${node.data.label}`,
+    nodes,
+    edges,
+    kind: 'note',
+  }
+}
+
 const isEditableTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) {
     return false
@@ -123,6 +226,7 @@ export default function App() {
   const [pinnedGraphIds, setPinnedGraphIds] = useState<string[]>([])
   const [homeThumbnails, setHomeThumbnails] = useState<Record<string, GraphPayload | null>>({})
   const [activeGraphId, setActiveGraphId] = useState<string | null>(null)
+  const [graphLoadNonce, setGraphLoadNonce] = useState(0)
   const [graphName, setGraphName] = useState(defaultGraph.name)
   const [createGraphOpen, setCreateGraphOpen] = useState(false)
   const [createGraphName, setCreateGraphName] = useState('')
@@ -148,6 +252,7 @@ export default function App() {
   const [itemModal, setItemModal] = useState<{ nodeId: string; itemId: string } | null>(null)
   const [itemNoteTitle, setItemNoteTitle] = useState('')
   const [saveState, setSaveState] = useState<keyof typeof statusLabels>('idle')
+  const [temporaryGraph, setTemporaryGraph] = useState<temporaryGraphState | null>(null)
   const [hydrated, setHydrated] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('home')
   const [appMenuOpen, setAppMenuOpen] = useState(false)
@@ -299,6 +404,7 @@ export default function App() {
   const isApplicationView = viewMode === 'application'
   const isGraph3dView = viewMode === 'graph3d'
   const is2DView = isGraphNoteView || isApplicationView
+  const isTemporaryGraphActive = isGraphNoteView && temporaryGraph !== null
   const isReadOnlyCanvas = is2DView && displayMode
   const useDockedNodeDrawer = is2DView && nodeDetailsLayout === 'drawer'
   const canShowDisplayMode = isGraphNoteView || isApplicationView
@@ -397,6 +503,18 @@ export default function App() {
       autosaveTimerRef.current = null
     }
   }, [graphContextKey])
+
+  useEffect(() => {
+    if (!isTemporaryGraphActive) {
+      return
+    }
+    autosavePendingRef.current = null
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+    setSaveState('idle')
+  }, [isTemporaryGraphActive])
 
   // Theme + appearance: sync CSS variables with user preference/system theme.
   useEffect(() => {
@@ -519,6 +637,7 @@ export default function App() {
     setNodes([])
     setEdges([])
     setSelectedNodeId(null)
+    setTemporaryGraph(null)
     setItemModal(null)
     setItemTitle('')
     setItemNoteTitle('')
@@ -832,10 +951,13 @@ export default function App() {
     return () => {
       isMounted = false
     }
-  }, [activeGraphId, graphKind, graphStorageKey, hashPayload, setEdges, setNodes, t])
+  }, [activeGraphId, graphKind, graphLoadNonce, graphStorageKey, hashPayload, setEdges, setNodes, t])
 
   useEffect(() => {
     if (!activeGraphId || !hydrated) {
+      return
+    }
+    if (isTemporaryGraphActive) {
       return
     }
     setGraphList((current) =>
@@ -843,10 +965,14 @@ export default function App() {
         graph.id === activeGraphId ? { ...graph, name: graphName } : graph,
       ),
     )
-  }, [activeGraphId, graphName, hydrated])
+  }, [activeGraphId, graphName, hydrated, isTemporaryGraphActive])
 
   useEffect(() => {
     if (!hydrated || !activeGraphId || hydratedKindRef.current !== graphKind) {
+      return
+    }
+    if (isTemporaryGraphActive) {
+      setSaveState('idle')
       return
     }
 
@@ -889,7 +1015,7 @@ export default function App() {
       autosaveTimerRef.current = null
       void persistQueuedSave()
     }, AUTOSAVE_IDLE_MS)
-  }, [activeGraphId, edges, graphContextKey, graphKind, graphName, graphStorageKey, hashPayload, hydrated, nodes, persistQueuedSave])
+  }, [activeGraphId, edges, graphContextKey, graphKind, graphName, graphStorageKey, hashPayload, hydrated, isTemporaryGraphActive, nodes, persistQueuedSave])
 
   useEffect(() => {
     const flushOnHidden = () => {
@@ -1059,7 +1185,7 @@ export default function App() {
       return
     }
     const node = nodes.find((itemNode) => itemNode.id === itemModal.nodeId)
-    const item = node?.data.items.find((entry) => entry.id === itemModal.itemId)
+    const item = node ? findItemById(node.data.items, itemModal.itemId) : null
     if (!node || !item) {
       setItemModal(null)
     }
@@ -1186,11 +1312,7 @@ export default function App() {
       const nextID = idMap.get(node.id) ?? generateId()
       const parentInCopy = Boolean(node.parentNode && sourceIDs.has(node.parentNode))
       const rootPosition = clipboard.absolutePositions[node.id] ?? node.position
-      const remappedItems = node.data.items.map((item) => ({
-        ...item,
-        id: generateId(),
-        notes: item.notes.map((note) => ({ ...note, id: generateId() })),
-      }))
+      const remappedItems = cloneItemsWithNewIds(node.data.items)
       return {
         ...node,
         id: nextID,
@@ -1308,7 +1430,7 @@ export default function App() {
 
       updateNodeData(nodeId, (data) => ({
         ...data,
-        items: [...data.items, { id: generateId(), title: trimmed, notes: [] }],
+        items: [...data.items, { id: generateId(), title: trimmed, notes: [], children: [] }],
       }))
     },
     [updateNodeData],
@@ -1316,11 +1438,30 @@ export default function App() {
 
   const removeItem = useCallback(
     (nodeId: string, itemId: string) => {
-      updateNodeData(nodeId, (data) => ({
-        ...data,
-        items: data.items.filter((item) => item.id !== itemId),
-      }))
+      updateNodeData(nodeId, (data) => {
+        const next = removeItemById(data.items, itemId)
+        return {
+          ...data,
+          items: next.items,
+        }
+      })
       setItemModal((current) => (current?.itemId === itemId ? null : current))
+    },
+    [updateNodeData],
+  )
+
+  const moveItemIntoItem = useCallback(
+    (nodeId: string, itemId: string, targetItemId: string) => {
+      updateNodeData(nodeId, (data) => {
+        const next = moveItemUnderItem(data.items, itemId, targetItemId)
+        if (!next.moved) {
+          return data
+        }
+        return {
+          ...data,
+          items: next.items,
+        }
+      })
     },
     [updateNodeData],
   )
@@ -1330,59 +1471,66 @@ export default function App() {
       const trimmed = title.trim()
       if (!trimmed) return
 
-      updateNodeData(nodeId, (data) => ({
-        ...data,
-        items: data.items.map((item) =>
-          item.id === itemId
-            ? { ...item, notes: [...item.notes, { id: generateId(), title: trimmed }] }
-            : item,
-        ),
-      }))
+      updateNodeData(nodeId, (data) => {
+        const next = updateItemById(data.items, itemId, (item) => ({
+          ...item,
+          notes: [...item.notes, { id: generateId(), title: trimmed }],
+        }))
+        return {
+          ...data,
+          items: next.items,
+        }
+      })
     },
     [updateNodeData],
   )
 
   const updateItemTitle = useCallback(
     (nodeId: string, itemId: string, title: string) => {
-      updateNodeData(nodeId, (data) => ({
-        ...data,
-        items: data.items.map((item) =>
-          item.id === itemId ? { ...item, title: title } : item,
-        ),
-      }))
+      updateNodeData(nodeId, (data) => {
+        const next = updateItemById(data.items, itemId, (item) => ({
+          ...item,
+          title,
+        }))
+        return {
+          ...data,
+          items: next.items,
+        }
+      })
     },
     [updateNodeData],
   )
 
   const updateItemNoteTitle = useCallback(
     (nodeId: string, itemId: string, noteId: string, title: string) => {
-      updateNodeData(nodeId, (data) => ({
-        ...data,
-        items: data.items.map((item) =>
-          item.id === itemId
-            ? {
-                ...item,
-                notes: item.notes.map((note) =>
-                  note.id === noteId ? { ...note, title } : note,
-                ),
-              }
-            : item,
-        ),
-      }))
+      updateNodeData(nodeId, (data) => {
+        const next = updateItemById(data.items, itemId, (item) => ({
+          ...item,
+          notes: item.notes.map((note) =>
+            note.id === noteId ? { ...note, title } : note,
+          ),
+        }))
+        return {
+          ...data,
+          items: next.items,
+        }
+      })
     },
     [updateNodeData],
   )
 
   const removeItemNote = useCallback(
     (nodeId: string, itemId: string, noteId: string) => {
-      updateNodeData(nodeId, (data) => ({
-        ...data,
-        items: data.items.map((item) =>
-          item.id === itemId
-            ? { ...item, notes: item.notes.filter((note) => note.id !== noteId) }
-            : item,
-        ),
-      }))
+      updateNodeData(nodeId, (data) => {
+        const next = updateItemById(data.items, itemId, (item) => ({
+          ...item,
+          notes: item.notes.filter((note) => note.id !== noteId),
+        }))
+        return {
+          ...data,
+          items: next.items,
+        }
+      })
     },
     [updateNodeData],
   )
@@ -1855,6 +2003,7 @@ export default function App() {
       const summary = await createGraph(payload)
       pendingGraphRef.current = { id: summary.id, payload, kind: graphKind }
       pendingViewportFocusRef.current = true
+      setTemporaryGraph(null)
       setGraphList((current) => [summary, ...current])
       setActiveGraphId(summary.id)
       setCreateGraphOpen(false)
@@ -1869,6 +2018,7 @@ export default function App() {
       }
       pendingGraphRef.current = { id: localId, payload, kind: graphKind }
       pendingViewportFocusRef.current = true
+      setTemporaryGraph(null)
       setGraphList((current) => [summary, ...current])
       setActiveGraphId(localId)
       localStorage.setItem(graphStorageKey(localId), JSON.stringify(payload))
@@ -1914,6 +2064,7 @@ export default function App() {
       }
 
       if (activeGraphId === graphId) {
+        setTemporaryGraph(null)
         if (updatedList.length > 0) {
           pendingViewportFocusRef.current = true
           setActiveGraphId(updatedList[0].id)
@@ -1979,8 +2130,10 @@ export default function App() {
       if (selected) {
         setGraphName(selected.name)
       }
+      setTemporaryGraph(null)
       pendingViewportFocusRef.current = true
       setHydrated(false)
+      setGraphLoadNonce((current) => current + 1)
       setActiveGraphId(graphId)
     },
     [graphList],
@@ -2197,6 +2350,7 @@ export default function App() {
     }
     setSupabaseLoggedIn(false)
     setUserName('')
+    setTemporaryGraph(null)
     setSettingsOpen(false)
   }
 
@@ -2497,6 +2651,74 @@ export default function App() {
     setItemNoteTitle('')
   }, [])
 
+  const handleVisualizeNodeGraph = useCallback(
+    (nodeId: string) => {
+      const sourceNode = nodes.find((node) => node.id === nodeId)
+      if (!sourceNode) {
+        return
+      }
+      const payload = buildTemporaryGraphFromNode(sourceNode, t('graphs.tempGraphPrefix'))
+      setTemporaryGraph({
+        sourceNodeId: sourceNode.id,
+        sourceGraphId: activeGraphId,
+        name: payload.name,
+      })
+      setGraphKind('note')
+      setViewMode('graph')
+      setGraphName(payload.name)
+      setNodes(payload.nodes)
+      setEdges(payload.edges)
+      setSelectedNodeId(null)
+      setContextMenu(null)
+      setHydrated(true)
+      pendingViewportFocusRef.current = true
+    },
+    [activeGraphId, nodes, setEdges, setNodes, t],
+  )
+
+  const handleSaveTemporaryGraph = useCallback(async () => {
+    if (!temporaryGraph) {
+      return
+    }
+    const payload = normalizeGraph(
+      {
+        name: graphName || temporaryGraph.name,
+        nodes,
+        edges,
+        kind: 'note',
+      },
+      'note',
+    )
+
+    try {
+      const summary = await createGraph(payload)
+      pendingGraphRef.current = { id: summary.id, payload, kind: 'note' }
+      pendingViewportFocusRef.current = true
+      setGraphList((current) => [summary, ...current])
+      setTemporaryGraph(null)
+      setActiveGraphId(summary.id)
+      setGraphKind('note')
+      setViewMode('graph')
+    } catch {
+      const localId = `local-${generateId()}`
+      const summary: GraphSummary = {
+        id: localId,
+        name: payload.name,
+        updatedAt: new Date().toISOString(),
+      }
+      pendingGraphRef.current = { id: localId, payload, kind: 'note' }
+      pendingViewportFocusRef.current = true
+      setGraphList((current) => [summary, ...current])
+      setTemporaryGraph(null)
+      setActiveGraphId(localId)
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(graphStorageKey(localId), JSON.stringify(payload))
+      }
+      setGraphKind('note')
+      setViewMode('graph')
+    }
+  }, [edges, graphName, graphStorageKey, nodes, temporaryGraph])
+
   const contextNode = useMemo(
     () => (contextMenu?.kind === 'node' ? nodes.find((node) => node.id === contextMenu.id) ?? null : null),
     [contextMenu, nodes],
@@ -2511,7 +2733,7 @@ export default function App() {
       return null
     }
     const menuWidth = 200
-    const menuHeight = 180
+    const menuHeight = 220
     const rect = flowShellRef.current?.getBoundingClientRect()
     if (!rect) {
       return { x: contextMenu.x, y: contextMenu.y }
@@ -2534,7 +2756,7 @@ export default function App() {
     if (!itemModalNode || !itemModal) {
       return null
     }
-    return itemModalNode.data.items.find((item) => item.id === itemModal.itemId) ?? null
+    return findItemById(itemModalNode.data.items, itemModal.itemId)
   }, [itemModal, itemModalNode])
 
   const showAuthGate = !isLoggedIn
@@ -2592,6 +2814,11 @@ export default function App() {
           >
             <div className={`app-menu ${appMenuOpen ? 'app-menu--open' : ''}`} ref={appMenuRef} style={appMenuStyle}>
               <div className="app-menu__bar">
+                {isTemporaryGraphActive ? (
+                  <button className="btn btn--ghost app-menu__temp-save" type="button" onClick={handleSaveTemporaryGraph}>
+                    {t('graphs.saveTemp')}
+                  </button>
+                ) : null}
                 <div className={`status status--${saveState} app-menu__status`}>
                   <span className="status__dot" />
                   <span>{t(`status.${saveState}`)}</span>
@@ -2718,6 +2945,7 @@ export default function App() {
                 onItemTitleChange={setItemTitle}
                 onAddItem={addItem}
                 onRemoveItem={removeItem}
+                onMoveItemIntoItem={moveItemIntoItem}
                 onOpenItemModal={handleOpenItemModal}
               />
             ) : null}
@@ -2870,6 +3098,7 @@ export default function App() {
                       onDeleteNode={removeNode}
                       onRemoveFromGroup={detachFromGroup}
                       onUngroupChildren={ungroupChildren}
+                      onVisualizeNodeGraph={handleVisualizeNodeGraph}
                       onToggleEdgeDirection={toggleEdgeDirection}
                       onDeleteEdge={removeEdgeById}
                       onClose={() => setContextMenu(null)}
@@ -2940,6 +3169,7 @@ export default function App() {
                   onItemTitleChange={setItemTitle}
                   onAddItem={addItem}
                   onRemoveItem={removeItem}
+                  onMoveItemIntoItem={moveItemIntoItem}
                   onOpenItemModal={handleOpenItemModal}
                 />
               ) : null}
