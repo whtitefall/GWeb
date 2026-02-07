@@ -84,6 +84,7 @@ const CHAT_DOCK_WIDTH = 420
 const NODE_DOCK_WIDTH = 420
 const DRAWER_HEIGHT_MIN = 360
 const DRAWER_HEIGHT_MAX = 980
+const NODE_CLIPBOARD_KEY = 'gweb.node.clipboard.v1'
 
 type queuedSave = {
   graphId: string
@@ -91,6 +92,25 @@ type queuedSave = {
   payloadHash: string
   storageKey: string
   contextKey: string
+}
+
+type nodeClipboardPayload = {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+  absolutePositions: Record<string, { x: number; y: number }>
+}
+
+const isEditableTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+  if (target.isContentEditable) {
+    return true
+  }
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+    return true
+  }
+  return target.closest('input, textarea, select, [contenteditable="true"]') !== null
 }
 
 export default function App() {
@@ -104,6 +124,7 @@ export default function App() {
   const [graphName, setGraphName] = useState(defaultGraph.name)
   const [createGraphOpen, setCreateGraphOpen] = useState(false)
   const [createGraphName, setCreateGraphName] = useState('')
+  const [createGraphTemplateId, setCreateGraphTemplateId] = useState('')
   const [deleteGraphTarget, setDeleteGraphTarget] = useState<{ id: string; name: string } | null>(null)
   const [isRenamingGraph, setIsRenamingGraph] = useState(false)
   const [renameTargetGraphId, setRenameTargetGraphId] = useState<string | null>(null)
@@ -1046,6 +1067,167 @@ export default function App() {
     [edgeMode, setEdges],
   )
 
+  const readNodeClipboard = useCallback((): nodeClipboardPayload | null => {
+    if (typeof window === 'undefined') {
+      return null
+    }
+    const raw = window.localStorage.getItem(NODE_CLIPBOARD_KEY)
+    if (!raw) {
+      return null
+    }
+    try {
+      const parsed = JSON.parse(raw) as nodeClipboardPayload
+      if (!Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) {
+        return null
+      }
+      return parsed
+    } catch {
+      return null
+    }
+  }, [])
+
+  const copySelectedNodes = useCallback(() => {
+    if (!is2DView || isReadOnlyCanvas || typeof window === 'undefined') {
+      return false
+    }
+    const selectedNodes = nodes.filter((node) => node.selected)
+    const fallbackNode = selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? null : null
+    const sourceNodes = selectedNodes.length > 0 ? selectedNodes : fallbackNode ? [fallbackNode] : []
+    if (sourceNodes.length === 0) {
+      return false
+    }
+
+    const sourceNodeIDs = new Set(sourceNodes.map((node) => node.id))
+    const sourceNodeMap = new Map(nodes.map((node) => [node.id, node]))
+    const absolutePositions: Record<string, { x: number; y: number }> = {}
+    const copiedNodes: GraphNode[] = sourceNodes.map((node) => {
+      const absolute = getAbsolutePosition(node, sourceNodeMap)
+      absolutePositions[node.id] = absolute
+      const parentInCopy = Boolean(node.parentNode && sourceNodeIDs.has(node.parentNode))
+      return {
+        ...node,
+        parentNode: parentInCopy ? node.parentNode : undefined,
+        extent: parentInCopy ? node.extent : undefined,
+        position: parentInCopy ? node.position : absolute,
+        selected: false,
+      }
+    })
+    const copiedEdges = edges
+      .filter((edge) => sourceNodeIDs.has(edge.source) && sourceNodeIDs.has(edge.target))
+      .map((edge) => ({ ...edge, selected: false }))
+
+    const payload: nodeClipboardPayload = {
+      nodes: copiedNodes,
+      edges: copiedEdges,
+      absolutePositions,
+    }
+    window.localStorage.setItem(NODE_CLIPBOARD_KEY, JSON.stringify(payload))
+    return true
+  }, [edges, is2DView, isReadOnlyCanvas, nodes, selectedNodeId])
+
+  const pasteClipboardNodes = useCallback(() => {
+    if (!is2DView || isReadOnlyCanvas) {
+      return false
+    }
+    const clipboard = readNodeClipboard()
+    if (!clipboard || clipboard.nodes.length === 0) {
+      return false
+    }
+
+    const sourceIDs = new Set(clipboard.nodes.map((node) => node.id))
+    const idMap = new Map<string, string>()
+    clipboard.nodes.forEach((node) => {
+      idMap.set(node.id, generateId())
+    })
+
+    const absoluteValues = clipboard.nodes.map((node) => clipboard.absolutePositions[node.id] ?? node.position)
+    const minX = Math.min(...absoluteValues.map((position) => position.x))
+    const minY = Math.min(...absoluteValues.map((position) => position.y))
+    const centerPosition = reactFlowInstance.current
+      ? reactFlowInstance.current.screenToFlowPosition({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2,
+        })
+      : { x: minX + 120, y: minY + 120 }
+    const offset = spawnIndex.current * 18
+    spawnIndex.current += 1
+    const deltaX = centerPosition.x - minX + offset
+    const deltaY = centerPosition.y - minY + offset
+
+    const nextNodes: GraphNode[] = clipboard.nodes.map((node) => {
+      const nextID = idMap.get(node.id) ?? generateId()
+      const parentInCopy = Boolean(node.parentNode && sourceIDs.has(node.parentNode))
+      const rootPosition = clipboard.absolutePositions[node.id] ?? node.position
+      const remappedItems = node.data.items.map((item) => ({
+        ...item,
+        id: generateId(),
+        notes: item.notes.map((note) => ({ ...note, id: generateId() })),
+      }))
+      return {
+        ...node,
+        id: nextID,
+        parentNode: parentInCopy && node.parentNode ? idMap.get(node.parentNode) : undefined,
+        extent: parentInCopy ? node.extent : undefined,
+        position: parentInCopy
+          ? node.position
+          : {
+              x: rootPosition.x + deltaX,
+              y: rootPosition.y + deltaY,
+            },
+        data: {
+          ...node.data,
+          items: remappedItems,
+        },
+        selected: false,
+      }
+    })
+    const nextEdges: GraphEdge[] = clipboard.edges.reduce<GraphEdge[]>((acc, edge) => {
+      const source = idMap.get(edge.source)
+      const target = idMap.get(edge.target)
+      if (!source || !target) {
+        return acc
+      }
+      acc.push({
+        ...edge,
+        id: generateId(),
+        source,
+        target,
+        selected: false,
+      })
+      return acc
+    }, [])
+
+    setNodes((current) => current.concat(nextNodes))
+    setEdges((current) => current.concat(nextEdges))
+    setSelectedNodeId(nextNodes[0]?.id ?? null)
+    return true
+  }, [is2DView, isReadOnlyCanvas, readNodeClipboard, setEdges, setNodes])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!is2DView || isReadOnlyCanvas || isEditableTarget(event.target)) {
+        return
+      }
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) {
+        return
+      }
+      const key = event.key.toLowerCase()
+      if (key === 'c') {
+        if (copySelectedNodes()) {
+          event.preventDefault()
+        }
+        return
+      }
+      if (key === 'v') {
+        if (pasteClipboardNodes()) {
+          event.preventDefault()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [copySelectedNodes, is2DView, isReadOnlyCanvas, pasteClipboardNodes])
+
   const onNodesDelete = useCallback(
     (deleted: GraphNode[]) => {
       const deletedIds = new Set(deleted.map((node) => node.id))
@@ -1550,6 +1732,7 @@ export default function App() {
 
   const handleCreateGraph = useCallback(() => {
     setCreateGraphName('')
+    setCreateGraphTemplateId('')
     setCreateGraphOpen(true)
   }, [])
 
@@ -1564,12 +1747,62 @@ export default function App() {
     [graphList, t],
   )
 
+  const loadTemplatePayload = useCallback(
+    async (templateId: string): Promise<GraphPayload | null> => {
+      if (!templateId) {
+        return null
+      }
+      if (
+        templateId === activeGraphId &&
+        hydrated &&
+        hydratedKindRef.current === graphKind
+      ) {
+        return normalizeGraph({ name: graphName, nodes, edges, kind: graphKind }, graphKind)
+      }
+      if (typeof window !== 'undefined') {
+        const local = window.localStorage.getItem(graphStorageKey(templateId))
+        if (local) {
+          try {
+            const parsed = JSON.parse(local) as GraphPayload
+            return normalizeGraph(parsed, graphKind)
+          } catch {
+            // Fallback to backend fetch.
+          }
+        }
+      }
+      if (templateId.startsWith('local-')) {
+        return null
+      }
+      try {
+        const payload = await fetchGraph(templateId)
+        return normalizeGraph(payload, graphKind)
+      } catch {
+        return null
+      }
+    },
+    [activeGraphId, edges, graphKind, graphName, graphStorageKey, hydrated, nodes],
+  )
+
   const handleSubmitCreateGraph = useCallback(async () => {
+    const templateSummary = createGraphTemplateId
+      ? graphList.find((graph) => graph.id === createGraphTemplateId) ?? null
+      : null
+    const templatePayload = createGraphTemplateId
+      ? await loadTemplatePayload(createGraphTemplateId)
+      : null
+    if (createGraphTemplateId && !templatePayload) {
+      setImportError(t('graphs.error.templateLoad'))
+      return
+    }
     const name = createGraphName.trim()
-    const payload = createEmptyGraphPayload(
-      name || `${t('graphs.newGraphPrefix')} ${graphList.length + 1}`,
-      graphKind,
-    )
+    const resolvedName = name
+      ? name
+      : templateSummary
+        ? `${templateSummary.name} Copy`
+        : `${t('graphs.newGraphPrefix')} ${graphList.length + 1}`
+    const payload = templatePayload
+      ? normalizeGraph({ ...templatePayload, name: resolvedName, kind: graphKind }, graphKind)
+      : createEmptyGraphPayload(resolvedName, graphKind)
     try {
       const summary = await createGraph(payload)
       pendingGraphRef.current = { id: summary.id, payload, kind: graphKind }
@@ -1585,6 +1818,7 @@ export default function App() {
       setActiveGraphId(summary.id)
       setCreateGraphOpen(false)
       setCreateGraphName('')
+      setCreateGraphTemplateId('')
     } catch {
       const localId = `local-${generateId()}`
       const summary: GraphSummary = {
@@ -1605,8 +1839,18 @@ export default function App() {
       localStorage.setItem(graphStorageKey(localId), JSON.stringify(payload))
       setCreateGraphOpen(false)
       setCreateGraphName('')
+      setCreateGraphTemplateId('')
     }
-  }, [createGraphName, graphKind, graphList.length, graphStorageKey, isStarterGraphSummary, t])
+  }, [
+    createGraphName,
+    createGraphTemplateId,
+    graphKind,
+    graphList,
+    graphStorageKey,
+    isStarterGraphSummary,
+    loadTemplatePayload,
+    t,
+  ])
 
   const handleDeleteGraph = useCallback(
     async (graphId: string) => {
@@ -2795,7 +3039,13 @@ export default function App() {
       />
 
       {createGraphOpen ? (
-        <div className="modal-overlay" onClick={() => setCreateGraphOpen(false)}>
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setCreateGraphOpen(false)
+            setCreateGraphTemplateId('')
+          }}
+        >
           <div className="modal" onClick={(event) => event.stopPropagation()}>
             <h2>{t('modal.newGraph')}</h2>
             <p className="modal__subtitle">{t('modal.newGraphSubtitle')}</p>
@@ -2811,14 +3061,39 @@ export default function App() {
                   }
                   if (event.key === 'Escape') {
                     setCreateGraphOpen(false)
+                    setCreateGraphTemplateId('')
                   }
                 }}
                 placeholder={t('graphs.graphNamePlaceholder')}
                 autoFocus
               />
+              <label className="modal__label" htmlFor="create-graph-template">
+                {t('modal.templateSource')}
+              </label>
+              <select
+                id="create-graph-template"
+                className="modal__input"
+                value={createGraphTemplateId}
+                onChange={(event) => setCreateGraphTemplateId(event.target.value)}
+              >
+                <option value="">{t('modal.templateBlank')}</option>
+                {graphList.map((graph) => (
+                  <option key={graph.id} value={graph.id}>
+                    {graph.name}
+                  </option>
+                ))}
+              </select>
+              <div className="modal__hint">{t('modal.templateHint')}</div>
             </div>
             <div className="modal__actions">
-              <button className="btn btn--ghost" type="button" onClick={() => setCreateGraphOpen(false)}>
+              <button
+                className="btn btn--ghost"
+                type="button"
+                onClick={() => {
+                  setCreateGraphOpen(false)
+                  setCreateGraphTemplateId('')
+                }}
+              >
                 {t('modal.cancel')}
               </button>
               <button className="btn btn--primary" type="button" onClick={handleSubmitCreateGraph}>

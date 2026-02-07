@@ -116,6 +116,7 @@ const messages: Record<Language, Record<string, string>> = {
     'graphs.empty': 'Create your first graph.',
     'graphs.error.parseJson': 'Unable to parse JSON.',
     'graphs.error.delete': 'Failed to delete graph.',
+    'graphs.error.templateLoad': 'Failed to load graph template.',
 
     'drawer.nodeSettings': 'Node Settings',
     'drawer.nodeDetails': 'Node Details',
@@ -251,6 +252,9 @@ const messages: Record<Language, Record<string, string>> = {
 
     'modal.newGraph': 'New Graph',
     'modal.newGraphSubtitle': 'Name your graph to keep work organized.',
+    'modal.templateSource': 'Start from',
+    'modal.templateBlank': 'Blank graph',
+    'modal.templateHint': 'Optional: pick an existing graph as a template.',
     'modal.create': 'Create',
     'modal.deleteGraph': 'Delete Graph',
     'modal.deleteGraphSubtitle': 'Delete "{name}"? This cannot be undone.',
@@ -363,6 +367,7 @@ const messages: Record<Language, Record<string, string>> = {
     'graphs.empty': '创建你的第一个图谱。',
     'graphs.error.parseJson': 'JSON 解析失败。',
     'graphs.error.delete': '删除图谱失败。',
+    'graphs.error.templateLoad': '加载模板图谱失败。',
 
     'drawer.nodeSettings': '节点设置',
     'drawer.nodeDetails': '节点详情',
@@ -497,6 +502,9 @@ const messages: Record<Language, Record<string, string>> = {
 
     'modal.newGraph': '新建图谱',
     'modal.newGraphSubtitle': '为图谱命名，便于组织管理。',
+    'modal.templateSource': '起始模板',
+    'modal.templateBlank': '空白图谱',
+    'modal.templateHint': '可选：从已有图谱克隆创建。',
     'modal.create': '创建',
     'modal.deleteGraph': '删除图谱',
     'modal.deleteGraphSubtitle': '确认删除“{name}”？该操作不可撤销。',

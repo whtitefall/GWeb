@@ -1252,8 +1252,8 @@
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;
-  padding-right: 6px;
-  scrollbar-gutter: stable;
+  padding-right: 0;
+  scrollbar-gutter: auto;
   flex: 1;
   min-height: 0;
 }
