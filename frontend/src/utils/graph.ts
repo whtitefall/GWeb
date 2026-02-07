@@ -156,7 +156,11 @@ export const normalizeGraph = (payload: GraphPayload | null, fallbackKind: Graph
   })
 
   const edges = (payload.edges as GraphEdge[]).map((edge, index) => {
-    const directed = Boolean(edge.data?.directed || edge.markerEnd)
+    // For the built-in roadmap, always render as undirected even if legacy data still
+    // contains markerEnd from earlier directed defaults.
+    const directed = shouldPreferVerticalRoadmapHandles
+      ? false
+      : Boolean(edge.data?.directed || edge.markerEnd)
     const normalizedEdge: GraphEdge = {
       ...edge,
       id: edge.id ?? `edge-${index}`,
