@@ -113,6 +113,8 @@ export const normalizeGraph = (payload: GraphPayload | null, fallbackKind: Graph
     typeof payload.name === 'string' && payload.name.trim().length > 0
       ? payload.name.trim()
       : 'Untitled Graph'
+  const shouldPreferVerticalRoadmapHandles =
+    fallbackKind === 'note' && name.toLowerCase() === 'graph roadmap'
 
   const nodes = (payload.nodes as GraphNode[]).map((node, index) => {
     const rawData = (node as GraphNode).data ?? { label: `Node ${index + 1}`, items: [] }
@@ -155,14 +157,20 @@ export const normalizeGraph = (payload: GraphPayload | null, fallbackKind: Graph
 
   const edges = (payload.edges as GraphEdge[]).map((edge, index) => {
     const directed = Boolean(edge.data?.directed || edge.markerEnd)
-    return withEdgeDirection(
-      {
-        ...edge,
-        id: edge.id ?? `edge-${index}`,
-        type: edge.type ?? 'smoothstep',
-      },
-      directed,
-    )
+    const normalizedEdge: GraphEdge = {
+      ...edge,
+      id: edge.id ?? `edge-${index}`,
+      type: edge.type ?? 'smoothstep',
+    }
+    if (shouldPreferVerticalRoadmapHandles) {
+      if (!normalizedEdge.sourceHandle) {
+        normalizedEdge.sourceHandle = 'bottom-out'
+      }
+      if (!normalizedEdge.targetHandle) {
+        normalizedEdge.targetHandle = 'top-in'
+      }
+    }
+    return withEdgeDirection(normalizedEdge, directed)
   })
 
   const kind = payload.kind ?? fallbackKind
