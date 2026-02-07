@@ -270,6 +270,14 @@ export default function App() {
     [graphKind],
   )
   const graphContextKey = `${graphKind}:${activeGraphId ?? ''}`
+  const starterNames = useMemo(
+    () => new Set([defaultGraph.name.trim().toLowerCase(), t('graphs.starterName').trim().toLowerCase()]),
+    [t],
+  )
+  const isStarterGraphSummary = useCallback(
+    (graph: GraphSummary) => starterNames.has(graph.name.trim().toLowerCase()),
+    [starterNames],
+  )
 
   const isHomeView = viewMode === 'home'
   const isGraphNoteView = viewMode === 'graph'
@@ -615,6 +623,33 @@ export default function App() {
         return
       }
 
+      // Starter graph should only exist when there are no other graphs at all.
+      if (graphKind === 'note' && graphs.length > 1) {
+        const starterCandidates = graphs.filter(isStarterGraphSummary)
+        const hasNonStarter = graphs.some((graph) => !isStarterGraphSummary(graph))
+        if (hasNonStarter && starterCandidates.length > 0) {
+          const removedIDs = new Set<string>()
+          for (const candidate of starterCandidates) {
+            if (candidate.id.startsWith('local-')) {
+              removedIDs.add(candidate.id)
+              if (typeof window !== 'undefined') {
+                window.localStorage.removeItem(graphStorageKey(candidate.id))
+              }
+              continue
+            }
+            try {
+              await deleteGraph(candidate.id)
+              removedIDs.add(candidate.id)
+            } catch {
+              // Keep undeleted rows in view; do not hide if delete failed.
+            }
+          }
+          if (removedIDs.size > 0) {
+            graphs = graphs.filter((graph) => !removedIDs.has(graph.id))
+          }
+        }
+      }
+
       if (graphs.length === 0) {
           const payload =
             graphKind === 'note'
@@ -656,7 +691,15 @@ export default function App() {
     return () => {
       isMounted = false
     }
-  }, [activeStorageKey, graphKind, graphStorageKey, listStorageKey, supabaseLoggedIn, t])
+  }, [
+    activeStorageKey,
+    graphKind,
+    graphStorageKey,
+    isStarterGraphSummary,
+    listStorageKey,
+    supabaseLoggedIn,
+    t,
+  ])
 
   useEffect(() => {
     if (!activeGraphId) {
@@ -1531,7 +1574,14 @@ export default function App() {
       const summary = await createGraph(payload)
       pendingGraphRef.current = { id: summary.id, payload, kind: graphKind }
       pendingViewportFocusRef.current = true
-      setGraphList((current) => [summary, ...current])
+      setGraphList((current) => {
+        // Once a real graph is created, remove legacy starter entries from list view.
+        const cleanedCurrent =
+          graphKind === 'note' && !isStarterGraphSummary(summary) && current.some(isStarterGraphSummary)
+            ? current.filter((graph) => !isStarterGraphSummary(graph))
+            : current
+        return [summary, ...cleanedCurrent]
+      })
       setActiveGraphId(summary.id)
       setCreateGraphOpen(false)
       setCreateGraphName('')
@@ -1544,13 +1594,19 @@ export default function App() {
       }
       pendingGraphRef.current = { id: localId, payload, kind: graphKind }
       pendingViewportFocusRef.current = true
-      setGraphList((current) => [summary, ...current])
+      setGraphList((current) => {
+        const cleanedCurrent =
+          graphKind === 'note' && !isStarterGraphSummary(summary) && current.some(isStarterGraphSummary)
+            ? current.filter((graph) => !isStarterGraphSummary(graph))
+            : current
+        return [summary, ...cleanedCurrent]
+      })
       setActiveGraphId(localId)
       localStorage.setItem(graphStorageKey(localId), JSON.stringify(payload))
       setCreateGraphOpen(false)
       setCreateGraphName('')
     }
-  }, [createGraphName, graphKind, graphList.length, graphStorageKey, t])
+  }, [createGraphName, graphKind, graphList.length, graphStorageKey, isStarterGraphSummary, t])
 
   const handleDeleteGraph = useCallback(
     async (graphId: string) => {
@@ -1673,13 +1729,22 @@ export default function App() {
     [graphKind, handleSelectGraph],
   )
 
+  useEffect(() => {
+    if (!activeGraphId || !is2DView) {
+      return
+    }
+    toolbarMovedRef.current = false
+    setToolbarPos(null)
+  }, [activeGraphId, graphKind, is2DView])
+
   const sidebarWidthValue = sidebarCollapsed ? 0 : sidebarWidth
   const toolbarDefaultPosition = useMemo(
     () => ({
-      x: sidebarWidthValue + 24,
+      // Position is inside flow-shell; use fixed canvas offset (not sidebar width).
+      x: 24,
       y: sidebarCollapsed ? 72 : 16,
     }),
-    [sidebarCollapsed, sidebarWidthValue],
+    [sidebarCollapsed],
   )
   const workspaceStyle = useMemo(
     () => ({ ['--sidebar-width' as string]: `${sidebarWidthValue}px` } as CSSProperties),
