@@ -82,7 +82,7 @@ const Graph3DView = lazy(() => import('./components/Graph3DView'))
 
 const AUTOSAVE_IDLE_MS = 3000
 const CHAT_DOCK_WIDTH = 420
-const NODE_DOCK_WIDTH = 420
+const NODE_DOCK_WIDTH = 460
 const DRAWER_HEIGHT_MIN = 360
 const DRAWER_HEIGHT_MAX = 980
 const NODE_CLIPBOARD_KEY = 'gweb.node.clipboard.v1'
@@ -2145,9 +2145,11 @@ export default function App() {
     }
     pendingViewportFocusRef.current = false
     window.requestAnimationFrame(() => {
-      reactFlowInstance.current?.fitView({ padding: 0.2, duration: 220 })
+      window.requestAnimationFrame(() => {
+        reactFlowInstance.current?.fitView({ padding: 0.2, duration: 220 })
+      })
     })
-  }, [activeGraphId, edges.length, hydrated, is2DView, nodes.length])
+  }, [activeGraphId, edges, hydrated, is2DView, nodes])
   const handleSelectGraphFromList = useCallback(
     (graphId: string) => {
       handleSelectGraph(graphId)
@@ -2719,6 +2721,26 @@ export default function App() {
     }
   }, [edges, graphName, graphStorageKey, nodes, temporaryGraph])
 
+  const handleBackFromTemporaryGraph = useCallback(() => {
+    if (!temporaryGraph) {
+      return
+    }
+    const targetGraphId = temporaryGraph.sourceGraphId ?? activeGraphId
+    setTemporaryGraph(null)
+    setContextMenu(null)
+    setSelectedNodeId(null)
+    if (!targetGraphId) {
+      setViewMode('home')
+      return
+    }
+    pendingViewportFocusRef.current = true
+    setGraphKind('note')
+    setViewMode('graph')
+    setHydrated(false)
+    setGraphLoadNonce((current) => current + 1)
+    setActiveGraphId(targetGraphId)
+  }, [activeGraphId, temporaryGraph])
+
   const contextNode = useMemo(
     () => (contextMenu?.kind === 'node' ? nodes.find((node) => node.id === contextMenu.id) ?? null : null),
     [contextMenu, nodes],
@@ -2814,6 +2836,12 @@ export default function App() {
           >
             <div className={`app-menu ${appMenuOpen ? 'app-menu--open' : ''}`} ref={appMenuRef} style={appMenuStyle}>
               <div className="app-menu__bar">
+                {isTemporaryGraphActive ? (
+                  <button className="btn btn--ghost app-menu__temp-back" type="button" onClick={handleBackFromTemporaryGraph}>
+                    <span aria-hidden>{'\u2190'}</span>
+                    <span>{t('graphs.backToParent')}</span>
+                  </button>
+                ) : null}
                 {isTemporaryGraphActive ? (
                   <button className="btn btn--ghost app-menu__temp-save" type="button" onClick={handleSaveTemporaryGraph}>
                     {t('graphs.saveTemp')}

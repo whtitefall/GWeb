@@ -123,6 +123,7 @@ const messages: Record<Language, Record<string, string>> = {
     'graphs.error.templateLoad': 'Failed to load graph template.',
     'graphs.error.pinLimit': 'You can pin up to {count} graphs.',
     'graphs.tempGraphPrefix': 'Node Graph',
+    'graphs.backToParent': 'Back',
     'graphs.saveTemp': 'Save Graph',
 
     'drawer.nodeSettings': 'Node Settings',
@@ -388,6 +389,7 @@ const messages: Record<Language, Record<string, string>> = {
     'graphs.error.templateLoad': '加载模板图谱失败。',
     'graphs.error.pinLimit': '最多只能置顶 {count} 个图谱。',
     'graphs.tempGraphPrefix': '节点图谱',
+    'graphs.backToParent': '返回',
     'graphs.saveTemp': '保存图谱',
 
     'drawer.nodeSettings': '节点设置',

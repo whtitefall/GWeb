@@ -220,6 +220,15 @@
   font-size: 0.78rem;
 }
 
+.app-menu__temp-back {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .app-menu__trigger {
   width: 36px;
   height: 36px;
