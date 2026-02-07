@@ -769,7 +769,7 @@
 
 .home-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 14px;
 }
 
@@ -796,7 +796,7 @@
 }
 
 .home-card__thumb {
-  height: 70px;
+  height: 178px;
   position: relative;
   border-bottom: 1px solid var(--stroke);
   overflow: hidden;
@@ -804,9 +804,9 @@
 
 .home-card__thumb--flow {
   background:
-    radial-gradient(circle at 18% 22%, rgba(94, 126, 255, 0.15), transparent 38%),
-    radial-gradient(circle at 80% 78%, rgba(45, 212, 191, 0.12), transparent 42%),
-    linear-gradient(160deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+    radial-gradient(circle at 18% 22%, rgba(94, 126, 255, 0.12), transparent 44%),
+    radial-gradient(circle at 80% 78%, rgba(45, 212, 191, 0.1), transparent 48%),
+    linear-gradient(165deg, color-mix(in srgb, var(--panel) 92%, var(--accent) 8%), var(--panel));
 }
 
 .home-card__svg {
@@ -816,21 +816,33 @@
 }
 
 .home-card__edge {
-  stroke: color-mix(in srgb, var(--accent) 64%, transparent);
-  stroke-width: 2.1;
+  stroke: color-mix(in srgb, var(--ink) 72%, transparent);
+  stroke-width: 3.2;
   stroke-linecap: round;
-  opacity: 0.9;
+  opacity: 0.95;
+}
+
+.home-card__arrow {
+  fill: color-mix(in srgb, var(--ink) 72%, transparent);
 }
 
 .home-card__node {
-  fill: color-mix(in srgb, var(--node-fill) 88%, var(--panel) 12%);
-  stroke: color-mix(in srgb, var(--node-border) 88%, transparent 12%);
-  stroke-width: 1.4;
+  fill: color-mix(in srgb, var(--node-fill) 94%, var(--panel) 6%);
+  stroke: color-mix(in srgb, var(--node-border) 92%, transparent 8%);
+  stroke-width: 1.7;
 }
 
 .home-card__node--group {
-  fill: color-mix(in srgb, var(--group-fill) 86%, var(--panel) 14%);
-  stroke: color-mix(in srgb, var(--group-border) 88%, transparent 12%);
+  fill: color-mix(in srgb, var(--group-fill) 92%, var(--panel) 8%);
+  stroke: color-mix(in srgb, var(--group-border) 90%, transparent 10%);
+}
+
+.home-card__label {
+  fill: var(--node-text);
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+  user-select: none;
 }
 
 .home-card__thumb-empty {

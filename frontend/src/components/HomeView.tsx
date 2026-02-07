@@ -10,8 +10,16 @@ type HomeViewProps = {
   onOpenGraph: (graphId: string) => void
 }
 
-type PreviewNode = { id: string; x: number; y: number; width: number; height: number; isGroup: boolean }
-type PreviewEdge = { id: string; x1: number; y1: number; x2: number; y2: number }
+type PreviewNode = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  isGroup: boolean
+  label: string
+}
+type PreviewEdge = { id: string; x1: number; y1: number; x2: number; y2: number; directed: boolean }
 type PreviewSnapshot = { viewBox: string; nodes: PreviewNode[]; edges: PreviewEdge[] }
 
 function parseSize(value: unknown, fallback: number) {
@@ -38,6 +46,14 @@ function getNodeSize(node: GraphNode) {
     width: parseSize(node.width ?? node.style?.width, 170),
     height: parseSize(node.height ?? node.style?.height, 58),
   }
+}
+
+function compactLabel(label: string, max = 18) {
+  const trimmed = label.trim()
+  if (trimmed.length <= max) {
+    return trimmed
+  }
+  return `${trimmed.slice(0, Math.max(0, max - 3))}...`
 }
 
 function resolveAbsolutePosition(
@@ -101,6 +117,7 @@ function buildSnapshot(payload: GraphPayload | null | undefined): PreviewSnapsho
       width: size.width,
       height: size.height,
       isGroup: node.type === 'group',
+      label: compactLabel(node.data.label, node.type === 'group' ? 16 : 18),
     }
   })
 
@@ -118,6 +135,7 @@ function buildSnapshot(payload: GraphPayload | null | undefined): PreviewSnapsho
         y1: source.y + source.height / 2,
         x2: target.x + target.width / 2,
         y2: target.y + target.height / 2,
+        directed: Boolean(edge.data?.directed || edge.markerEnd),
       }
     })
     .filter((edge): edge is PreviewEdge => edge !== null)
@@ -193,6 +211,19 @@ export default function HomeView({ graphList, activeGraphId, thumbnails, onOpenG
               <div className="home-card__thumb home-card__thumb--flow">
                 {snapshot ? (
                   <svg className="home-card__svg" viewBox={snapshot.viewBox} preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                      <marker
+                        id={`home-arrow-${graph.id}`}
+                        markerWidth="9"
+                        markerHeight="9"
+                        refX="7"
+                        refY="3.5"
+                        orient="auto"
+                        markerUnits="strokeWidth"
+                      >
+                        <path d="M0,0 L0,7 L7,3.5 z" className="home-card__arrow" />
+                      </marker>
+                    </defs>
                     {snapshot.edges.map((edge) => (
                       <line
                         key={edge.id}
@@ -201,18 +232,30 @@ export default function HomeView({ graphList, activeGraphId, thumbnails, onOpenG
                         x2={edge.x2}
                         y2={edge.y2}
                         className="home-card__edge"
+                        markerEnd={edge.directed ? `url(#home-arrow-${graph.id})` : undefined}
                       />
                     ))}
                     {snapshot.nodes.map((node) => (
-                      <rect
-                        key={node.id}
-                        x={node.x}
-                        y={node.y}
-                        width={node.width}
-                        height={node.height}
-                        rx={node.isGroup ? 10 : 7}
-                        className={`home-card__node ${node.isGroup ? 'home-card__node--group' : ''}`}
-                      />
+                      <g key={node.id}>
+                        <rect
+                          x={node.x}
+                          y={node.y}
+                          width={node.width}
+                          height={node.height}
+                          rx={node.isGroup ? 10 : 7}
+                          className={`home-card__node ${node.isGroup ? 'home-card__node--group' : ''}`}
+                        />
+                        {!node.isGroup ? (
+                          <text
+                            x={node.x + node.width / 2}
+                            y={node.y + node.height / 2 + 3}
+                            textAnchor="middle"
+                            className="home-card__label"
+                          >
+                            {node.label}
+                          </text>
+                        ) : null}
+                      </g>
                     ))}
                   </svg>
                 ) : (

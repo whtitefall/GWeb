@@ -65,7 +65,7 @@ export const ACCENT_OPTIONS = [
 
 // Starter Graph Notes payload used for first-time users.
 export const defaultGraph: GraphPayload = {
-  name: 'Starter Graph',
+  name: 'Graph Roadmap',
   kind: 'note',
   nodes: [
     {

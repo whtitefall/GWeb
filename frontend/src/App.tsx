@@ -291,15 +291,6 @@ export default function App() {
     [graphKind],
   )
   const graphContextKey = `${graphKind}:${activeGraphId ?? ''}`
-  const starterNames = useMemo(
-    () => new Set([defaultGraph.name.trim().toLowerCase(), t('graphs.starterName').trim().toLowerCase()]),
-    [t],
-  )
-  const isStarterGraphSummary = useCallback(
-    (graph: GraphSummary) => starterNames.has(graph.name.trim().toLowerCase()),
-    [starterNames],
-  )
-
   const isHomeView = viewMode === 'home'
   const isGraphNoteView = viewMode === 'graph'
   const isApplicationView = viewMode === 'application'
@@ -644,29 +635,25 @@ export default function App() {
         return
       }
 
-      // Starter graph should only exist when there are no other graphs at all.
-      if (graphKind === 'note' && graphs.length > 1) {
-        const starterCandidates = graphs.filter(isStarterGraphSummary)
-        const hasNonStarter = graphs.some((graph) => !isStarterGraphSummary(graph))
-        if (hasNonStarter && starterCandidates.length > 0) {
-          const removedIDs = new Set<string>()
-          for (const candidate of starterCandidates) {
-            if (candidate.id.startsWith('local-')) {
-              removedIDs.add(candidate.id)
-              if (typeof window !== 'undefined') {
-                window.localStorage.removeItem(graphStorageKey(candidate.id))
-              }
-              continue
+      // Keep one roadmap graph available in note mode as a built-in default template.
+      if (graphKind === 'note') {
+        const defaultName = defaultGraph.name.trim().toLowerCase()
+        const hasDefault = graphs.some((graph) => graph.name.trim().toLowerCase() === defaultName)
+        if (!hasDefault) {
+          try {
+            const created = await createGraph(defaultGraph)
+            graphs = [created, ...graphs]
+          } catch {
+            const localId = `local-${generateId()}`
+            const summary: GraphSummary = {
+              id: localId,
+              name: defaultGraph.name,
+              updatedAt: new Date().toISOString(),
             }
-            try {
-              await deleteGraph(candidate.id)
-              removedIDs.add(candidate.id)
-            } catch {
-              // Keep undeleted rows in view; do not hide if delete failed.
+            graphs = [summary, ...graphs]
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem(graphStorageKey(localId), JSON.stringify(defaultGraph))
             }
-          }
-          if (removedIDs.size > 0) {
-            graphs = graphs.filter((graph) => !removedIDs.has(graph.id))
           }
         }
       }
@@ -716,7 +703,6 @@ export default function App() {
     activeStorageKey,
     graphKind,
     graphStorageKey,
-    isStarterGraphSummary,
     listStorageKey,
     supabaseLoggedIn,
     t,
@@ -1807,14 +1793,7 @@ export default function App() {
       const summary = await createGraph(payload)
       pendingGraphRef.current = { id: summary.id, payload, kind: graphKind }
       pendingViewportFocusRef.current = true
-      setGraphList((current) => {
-        // Once a real graph is created, remove legacy starter entries from list view.
-        const cleanedCurrent =
-          graphKind === 'note' && !isStarterGraphSummary(summary) && current.some(isStarterGraphSummary)
-            ? current.filter((graph) => !isStarterGraphSummary(graph))
-            : current
-        return [summary, ...cleanedCurrent]
-      })
+      setGraphList((current) => [summary, ...current])
       setActiveGraphId(summary.id)
       setCreateGraphOpen(false)
       setCreateGraphName('')
@@ -1828,13 +1807,7 @@ export default function App() {
       }
       pendingGraphRef.current = { id: localId, payload, kind: graphKind }
       pendingViewportFocusRef.current = true
-      setGraphList((current) => {
-        const cleanedCurrent =
-          graphKind === 'note' && !isStarterGraphSummary(summary) && current.some(isStarterGraphSummary)
-            ? current.filter((graph) => !isStarterGraphSummary(graph))
-            : current
-        return [summary, ...cleanedCurrent]
-      })
+      setGraphList((current) => [summary, ...current])
       setActiveGraphId(localId)
       localStorage.setItem(graphStorageKey(localId), JSON.stringify(payload))
       setCreateGraphOpen(false)
@@ -1847,7 +1820,6 @@ export default function App() {
     graphKind,
     graphList,
     graphStorageKey,
-    isStarterGraphSummary,
     loadTemplatePayload,
     t,
   ])
