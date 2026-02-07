@@ -19,6 +19,8 @@ type GraphListWidgetProps = {
   viewMode: ViewMode
   showBetaTabs: boolean
   graphList: GraphSummary[]
+  pinnedGraphIds: string[]
+  maxPinnedGraphs: number
   activeGraphId: string | null
   graphName: string
   renameTargetGraphId: string | null
@@ -33,6 +35,7 @@ type GraphListWidgetProps = {
   onSelectGraph: (id: string) => void
   onCreateGraph: () => void
   onDeleteGraph: (id: string) => void
+  onTogglePinGraph: (id: string) => void
   onExport: () => void
   onImportFile: (file: File) => void
   onToggleCollapse: () => void
@@ -47,6 +50,8 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
       viewMode,
       showBetaTabs,
       graphList,
+      pinnedGraphIds,
+      maxPinnedGraphs,
       activeGraphId,
       graphName,
       renameTargetGraphId,
@@ -61,6 +66,7 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
       onSelectGraph,
       onCreateGraph,
       onDeleteGraph,
+      onTogglePinGraph,
       onExport,
       onImportFile,
       onToggleCollapse,
@@ -198,80 +204,95 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
               ) : (
                 graphList.map((graph) => (
                   <div key={graph.id} className={`graph-list__item ${graph.id === activeGraphId ? 'is-active' : ''}`}>
-                    {isRenaming && renameTargetGraphId === graph.id ? (
-                      <div className="graph-list__item-edit">
-                        <input
-                          className="graph-list__input"
-                          type="text"
-                          value={renameValue}
-                          onChange={(event) => onRenameChange(event.target.value)}
-                          onKeyDown={handleRenameKeyDown}
-                          placeholder={t('graphs.graphNamePlaceholder')}
-                          autoFocus
-                        />
-                        <div className="graph-list__item-edit-actions">
-                          <button className="btn btn--ghost" type="button" onClick={onSubmitRename}>
-                            {t('graphs.save')}
-                          </button>
-                          <button className="btn btn--ghost" type="button" onClick={onCancelRename}>
-                            {t('graphs.cancel')}
-                          </button>
+                    {(() => {
+                      const isPinned = pinnedGraphIds.includes(graph.id)
+                      const pinLimitReached = !isPinned && pinnedGraphIds.length >= maxPinnedGraphs
+                      return isRenaming && renameTargetGraphId === graph.id ? (
+                        <div className="graph-list__item-edit">
+                          <input
+                            className="graph-list__input"
+                            type="text"
+                            value={renameValue}
+                            onChange={(event) => onRenameChange(event.target.value)}
+                            onKeyDown={handleRenameKeyDown}
+                            placeholder={t('graphs.graphNamePlaceholder')}
+                            autoFocus
+                          />
+                          <div className="graph-list__item-edit-actions">
+                            <button className="btn btn--ghost" type="button" onClick={onSubmitRename}>
+                              {t('graphs.save')}
+                            </button>
+                            <button className="btn btn--ghost" type="button" onClick={onCancelRename}>
+                              {t('graphs.cancel')}
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="graph-list__item-main"
-                          onClick={() => {
-                            onSelectGraph(graph.id)
-                            setOpenGraphMenuId(null)
-                          }}
-                        >
-                          <div className="graph-list__name">{graph.name}</div>
-                          <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
-                        </button>
-                        <div
-                          className={`graph-list__item-menu-wrap ${openGraphMenuId === graph.id ? 'is-open' : ''}`}
-                          ref={openGraphMenuId === graph.id ? menuRef : null}
-                        >
+                      ) : (
+                        <>
                           <button
-                            className="icon-btn graph-list__item-menu-btn"
                             type="button"
-                            aria-expanded={openGraphMenuId === graph.id}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setOpenGraphMenuId((current) => (current === graph.id ? null : graph.id))
+                            className="graph-list__item-main"
+                            onClick={() => {
+                              onSelectGraph(graph.id)
+                              setOpenGraphMenuId(null)
                             }}
                           >
-                            ⋯
+                            <div className="graph-list__name">{graph.name}</div>
+                            <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
                           </button>
-                          {openGraphMenuId === graph.id ? (
-                            <div className="graph-list__item-menu">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  onStartRenameGraph(graph.id, graph.name)
-                                  setOpenGraphMenuId(null)
-                                }}
-                              >
-                                {t('graphs.renameTitle')}
-                              </button>
-                              <button
-                                type="button"
-                                className="graph-list__item-menu-danger"
-                                onClick={() => {
-                                  onDeleteGraph(graph.id)
-                                  setOpenGraphMenuId(null)
-                                }}
-                              >
-                                {t('graphs.deleteTitle')}
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-                      </>
-                    )}
+                          <div
+                            className={`graph-list__item-menu-wrap ${openGraphMenuId === graph.id ? 'is-open' : ''}`}
+                            ref={openGraphMenuId === graph.id ? menuRef : null}
+                          >
+                            <button
+                              className="icon-btn graph-list__item-menu-btn"
+                              type="button"
+                              aria-expanded={openGraphMenuId === graph.id}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setOpenGraphMenuId((current) => (current === graph.id ? null : graph.id))
+                              }}
+                            >
+                              ⋯
+                            </button>
+                            {openGraphMenuId === graph.id ? (
+                              <div className="graph-list__item-menu">
+                                <button
+                                  type="button"
+                                  disabled={pinLimitReached}
+                                  title={pinLimitReached ? t('graphs.error.pinLimit', { count: maxPinnedGraphs }) : undefined}
+                                  onClick={() => {
+                                    onTogglePinGraph(graph.id)
+                                    setOpenGraphMenuId(null)
+                                  }}
+                                >
+                                  {isPinned ? t('graphs.unpinTitle') : t('graphs.pinTitle')}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onStartRenameGraph(graph.id, graph.name)
+                                    setOpenGraphMenuId(null)
+                                  }}
+                                >
+                                  {t('graphs.renameTitle')}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="graph-list__item-menu-danger"
+                                  onClick={() => {
+                                    onDeleteGraph(graph.id)
+                                    setOpenGraphMenuId(null)
+                                  }}
+                                >
+                                  {t('graphs.deleteTitle')}
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        </>
+                      )
+                    })()}
                   </div>
                 ))
               )}

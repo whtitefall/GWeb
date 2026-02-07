@@ -8,6 +8,7 @@ type HomeViewProps = {
   activeGraphId: string | null
   thumbnails: Record<string, GraphPayload | null>
   onOpenGraph: (graphId: string) => void
+  userName?: string
 }
 
 type PreviewNode = {
@@ -170,8 +171,23 @@ function buildSnapshot(payload: GraphPayload | null | undefined): PreviewSnapsho
   }
 }
 
-export default function HomeView({ graphList, activeGraphId, thumbnails, onOpenGraph }: HomeViewProps) {
+const resolveGreetingKey = (date: Date) => {
+  const hour = date.getHours()
+  if (hour >= 5 && hour < 12) {
+    return 'home.greeting.morning'
+  }
+  if (hour >= 12 && hour < 18) {
+    return 'home.greeting.afternoon'
+  }
+  return 'home.greeting.evening'
+}
+
+export default function HomeView({ graphList, activeGraphId, thumbnails, onOpenGraph, userName }: HomeViewProps) {
   const { t } = useI18n()
+  const greeting = t(resolveGreetingKey(new Date()))
+  const greetingTitle = userName
+    ? t('home.greeting.withName', { greeting, name: userName })
+    : greeting
 
   const snapshots = graphList.map((graph) => ({
     id: graph.id,
@@ -182,93 +198,98 @@ export default function HomeView({ graphList, activeGraphId, thumbnails, onOpenG
   if (graphList.length === 0) {
     return (
       <section className="home-view">
-        <header className="home-view__header">
-          <h1>{t('home.title')}</h1>
-          <p>{t('home.subtitle')}</p>
-        </header>
-        <div className="home-view__empty">{t('home.empty')}</div>
+        <div className="home-view__content">
+          <header className="home-view__header">
+            <h1>{greetingTitle}</h1>
+            <p>{t('home.subtitle')}</p>
+          </header>
+          <div className="home-view__empty">{t('home.empty')}</div>
+        </div>
       </section>
     )
   }
 
   return (
     <section className="home-view">
-      <header className="home-view__header">
-        <h1>{t('home.title')}</h1>
-        <p>{t('home.subtitle')}</p>
-      </header>
-      <div className="home-grid" role="list" aria-label={t('home.recent')}>
-        {graphList.map((graph) => {
-          const snapshot = snapshotById.get(graph.id) ?? null
-          return (
-            <button
-              key={graph.id}
-              type="button"
-              role="listitem"
-              className={`home-card ${activeGraphId === graph.id ? 'is-active' : ''}`}
-              onClick={() => onOpenGraph(graph.id)}
-            >
-              <div className="home-card__thumb home-card__thumb--flow">
-                {snapshot ? (
-                  <svg className="home-card__svg" viewBox={snapshot.viewBox} preserveAspectRatio="xMidYMid meet">
-                    <defs>
-                      <marker
-                        id={`home-arrow-${graph.id}`}
-                        markerWidth="9"
-                        markerHeight="9"
-                        refX="7"
-                        refY="3.5"
-                        orient="auto"
-                        markerUnits="strokeWidth"
-                      >
-                        <path d="M0,0 L0,7 L7,3.5 z" className="home-card__arrow" />
-                      </marker>
-                    </defs>
-                    {snapshot.edges.map((edge) => (
-                      <line
-                        key={edge.id}
-                        x1={edge.x1}
-                        y1={edge.y1}
-                        x2={edge.x2}
-                        y2={edge.y2}
-                        className="home-card__edge"
-                        markerEnd={edge.directed ? `url(#home-arrow-${graph.id})` : undefined}
-                      />
-                    ))}
-                    {snapshot.nodes.map((node) => (
-                      <g key={node.id}>
-                        <rect
-                          x={node.x}
-                          y={node.y}
-                          width={node.width}
-                          height={node.height}
-                          rx={node.isGroup ? 10 : 7}
-                          className={`home-card__node ${node.isGroup ? 'home-card__node--group' : ''}`}
+      <div className="home-view__content">
+        <header className="home-view__header">
+          <h1>{greetingTitle}</h1>
+          <p>{t('home.subtitle')}</p>
+        </header>
+        <div className="home-view__section-title">{t('home.recent')}</div>
+        <div className="home-grid" role="list" aria-label={t('home.recent')}>
+          {graphList.map((graph) => {
+            const snapshot = snapshotById.get(graph.id) ?? null
+            return (
+              <button
+                key={graph.id}
+                type="button"
+                role="listitem"
+                className={`home-card ${activeGraphId === graph.id ? 'is-active' : ''}`}
+                onClick={() => onOpenGraph(graph.id)}
+              >
+                <div className="home-card__thumb home-card__thumb--flow">
+                  {snapshot ? (
+                    <svg className="home-card__svg" viewBox={snapshot.viewBox} preserveAspectRatio="xMidYMid meet">
+                      <defs>
+                        <marker
+                          id={`home-arrow-${graph.id}`}
+                          markerWidth="9"
+                          markerHeight="9"
+                          refX="7"
+                          refY="3.5"
+                          orient="auto"
+                          markerUnits="strokeWidth"
+                        >
+                          <path d="M0,0 L0,7 L7,3.5 z" className="home-card__arrow" />
+                        </marker>
+                      </defs>
+                      {snapshot.edges.map((edge) => (
+                        <line
+                          key={edge.id}
+                          x1={edge.x1}
+                          y1={edge.y1}
+                          x2={edge.x2}
+                          y2={edge.y2}
+                          className="home-card__edge"
+                          markerEnd={edge.directed ? `url(#home-arrow-${graph.id})` : undefined}
                         />
-                        {!node.isGroup ? (
-                          <text
-                            x={node.x + node.width / 2}
-                            y={node.y + node.height / 2 + 3}
-                            textAnchor="middle"
-                            className="home-card__label"
-                          >
-                            {node.label}
-                          </text>
-                        ) : null}
-                      </g>
-                    ))}
-                  </svg>
-                ) : (
-                  <div className="home-card__thumb-empty">{t('home.thumbnailEmpty')}</div>
-                )}
-              </div>
-              <div className="home-card__body">
-                <div className="home-card__title">{graph.name}</div>
-                <div className="home-card__meta">{formatUpdatedAt(graph.updatedAt)}</div>
-              </div>
-            </button>
-          )
-        })}
+                      ))}
+                      {snapshot.nodes.map((node) => (
+                        <g key={node.id}>
+                          <rect
+                            x={node.x}
+                            y={node.y}
+                            width={node.width}
+                            height={node.height}
+                            rx={node.isGroup ? 10 : 7}
+                            className={`home-card__node ${node.isGroup ? 'home-card__node--group' : ''}`}
+                          />
+                          {!node.isGroup ? (
+                            <text
+                              x={node.x + node.width / 2}
+                              y={node.y + node.height / 2 + 3}
+                              textAnchor="middle"
+                              className="home-card__label"
+                            >
+                              {node.label}
+                            </text>
+                          ) : null}
+                        </g>
+                      ))}
+                    </svg>
+                  ) : (
+                    <div className="home-card__thumb-empty">{t('home.thumbnailEmpty')}</div>
+                  )}
+                </div>
+                <div className="home-card__body">
+                  <div className="home-card__title">{graph.name}</div>
+                  <div className="home-card__meta">{formatUpdatedAt(graph.updatedAt)}</div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
       </div>
     </section>
   )

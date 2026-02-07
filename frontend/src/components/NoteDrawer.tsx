@@ -14,7 +14,6 @@ type NoteDrawerProps = {
   onResizeStart: (event: MouseEvent<HTMLDivElement>) => void
   onResizeHeightStart?: (event: MouseEvent<HTMLDivElement>) => void
   onClose: () => void
-  onRemoveNode: (nodeId: string) => void
   onDetachFromGroup: (nodeId: string) => void
   onUpdateLabel: (nodeId: string, value: string) => void
   itemTitle: string
@@ -35,7 +34,6 @@ export default function NoteDrawer({
   onResizeStart,
   onResizeHeightStart,
   onClose,
-  onRemoveNode,
   onDetachFromGroup,
   onUpdateLabel,
   itemTitle,
@@ -77,11 +75,9 @@ export default function NoteDrawer({
                     {t('drawer.removeFromGroup')}
                   </button>
                 ) : null}
-                {!readOnly ? (
-                  <button className="btn btn--danger" type="button" onClick={() => onRemoveNode(activeNode.id)}>
-                    {t('drawer.remove')}
-                  </button>
-                ) : null}
+                <button className="btn btn--ghost" type="button" onClick={onClose}>
+                  {t('drawer.close')}
+                </button>
               </div>
             </div>
 

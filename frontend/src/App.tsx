@@ -85,6 +85,7 @@ const NODE_DOCK_WIDTH = 420
 const DRAWER_HEIGHT_MIN = 360
 const DRAWER_HEIGHT_MAX = 980
 const NODE_CLIPBOARD_KEY = 'gweb.node.clipboard.v1'
+const MAX_PINNED_GRAPHS = 3
 
 type queuedSave = {
   graphId: string
@@ -119,6 +120,7 @@ export default function App() {
   const { nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange } = useGraphState()
   // Graph list + metadata for the current Graph Notes view.
   const [graphList, setGraphList] = useState<GraphSummary[]>([])
+  const [pinnedGraphIds, setPinnedGraphIds] = useState<string[]>([])
   const [homeThumbnails, setHomeThumbnails] = useState<Record<string, GraphPayload | null>>({})
   const [activeGraphId, setActiveGraphId] = useState<string | null>(null)
   const [graphName, setGraphName] = useState(defaultGraph.name)
@@ -286,6 +288,7 @@ export default function App() {
   // Local storage keys are namespaced by graph kind for future expansion.
   const listStorageKey = useMemo(() => `${STORAGE_LIST_KEY}.${graphKind}`, [graphKind])
   const activeStorageKey = useMemo(() => `${STORAGE_ACTIVE_KEY}.${graphKind}`, [graphKind])
+  const pinnedStorageKey = useMemo(() => `gweb.graph.pinned.v1.${graphKind}`, [graphKind])
   const graphStorageKey = useCallback(
     (graphId: string) => `${STORAGE_GRAPH_PREFIX}${graphKind}.${graphId}`,
     [graphKind],
@@ -915,6 +918,45 @@ export default function App() {
       window.localStorage.setItem(listStorageKey, JSON.stringify(graphList))
     }
   }, [graphList, listStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    const raw = window.localStorage.getItem(pinnedStorageKey)
+    if (!raw) {
+      setPinnedGraphIds([])
+      return
+    }
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        setPinnedGraphIds(parsed.filter((id): id is string => typeof id === 'string'))
+        return
+      }
+    } catch {
+      // Fallback to empty state when pinned metadata is invalid.
+    }
+    setPinnedGraphIds([])
+  }, [pinnedStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    window.localStorage.setItem(pinnedStorageKey, JSON.stringify(pinnedGraphIds))
+  }, [pinnedGraphIds, pinnedStorageKey])
+
+  useEffect(() => {
+    if (!supabaseLoggedIn || graphList.length === 0) {
+      return
+    }
+    const currentIds = new Set(graphList.map((graph) => graph.id))
+    setPinnedGraphIds((current) => {
+      const next = current.filter((id) => currentIds.has(id))
+      return next.length === current.length ? current : next
+    })
+  }, [graphList, supabaseLoggedIn])
 
   useEffect(() => {
     if (graphKind !== 'note') {
@@ -1733,6 +1775,26 @@ export default function App() {
     [graphList, t],
   )
 
+  const handleTogglePinGraph = useCallback(
+    (graphId: string) => {
+      if (!graphId) {
+        return
+      }
+      if (pinnedGraphIds.includes(graphId)) {
+        setPinnedGraphIds((current) => current.filter((id) => id !== graphId))
+        setImportError('')
+        return
+      }
+      if (pinnedGraphIds.length >= MAX_PINNED_GRAPHS) {
+        setImportError(t('graphs.error.pinLimit', { count: MAX_PINNED_GRAPHS }))
+        return
+      }
+      setPinnedGraphIds((current) => [graphId, ...current])
+      setImportError('')
+    },
+    [pinnedGraphIds, t],
+  )
+
   const loadTemplatePayload = useCallback(
     async (templateId: string): Promise<GraphPayload | null> => {
       if (!templateId) {
@@ -1893,6 +1955,21 @@ export default function App() {
     },
     [activeGraphId, graphKind, graphList, graphStorageKey, listStorageKey, t],
   )
+
+  const sortedGraphList = useMemo(() => {
+    if (pinnedGraphIds.length === 0) {
+      return graphList
+    }
+    const graphById = new Map(graphList.map((graph) => [graph.id, graph]))
+    const pinned = pinnedGraphIds
+      .map((id) => graphById.get(id) ?? null)
+      .filter((graph): graph is GraphSummary => graph !== null)
+    if (pinned.length === 0) {
+      return graphList
+    }
+    const pinnedSet = new Set(pinned.map((graph) => graph.id))
+    return [...pinned, ...graphList.filter((graph) => !pinnedSet.has(graph.id))]
+  }, [graphList, pinnedGraphIds])
 
   const selectedNodeCount = nodes.filter((node) => node.selected).length
   const selectionCount = selectedNodeCount + edges.filter((edge) => edge.selected).length
@@ -2630,7 +2707,6 @@ export default function App() {
                 onResizeHeightStart={handleDrawerHeightResizeStart}
                 readOnly={isReadOnlyCanvas}
                 onClose={handleMinimizeNodeDrawer}
-                onRemoveNode={removeNode}
                 onDetachFromGroup={detachFromGroup}
                 onUpdateLabel={(nodeId, value) =>
                   updateNodeData(nodeId, (data) => ({
@@ -2656,7 +2732,6 @@ export default function App() {
                 onResizeStart={handleDrawerResizeStart}
                 onResizeHeightStart={handleDrawerHeightResizeStart}
                 onClose={handleMinimizeNodeDrawer}
-                onRemoveNode={removeNode}
                 updateNodeData={updateNodeData}
               />
             ) : null}
@@ -2668,7 +2743,9 @@ export default function App() {
                 collapsed={sidebarCollapsed}
                 viewMode={viewMode}
                 showBetaTabs={betaFeaturesEnabled}
-                graphList={graphList}
+                graphList={sortedGraphList}
+                pinnedGraphIds={pinnedGraphIds}
+                maxPinnedGraphs={MAX_PINNED_GRAPHS}
                 activeGraphId={activeGraphId}
                 graphName={graphName}
                 renameTargetGraphId={renameTargetGraphId}
@@ -2683,6 +2760,7 @@ export default function App() {
                 onSelectGraph={handleSelectGraphFromList}
                 onCreateGraph={handleCreateGraph}
                 onDeleteGraph={handleRequestDeleteGraph}
+                onTogglePinGraph={handleTogglePinGraph}
                 onExport={handleExport}
                 onImportFile={handleImportFile}
                 onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
@@ -2696,6 +2774,7 @@ export default function App() {
                   graphList={graphList}
                   activeGraphId={activeGraphId}
                   thumbnails={homeThumbnails}
+                  userName={userName}
                   onOpenGraph={handleOpenGraphFromHome}
                 />
               ) : is2DView ? (
@@ -2851,7 +2930,6 @@ export default function App() {
                   onResizeHeightStart={handleDrawerHeightResizeStart}
                   readOnly={isReadOnlyCanvas}
                   onClose={handleMinimizeNodeDrawer}
-                  onRemoveNode={removeNode}
                   onDetachFromGroup={detachFromGroup}
                   onUpdateLabel={(nodeId, value) =>
                     updateNodeData(nodeId, (data) => ({
@@ -2876,7 +2954,6 @@ export default function App() {
                   onResizeStart={handleDrawerResizeStart}
                   onResizeHeightStart={handleDrawerHeightResizeStart}
                   onClose={handleMinimizeNodeDrawer}
-                  onRemoveNode={removeNode}
                   updateNodeData={updateNodeData}
                 />
               ) : null}

@@ -14,7 +14,6 @@ type TaskDrawerProps = {
   onResizeStart: (event: MouseEvent<HTMLDivElement>) => void
   onResizeHeightStart?: (event: MouseEvent<HTMLDivElement>) => void
   onClose: () => void
-  onRemoveNode: (nodeId: string) => void
   updateNodeData: (nodeId: string, updater: (data: NodeData) => NodeData) => void
 }
 
@@ -28,7 +27,6 @@ export default function TaskDrawer({
   onResizeStart,
   onResizeHeightStart,
   onClose,
-  onRemoveNode,
   updateNodeData,
 }: TaskDrawerProps) {
   const { t } = useI18n()
@@ -57,8 +55,8 @@ export default function TaskDrawer({
                 <button className="btn btn--ghost" type="button" onClick={onClose}>
                   {t('task.minimize')}
                 </button>
-                <button className="btn btn--danger" type="button" onClick={() => onRemoveNode(activeNode.id)}>
-                  {t('task.remove')}
+                <button className="btn btn--ghost" type="button" onClick={onClose}>
+                  {t('task.close')}
                 </button>
               </div>
             </div>
