@@ -541,14 +541,15 @@
 }
 
 .graph-list__item-menu-btn {
-  width: 24px;
-  height: 24px;
-  border-color: transparent;
+  width: 22px;
+  height: 22px;
+  border: 0;
   background: transparent;
   color: var(--muted);
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.12s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  box-shadow: none;
+  transition: opacity 0.12s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .graph-list__item:hover .graph-list__item-menu-btn,
@@ -560,7 +561,7 @@
 
 .graph-list__item-menu-btn:hover {
   background: var(--hover-surface);
-  border-color: var(--stroke);
+  border: 0;
   color: var(--ink);
 }
 
