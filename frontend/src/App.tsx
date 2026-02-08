@@ -256,7 +256,7 @@ export default function App() {
   const [minimizedNodeIds, setMinimizedNodeIds] = useState<string[]>([])
   const [itemTitle, setItemTitle] = useState('')
   const [itemModal, setItemModal] = useState<{ nodeId: string; itemId: string } | null>(null)
-  const [itemNoteTitle, setItemNoteTitle] = useState('')
+  const [itemTipTitle, setItemTipTitle] = useState('')
   const [saveState, setSaveState] = useState<keyof typeof statusLabels>('idle')
   const [temporaryGraph, setTemporaryGraph] = useState<temporaryGraphState | null>(null)
   const [nodeNotesState, setNodeNotesState] = useState<nodeNotesState | null>(null)
@@ -650,7 +650,7 @@ export default function App() {
     setNodeNotesState(null)
     setItemModal(null)
     setItemTitle('')
-    setItemNoteTitle('')
+    setItemTipTitle('')
     setHomeThumbnails({})
   }, [graphKind])
 
@@ -866,7 +866,7 @@ export default function App() {
     setSelectedNodeId(null)
     setItemTitle('')
     setItemModal(null)
-    setItemNoteTitle('')
+    setItemTipTitle('')
     let isMounted = true
 
     const loadGraph = async () => {
@@ -1505,7 +1505,7 @@ export default function App() {
     [updateNodeData],
   )
 
-  const addItemNote = useCallback(
+  const addItemTip = useCallback(
     (nodeId: string, itemId: string, title: string) => {
       const trimmed = title.trim()
       if (!trimmed) return
@@ -1540,7 +1540,7 @@ export default function App() {
     [updateNodeData],
   )
 
-  const updateItemNoteTitle = useCallback(
+  const updateItemTipTitle = useCallback(
     (nodeId: string, itemId: string, noteId: string, title: string) => {
       updateNodeData(nodeId, (data) => {
         const next = updateItemById(data.items, itemId, (item) => ({
@@ -1558,7 +1558,7 @@ export default function App() {
     [updateNodeData],
   )
 
-  const removeItemNote = useCallback(
+  const removeItemTip = useCallback(
     (nodeId: string, itemId: string, noteId: string) => {
       updateNodeData(nodeId, (data) => {
         const next = updateItemById(data.items, itemId, (item) => ({
@@ -2702,7 +2702,7 @@ export default function App() {
 
   const handleOpenItemModal = useCallback((nodeId: string, itemId: string) => {
     setItemModal({ nodeId, itemId })
-    setItemNoteTitle('')
+    setItemTipTitle('')
   }, [])
 
   const handleVisualizeNodeGraph = useCallback(
@@ -2788,9 +2788,14 @@ export default function App() {
   )
 
   const handleBackFromNodeNotes = useCallback(() => {
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+    void persistQueuedSave()
     setNodeNotesState(null)
     setContextMenu(null)
-  }, [])
+  }, [persistQueuedSave])
 
   const handleSaveTemporaryGraph = useCallback(async () => {
     if (!temporaryGraph) {
@@ -3485,12 +3490,12 @@ export default function App() {
         node={itemModalNode}
         item={itemModalItem}
         readOnly={isReadOnlyCanvas}
-        noteTitle={itemNoteTitle}
-        onChangeNoteTitle={setItemNoteTitle}
+        tipTitle={itemTipTitle}
+        onChangeTipTitle={setItemTipTitle}
         onUpdateItemTitle={updateItemTitle}
-        onUpdateNoteTitle={updateItemNoteTitle}
-        onAddNote={addItemNote}
-        onRemoveNote={removeItemNote}
+        onUpdateTipTitle={updateItemTipTitle}
+        onAddTip={addItemTip}
+        onRemoveTip={removeItemTip}
         onClose={() => setItemModal(null)}
       />
 

@@ -1,4 +1,4 @@
-// Right-side drawer for editing a node's title, items, and notes.
+// Right-side drawer for editing a node's title, items, and tips.
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
 import type { GraphNode, Item } from '../graphTypes'
 import { useI18n } from '../i18n'

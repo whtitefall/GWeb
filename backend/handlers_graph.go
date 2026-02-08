@@ -93,19 +93,21 @@ func (s *server) handlePutGraph(w http.ResponseWriter, r *http.Request) {
 		payload.Kind = "note"
 		body, _ = json.Marshal(payload)
 	}
+	nodeNotesData := extractNodeNotes(payload.Nodes)
 
 	graphID := userGraphID(userID, s.graphID)
 	_, err = s.pool.Exec(
 		ctx,
-		`INSERT INTO graphs (id, user_id, name, kind, data, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, now())
+		`INSERT INTO graphs (id, user_id, name, kind, data, node_notes, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, now())
 		 ON CONFLICT (id) DO UPDATE
-		 SET name = EXCLUDED.name, kind = EXCLUDED.kind, data = EXCLUDED.data, updated_at = now()`,
+		 SET name = EXCLUDED.name, kind = EXCLUDED.kind, data = EXCLUDED.data, node_notes = EXCLUDED.node_notes, updated_at = now()`,
 		graphID,
 		userID,
 		payload.Name,
 		payload.Kind,
 		body,
+		nodeNotesData,
 	)
 	if err != nil {
 		log.Printf("failed to save graph: %v", err)
@@ -246,6 +248,7 @@ func (s *server) handleCreateGraph(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to encode graph", http.StatusInternalServerError)
 		return
 	}
+	nodeNotesData := extractNodeNotes(payload.Nodes)
 
 	id, err := generateID()
 	if err != nil {
@@ -256,14 +259,15 @@ func (s *server) handleCreateGraph(w http.ResponseWriter, r *http.Request) {
 	var updatedAt time.Time
 	err = s.pool.QueryRow(
 		ctx,
-		`INSERT INTO graphs (id, user_id, name, kind, data, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, now())
+		`INSERT INTO graphs (id, user_id, name, kind, data, node_notes, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, now())
 		 RETURNING updated_at`,
 		id,
 		userID,
 		payload.Name,
 		payload.Kind,
 		data,
+		nodeNotesData,
 	).Scan(&updatedAt)
 	if err != nil {
 		log.Printf("failed to create graph: %v", err)
@@ -339,18 +343,20 @@ func (s *server) handlePutGraphByID(w http.ResponseWriter, r *http.Request, id s
 		payload.Kind = "note"
 		body, _ = json.Marshal(payload)
 	}
+	nodeNotesData := extractNodeNotes(payload.Nodes)
 
 	_, err = s.pool.Exec(
 		ctx,
-		`INSERT INTO graphs (id, user_id, name, kind, data, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, now())
+		`INSERT INTO graphs (id, user_id, name, kind, data, node_notes, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, now())
 		 ON CONFLICT (id) DO UPDATE
-		 SET name = EXCLUDED.name, kind = EXCLUDED.kind, data = EXCLUDED.data, updated_at = now()`,
+		 SET name = EXCLUDED.name, kind = EXCLUDED.kind, data = EXCLUDED.data, node_notes = EXCLUDED.node_notes, updated_at = now()`,
 		id,
 		userID,
 		payload.Name,
 		payload.Kind,
 		body,
+		nodeNotesData,
 	)
 	if err != nil {
 		log.Printf("failed to save graph: %v", err)

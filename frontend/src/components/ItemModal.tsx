@@ -1,4 +1,4 @@
-// Modal for editing an item's title and notes list.
+// Modal for editing an item's title and tips list.
 import type { FormEvent } from 'react'
 import type { GraphNode, Item } from '../graphTypes'
 import { useI18n } from '../i18n'
@@ -8,12 +8,12 @@ type ItemModalProps = {
   node: GraphNode | null
   item: Item | null
   readOnly?: boolean
-  noteTitle: string
-  onChangeNoteTitle: (value: string) => void
+  tipTitle: string
+  onChangeTipTitle: (value: string) => void
   onUpdateItemTitle: (nodeId: string, itemId: string, title: string) => void
-  onUpdateNoteTitle: (nodeId: string, itemId: string, noteId: string, title: string) => void
-  onAddNote: (nodeId: string, itemId: string, title: string) => void
-  onRemoveNote: (nodeId: string, itemId: string, noteId: string) => void
+  onUpdateTipTitle: (nodeId: string, itemId: string, noteId: string, title: string) => void
+  onAddTip: (nodeId: string, itemId: string, title: string) => void
+  onRemoveTip: (nodeId: string, itemId: string, noteId: string) => void
   onClose: () => void
 }
 
@@ -22,12 +22,12 @@ export default function ItemModal({
   node,
   item,
   readOnly = false,
-  noteTitle,
-  onChangeNoteTitle,
+  tipTitle,
+  onChangeTipTitle,
   onUpdateItemTitle,
-  onUpdateNoteTitle,
-  onAddNote,
-  onRemoveNote,
+  onUpdateTipTitle,
+  onAddTip,
+  onRemoveTip,
   onClose,
 }: ItemModalProps) {
   const { t } = useI18n()
@@ -40,8 +40,8 @@ export default function ItemModal({
     if (readOnly) {
       return
     }
-    onAddNote(node.id, item.id, noteTitle)
-    onChangeNoteTitle('')
+    onAddTip(node.id, item.id, tipTitle)
+    onChangeTipTitle('')
     onClose()
   }
 
@@ -69,14 +69,14 @@ export default function ItemModal({
           <div className="item-modal__empty">{t('itemModal.empty')}</div>
         ) : (
           <ul className="item-modal__list">
-            {item.notes.map((note) => (
-              <li key={note.id} className="item-modal__item">
+            {item.notes.map((tip) => (
+              <li key={tip.id} className="item-modal__item">
                 <input
                   className="item-modal__note-input"
                   type="text"
-                  value={note.title}
+                  value={tip.title}
                   onChange={(event) =>
-                    onUpdateNoteTitle(node.id, item.id, note.id, event.target.value)
+                    onUpdateTipTitle(node.id, item.id, tip.id, event.target.value)
                   }
                   readOnly={readOnly}
                   disabled={readOnly}
@@ -85,7 +85,7 @@ export default function ItemModal({
                   <button
                     className="item-modal__remove"
                     type="button"
-                    onClick={() => onRemoveNote(node.id, item.id, note.id)}
+                    onClick={() => onRemoveTip(node.id, item.id, tip.id)}
                   >
                     {t('itemModal.remove')}
                   </button>
@@ -99,8 +99,8 @@ export default function ItemModal({
             <textarea
               className="item-modal__textarea"
               placeholder={t('itemModal.addPlaceholder')}
-              value={noteTitle}
-              onChange={(event) => onChangeNoteTitle(event.target.value)}
+              value={tipTitle}
+              onChange={(event) => onChangeTipTitle(event.target.value)}
             />
             <button className="btn btn--primary" type="submit">
               {t('itemModal.addNote')}
