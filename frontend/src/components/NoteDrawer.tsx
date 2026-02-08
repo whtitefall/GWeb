@@ -111,6 +111,15 @@ export default function NoteDrawer({
     setDraggingItemId(null)
   }
 
+  const openItemContextMenu = (nodeId: string, itemId: string, clientX: number, clientY: number) => {
+    setItemContextMenu({
+      nodeId,
+      itemId,
+      x: clientX,
+      y: clientY,
+    })
+  }
+
   const renderItemTree = (nodeId: string, item: Item, depth: number) => {
     const hasChildren = (item.children ?? []).length > 0
     const isExpanded = expandedItemIds.has(item.id)
@@ -120,17 +129,21 @@ export default function NoteDrawer({
           className={`items__item ${draggingItemId === item.id ? 'is-dragging' : ''}`}
           style={{ marginLeft: `${depth * 14}px` }}
           draggable={!readOnly}
+          onMouseDown={(event) => {
+            if (readOnly) {
+              return
+            }
+            if (event.button === 2) {
+              event.preventDefault()
+              openItemContextMenu(nodeId, item.id, event.clientX, event.clientY)
+            }
+          }}
           onContextMenu={(event) => {
             if (readOnly) {
               return
             }
             event.preventDefault()
-            setItemContextMenu({
-              nodeId,
-              itemId: item.id,
-              x: event.clientX,
-              y: event.clientY,
-            })
+            openItemContextMenu(nodeId, item.id, event.clientX, event.clientY)
           }}
           onDragStart={() => setDraggingItemId(item.id)}
           onDragEnd={() => setDraggingItemId(null)}
