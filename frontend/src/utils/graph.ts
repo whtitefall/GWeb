@@ -3,6 +3,7 @@ import { MarkerType } from 'reactflow'
 import type { GraphKind, GraphNode, GraphPayload, Item, NodeData, Note, GraphEdge } from '../graphTypes'
 import { DEFAULT_GROUP_SIZE, DEFAULT_NODE_SIZE, defaultGraph } from '../constants'
 import { generateId } from './id'
+import { editorContentToPlainText } from './richText'
 
 // Normalize notes to a consistent shape and generate IDs when missing.
 export const ensureNotes = (value: unknown): Note[] => {
@@ -11,14 +12,22 @@ export const ensureNotes = (value: unknown): Note[] => {
   }
 
   return value
-    .filter((note) => note && typeof (note as Note).title === 'string')
-    .map((note) => ({
-      id:
-        typeof (note as Note).id === 'string'
-          ? (note as Note).id
-          : generateId(),
-      title: String((note as Note).title),
-    }))
+    .filter((note) => note && typeof note === 'object')
+    .map((note) => {
+      const rawNote = note as Partial<Note> & { content?: unknown }
+      const normalizedContent = typeof rawNote.content === 'string' ? rawNote.content : ''
+      const titleFromContent = editorContentToPlainText(normalizedContent)
+      const normalizedTitle =
+        typeof rawNote.title === 'string' && rawNote.title.trim().length > 0
+          ? String(rawNote.title)
+          : titleFromContent
+      return {
+        id: typeof rawNote.id === 'string' ? rawNote.id : generateId(),
+        title: normalizedTitle,
+        content: normalizedContent,
+      }
+    })
+    .filter((note) => note.title.trim().length > 0 || (note.content?.trim().length ?? 0) > 0)
 }
 
 // Normalize items (and legacy notes) into the current Item[] structure.

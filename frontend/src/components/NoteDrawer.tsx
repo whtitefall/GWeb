@@ -112,11 +112,20 @@ export default function NoteDrawer({
   }
 
   const openItemContextMenu = (nodeId: string, itemId: string, clientX: number, clientY: number) => {
+    const drawerRect = drawerRef.current?.getBoundingClientRect()
+    const menuWidth = 200
+    const menuHeight = 56
+    const x = drawerRect
+      ? Math.max(8, Math.min(clientX - drawerRect.left, drawerRect.width - menuWidth - 8))
+      : clientX
+    const y = drawerRect
+      ? Math.max(8, Math.min(clientY - drawerRect.top, drawerRect.height - menuHeight - 8))
+      : clientY
     setItemContextMenu({
       nodeId,
       itemId,
-      x: clientX,
-      y: clientY,
+      x,
+      y,
     })
   }
 

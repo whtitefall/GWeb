@@ -1679,7 +1679,7 @@
 }
 
 .item-context-menu {
-  position: fixed;
+  position: absolute;
   z-index: 30;
 }
 
@@ -1970,6 +1970,11 @@
   font-size: 0.85rem;
 }
 
+.item-modal__item.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-surface);
+}
+
 .item-modal__note-input {
   flex: 1;
   background: transparent;
@@ -1988,6 +1993,22 @@
   font-size: 0.75rem;
 }
 
+.item-modal__open {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+
+.item-modal__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item-modal__section-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .item-modal__form {
   display: grid;
   grid-template-columns: 1fr;
@@ -1996,6 +2017,11 @@
 
 .item-modal__form .btn {
   justify-self: end;
+}
+
+.item-modal__form-preview {
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 .item-modal__textarea {
@@ -2014,6 +2040,22 @@
 .item-modal__textarea:focus {
   outline: 2px solid var(--focus-ring);
   border-color: var(--accent-border);
+}
+
+.editorjs-field {
+  border: 1px solid var(--stroke);
+  border-radius: 4px;
+  background: var(--panel-elevated);
+  min-height: 160px;
+}
+
+.editorjs-field .ce-block__content,
+.editorjs-field .ce-toolbar__content {
+  max-width: none;
+}
+
+.editorjs-field .codex-editor__redactor {
+  padding-bottom: 20px !important;
 }
 
 .modal__section {
