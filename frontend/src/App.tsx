@@ -2959,6 +2959,12 @@ export default function App() {
                     <span>{t('graphs.backToParent')}</span>
                   </button>
                 ) : null}
+                {isNodeNotesActive ? (
+                  <button className="btn btn--ghost app-menu__temp-back" type="button" onClick={handleBackFromNodeNotes}>
+                    <span aria-hidden>{'\u2190'}</span>
+                    <span>{t('graphs.backToGraph')}</span>
+                  </button>
+                ) : null}
                 {isTemporaryGraphActive ? (
                   <button className="btn btn--ghost app-menu__temp-save" type="button" onClick={handleSaveTemporaryGraph}>
                     {t('graphs.saveTemp')}
@@ -3158,10 +3164,6 @@ export default function App() {
                       <h2>{nodeNotesNode?.data.label ?? t('graph.label.newNode')}</h2>
                       <p>{t('nodeNotes.subtitle')}</p>
                     </div>
-                    <button className="btn btn--ghost" type="button" onClick={handleBackFromNodeNotes}>
-                      <span aria-hidden>{'\u2190'}</span>
-                      <span>{t('graphs.backToGraph')}</span>
-                    </button>
                   </div>
                   <div className="node-notes-view__editor">
                     {nodeNotesNode ? (

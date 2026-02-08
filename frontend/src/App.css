@@ -206,6 +206,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: nowrap;
 }
 
 .app-menu__status {
@@ -227,6 +228,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
 }
 
 .app-menu__trigger {
@@ -1531,6 +1533,29 @@
 .editorjs-field .ce-toolbar__plus:hover,
 .editorjs-field .ce-toolbar__settings-btn:hover {
   background: var(--hover-surface);
+}
+
+/* Keep the Editor.js insert/type menu fully opaque so placeholder text does not
+   show through when the context menu is open. */
+.editorjs-field .ce-popover,
+.editorjs-field .ce-popover__container,
+.editorjs-field .ce-popover__items,
+.editorjs-field .ce-popover__search,
+.editorjs-field .ce-popover-item,
+.editorjs-field .ce-popover-item__icon {
+  background: var(--panel) !important;
+}
+
+.editorjs-field .ce-popover {
+  border: 1px solid var(--stroke) !important;
+  box-shadow: var(--shadow) !important;
+  z-index: 40 !important;
+  opacity: 1 !important;
+}
+
+.editorjs-field .ce-popover-item:hover,
+.editorjs-field .ce-popover-item--focused {
+  background: var(--hover-surface) !important;
 }
 
 .chat-panel {
