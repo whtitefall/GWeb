@@ -4,7 +4,6 @@ import type { Edge, Node } from 'reactflow'
 export type Note = {
   id: string
   title: string
-  content?: string
 }
 
 export type Item = {

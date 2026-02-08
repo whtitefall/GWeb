@@ -73,7 +73,6 @@ import { generateId } from './utils/id'
 import { cloneItemsWithNewIds, findItemById, moveItemUnderItem, removeItemById, updateItemById } from './utils/items'
 import { resolveAuthName } from './utils/auth'
 import { readLocalGraphList } from './utils/storage'
-import { editorContentToPlainText } from './utils/richText'
 import { isLightColor, resolveTheme } from './utils/theme'
 import type { AIProvider, ChatMessage, FactKey, NodeDetailsLayout, SshConfig, ThemePreference, ViewMode } from './types/ui'
 import { supabase } from './supabaseClient'
@@ -252,7 +251,6 @@ export default function App() {
   const [itemTitle, setItemTitle] = useState('')
   const [itemModal, setItemModal] = useState<{ nodeId: string; itemId: string } | null>(null)
   const [itemNoteTitle, setItemNoteTitle] = useState('')
-  const [itemNoteContent, setItemNoteContent] = useState('')
   const [saveState, setSaveState] = useState<keyof typeof statusLabels>('idle')
   const [temporaryGraph, setTemporaryGraph] = useState<temporaryGraphState | null>(null)
   const [hydrated, setHydrated] = useState(false)
@@ -644,7 +642,6 @@ export default function App() {
     setItemModal(null)
     setItemTitle('')
     setItemNoteTitle('')
-    setItemNoteContent('')
     setHomeThumbnails({})
   }, [graphKind])
 
@@ -852,7 +849,6 @@ export default function App() {
     setItemTitle('')
     setItemModal(null)
     setItemNoteTitle('')
-    setItemNoteContent('')
     let isMounted = true
 
     const loadGraph = async () => {
@@ -1472,26 +1468,14 @@ export default function App() {
   )
 
   const addItemNote = useCallback(
-    (nodeId: string, itemId: string, title: string, content: string) => {
-      const trimmedTitle = title.trim()
-      const trimmedContent = content.trim()
-      const fallbackTitle = editorContentToPlainText(trimmedContent).slice(0, 80)
-      if (!trimmedTitle && !fallbackTitle && !trimmedContent) return
+    (nodeId: string, itemId: string, title: string) => {
+      const trimmed = title.trim()
+      if (!trimmed) return
 
       updateNodeData(nodeId, (data) => {
         const next = updateItemById(data.items, itemId, (item) => ({
           ...item,
-          notes: [
-            ...item.notes,
-            {
-              id: generateId(),
-              title:
-                trimmedTitle ||
-                fallbackTitle ||
-                t('itemModal.defaultNoteTitle', { count: item.notes.length + 1 }),
-              content: trimmedContent,
-            },
-          ],
+          notes: [...item.notes, { id: generateId(), title: trimmed }],
         }))
         return {
           ...data,
@@ -1499,7 +1483,7 @@ export default function App() {
         }
       })
     },
-    [t, updateNodeData],
+    [updateNodeData],
   )
 
   const updateItemTitle = useCallback(
@@ -1525,24 +1509,6 @@ export default function App() {
           ...item,
           notes: item.notes.map((note) =>
             note.id === noteId ? { ...note, title } : note,
-          ),
-        }))
-        return {
-          ...data,
-          items: next.items,
-        }
-      })
-    },
-    [updateNodeData],
-  )
-
-  const updateItemNoteContent = useCallback(
-    (nodeId: string, itemId: string, noteId: string, content: string) => {
-      updateNodeData(nodeId, (data) => {
-        const next = updateItemById(data.items, itemId, (item) => ({
-          ...item,
-          notes: item.notes.map((note) =>
-            note.id === noteId ? { ...note, content } : note,
           ),
         }))
         return {
@@ -2696,7 +2662,6 @@ export default function App() {
   const handleOpenItemModal = useCallback((nodeId: string, itemId: string) => {
     setItemModal({ nodeId, itemId })
     setItemNoteTitle('')
-    setItemNoteContent('')
   }, [])
 
   const handleVisualizeNodeGraph = useCallback(
@@ -3420,19 +3385,12 @@ export default function App() {
         item={itemModalItem}
         readOnly={isReadOnlyCanvas}
         noteTitle={itemNoteTitle}
-        noteContent={itemNoteContent}
         onChangeNoteTitle={setItemNoteTitle}
-        onChangeNoteContent={setItemNoteContent}
         onUpdateItemTitle={updateItemTitle}
         onUpdateNoteTitle={updateItemNoteTitle}
-        onUpdateNoteContent={updateItemNoteContent}
         onAddNote={addItemNote}
         onRemoveNote={removeItemNote}
-        onClose={() => {
-          setItemModal(null)
-          setItemNoteTitle('')
-          setItemNoteContent('')
-        }}
+        onClose={() => setItemModal(null)}
       />
 
       <SshModal
