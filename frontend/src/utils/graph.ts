@@ -141,6 +141,8 @@ export const normalizeGraph = (payload: GraphPayload | null, fallbackKind: Graph
     const progress = coerceNumber((rawData as NodeData).progress, 0)
     const scriptName =
       typeof (rawData as NodeData).scriptName === 'string' ? (rawData as NodeData).scriptName : ''
+    const nodeNotes =
+      typeof (rawData as NodeData).nodeNotes === 'string' ? (rawData as NodeData).nodeNotes : ''
     return {
       ...node,
       type: node.type ?? 'default',
@@ -149,6 +151,7 @@ export const normalizeGraph = (payload: GraphPayload | null, fallbackKind: Graph
       data: {
         label,
         items: ensureItems((rawData as NodeData).items, (rawData as { notes?: Note[] }).notes),
+        nodeNotes,
         position3d,
         progress,
         scriptName,

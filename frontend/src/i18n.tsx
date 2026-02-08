@@ -96,6 +96,7 @@ const messages: Record<Language, Record<string, string>> = {
     'context.removeFromGroup': 'Remove from Group',
     'context.ungroupChildren': 'Ungroup Children',
     'context.visualizeNodeGraph': 'Visualize Item Graph',
+    'context.notesToNode': 'Notes to Node',
     'context.makeUndirected': 'Make Undirected',
     'context.makeDirected': 'Make Directed',
     'context.deleteEdge': 'Delete Edge',
@@ -127,6 +128,7 @@ const messages: Record<Language, Record<string, string>> = {
     'graphs.tempGraphPrefix': 'Node Graph',
     'graphs.backToParent': 'Back',
     'graphs.saveTemp': 'Save Graph',
+    'graphs.backToGraph': 'Back to Graph',
 
     'drawer.nodeSettings': 'Node Settings',
     'drawer.nodeDetails': 'Node Details',
@@ -147,6 +149,10 @@ const messages: Record<Language, Record<string, string>> = {
     'drawer.minimizedLabel': 'Minimized node details',
     'drawer.open': 'Open Panel',
     'drawer.dismiss': 'Dismiss',
+    'nodeNotes.title': 'Node Notes',
+    'nodeNotes.subtitle': 'Use rich text blocks to document this node.',
+    'nodeNotes.placeholder': 'Start writing notes for this node...',
+    'nodeNotes.empty': 'Node not found. Go back to the graph and try again.',
 
     'itemModal.eyebrow': 'Item Notes',
     'itemModal.close': 'Close',
@@ -365,6 +371,7 @@ const messages: Record<Language, Record<string, string>> = {
     'context.removeFromGroup': '移出分组',
     'context.ungroupChildren': '取消分组子节点',
     'context.visualizeNodeGraph': '可视化条目图谱',
+    'context.notesToNode': '节点笔记',
     'context.makeUndirected': '改为无向边',
     'context.makeDirected': '改为有向边',
     'context.deleteEdge': '删除边',
@@ -396,6 +403,7 @@ const messages: Record<Language, Record<string, string>> = {
     'graphs.tempGraphPrefix': '节点图谱',
     'graphs.backToParent': '返回',
     'graphs.saveTemp': '保存图谱',
+    'graphs.backToGraph': '返回图谱',
 
     'drawer.nodeSettings': '节点设置',
     'drawer.nodeDetails': '节点详情',
@@ -416,6 +424,10 @@ const messages: Record<Language, Record<string, string>> = {
     'drawer.minimizedLabel': '最小化节点详情',
     'drawer.open': '打开面板',
     'drawer.dismiss': '关闭',
+    'nodeNotes.title': '节点笔记',
+    'nodeNotes.subtitle': '使用富文本块为该节点记录信息。',
+    'nodeNotes.placeholder': '开始为该节点写笔记...',
+    'nodeNotes.empty': '未找到该节点，请返回图谱后重试。',
 
     'itemModal.eyebrow': '条目笔记',
     'itemModal.close': '关闭',

@@ -16,6 +16,7 @@ export type Item = {
 export type NodeData = {
   label: string
   items: Item[]
+  nodeNotes?: string
   position3d?: {
     x: number
     y: number

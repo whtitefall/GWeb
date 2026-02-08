@@ -28,6 +28,7 @@ import type { GraphEdge, GraphKind, GraphNode, GraphPayload, GraphSummary, Item,
 import ActionsWidget from './components/ActionsWidget'
 import AuthModal from './components/AuthModal'
 import ChatPanel from './components/ChatPanel'
+import EditorJsField from './components/EditorJsField'
 import GraphContextMenu, { type ContextMenuState } from './components/GraphContextMenu'
 import GraphListWidget from './components/GraphListWidget'
 import HomeView from './components/HomeView'
@@ -106,6 +107,11 @@ type temporaryGraphState = {
   sourceNodeId: string
   sourceGraphId: string | null
   name: string
+}
+
+type nodeNotesState = {
+  sourceNodeId: string
+  sourceGraphId: string | null
 }
 
 type visualItemNode = {
@@ -253,6 +259,7 @@ export default function App() {
   const [itemNoteTitle, setItemNoteTitle] = useState('')
   const [saveState, setSaveState] = useState<keyof typeof statusLabels>('idle')
   const [temporaryGraph, setTemporaryGraph] = useState<temporaryGraphState | null>(null)
+  const [nodeNotesState, setNodeNotesState] = useState<nodeNotesState | null>(null)
   const [hydrated, setHydrated] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('home')
   const [appMenuOpen, setAppMenuOpen] = useState(false)
@@ -406,6 +413,7 @@ export default function App() {
   const isGraph3dView = viewMode === 'graph3d'
   const is2DView = isGraphNoteView || isApplicationView
   const isTemporaryGraphActive = isGraphNoteView && temporaryGraph !== null
+  const isNodeNotesActive = isGraphNoteView && nodeNotesState !== null
   const isReadOnlyCanvas = is2DView && displayMode
   const useDockedNodeDrawer = is2DView && nodeDetailsLayout === 'drawer'
   const canShowDisplayMode = isGraphNoteView || isApplicationView
@@ -639,6 +647,7 @@ export default function App() {
     setEdges([])
     setSelectedNodeId(null)
     setTemporaryGraph(null)
+    setNodeNotesState(null)
     setItemModal(null)
     setItemTitle('')
     setItemNoteTitle('')
@@ -839,6 +848,15 @@ export default function App() {
       window.localStorage.setItem(activeStorageKey, activeGraphId)
     }
   }, [activeGraphId, activeStorageKey])
+
+  useEffect(() => {
+    if (!nodeNotesState) {
+      return
+    }
+    if (nodeNotesState.sourceGraphId !== activeGraphId) {
+      setNodeNotesState(null)
+    }
+  }, [activeGraphId, nodeNotesState])
 
   useEffect(() => {
     if (!supabaseLoggedIn || !activeGraphId) {
@@ -1172,8 +1190,11 @@ export default function App() {
     if (selectedNodeId && !nodes.some((node) => node.id === selectedNodeId)) {
       setSelectedNodeId(null)
     }
+    if (nodeNotesState && !nodes.some((node) => node.id === nodeNotesState.sourceNodeId)) {
+      setNodeNotesState(null)
+    }
     setMinimizedNodeIds((current) => current.filter((id) => nodes.some((node) => node.id === id)))
-  }, [nodes, selectedNodeId])
+  }, [nodeNotesState, nodes, selectedNodeId])
 
   useEffect(() => {
     if (selectedNodeId) {
@@ -1195,6 +1216,10 @@ export default function App() {
   const activeNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId],
+  )
+  const nodeNotesNode = useMemo(
+    () => (nodeNotesState ? nodes.find((node) => node.id === nodeNotesState.sourceNodeId) ?? null : null),
+    [nodeNotesState, nodes],
   )
   const minimizedNodes = useMemo(
     () =>
@@ -1422,6 +1447,19 @@ export default function App() {
       )
     },
     [setNodes],
+  )
+
+  const handleUpdateNodeNotes = useCallback(
+    (value: string) => {
+      if (!nodeNotesNode) {
+        return
+      }
+      updateNodeData(nodeNotesNode.id, (data) => ({
+        ...data,
+        nodeNotes: value,
+      }))
+    },
+    [nodeNotesNode, updateNodeData],
   )
 
   const addItem = useCallback(
@@ -2132,6 +2170,7 @@ export default function App() {
         setGraphName(selected.name)
       }
       setTemporaryGraph(null)
+      setNodeNotesState(null)
       pendingViewportFocusRef.current = true
       setHydrated(false)
       setGraphLoadNonce((current) => current + 1)
@@ -2229,9 +2268,9 @@ export default function App() {
     [drawerHeight, drawerWidthValue],
   )
   const showChatMini = is2DView && !isReadOnlyCanvas && chatOpen && chatMinimized
-  const showMiniTray = is2DView && (minimizedNodes.length > 0 || showChatMini)
-  const showActionsWidget = is2DView && !isReadOnlyCanvas && !actionsMinimized
-  const showActionsMini = is2DView && !isReadOnlyCanvas && actionsMinimized
+  const showMiniTray = is2DView && !isNodeNotesActive && (minimizedNodes.length > 0 || showChatMini)
+  const showActionsWidget = is2DView && !isReadOnlyCanvas && !isNodeNotesActive && !actionsMinimized
+  const showActionsMini = is2DView && !isReadOnlyCanvas && !isNodeNotesActive && actionsMinimized
   const drawerMiniTrayStyle = useMemo(() => {
     // Keep minimized cards clear of right-side docked panels.
     const drawerVisible = is2DView && Boolean(activeNode)
@@ -2504,6 +2543,7 @@ export default function App() {
         setGraphKind('note')
       }
       setSelectedNodeId(null)
+      setNodeNotesState(null)
       setChatOpen(false)
       setChatMinimized(false)
       return
@@ -2523,6 +2563,7 @@ export default function App() {
     }
     setViewMode(mode)
     setSelectedNodeId(null)
+    setNodeNotesState(null)
     setChatOpen(false)
     setChatMinimized(false)
   }
@@ -2681,6 +2722,7 @@ export default function App() {
       setGraphName(payload.name)
       setNodes(payload.nodes)
       setEdges(payload.edges)
+      setNodeNotesState(null)
       setSelectedNodeId(null)
       setContextMenu(null)
       setHydrated(true)
@@ -2714,6 +2756,7 @@ export default function App() {
       setGraphName(payload.name)
       setNodes(payload.nodes)
       setEdges(payload.edges)
+      setNodeNotesState(null)
       setSelectedNodeId(null)
       setContextMenu(null)
       setHydrated(true)
@@ -2721,6 +2764,33 @@ export default function App() {
     },
     [activeGraphId, nodes, setEdges, setNodes, t],
   )
+
+  const handleOpenNodeNotes = useCallback(
+    (nodeId: string) => {
+      const sourceNode = nodes.find((node) => node.id === nodeId)
+      if (!sourceNode) {
+        return
+      }
+      setTemporaryGraph(null)
+      setNodeNotesState({
+        sourceNodeId: sourceNode.id,
+        sourceGraphId: activeGraphId,
+      })
+      setGraphKind('note')
+      setViewMode('graph')
+      setSelectedNodeId(sourceNode.id)
+      setMinimizedNodeIds((current) => current.filter((id) => id !== sourceNode.id))
+      setContextMenu(null)
+      setChatOpen(false)
+      setChatMinimized(false)
+    },
+    [activeGraphId, nodes],
+  )
+
+  const handleBackFromNodeNotes = useCallback(() => {
+    setNodeNotesState(null)
+    setContextMenu(null)
+  }, [])
 
   const handleSaveTemporaryGraph = useCallback(async () => {
     if (!temporaryGraph) {
@@ -2742,6 +2812,7 @@ export default function App() {
       pendingViewportFocusRef.current = true
       setGraphList((current) => [summary, ...current])
       setTemporaryGraph(null)
+      setNodeNotesState(null)
       setActiveGraphId(summary.id)
       setGraphKind('note')
       setViewMode('graph')
@@ -2756,6 +2827,7 @@ export default function App() {
       pendingViewportFocusRef.current = true
       setGraphList((current) => [summary, ...current])
       setTemporaryGraph(null)
+      setNodeNotesState(null)
       setActiveGraphId(localId)
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(graphStorageKey(localId), JSON.stringify(payload))
@@ -2769,6 +2841,7 @@ export default function App() {
     if (!temporaryGraph) {
       return
     }
+    setNodeNotesState(null)
     const targetGraphId = temporaryGraph.sourceGraphId ?? activeGraphId
     setTemporaryGraph(null)
     setContextMenu(null)
@@ -2799,7 +2872,7 @@ export default function App() {
       return null
     }
     const menuWidth = 200
-    const menuHeight = 220
+    const menuHeight = 260
     const rect = flowShellRef.current?.getBoundingClientRect()
     if (!rect) {
       return { x: contextMenu.x, y: contextMenu.y }
@@ -3077,6 +3150,31 @@ export default function App() {
                   thumbnails={homeThumbnails}
                   onOpenGraph={handleOpenGraphFromHome}
                 />
+              ) : isNodeNotesActive ? (
+                <div className="node-notes-view">
+                  <div className="node-notes-view__header">
+                    <div>
+                      <div className="node-notes-view__eyebrow">{t('nodeNotes.title')}</div>
+                      <h2>{nodeNotesNode?.data.label ?? t('graph.label.newNode')}</h2>
+                      <p>{t('nodeNotes.subtitle')}</p>
+                    </div>
+                    <button className="btn btn--ghost" type="button" onClick={handleBackFromNodeNotes}>
+                      <span aria-hidden>{'\u2190'}</span>
+                      <span>{t('graphs.backToGraph')}</span>
+                    </button>
+                  </div>
+                  <div className="node-notes-view__editor">
+                    {nodeNotesNode ? (
+                      <EditorJsField
+                        value={nodeNotesNode.data.nodeNotes ?? ''}
+                        placeholder={t('nodeNotes.placeholder')}
+                        onChange={handleUpdateNodeNotes}
+                      />
+                    ) : (
+                      <div className="node-notes-view__empty">{t('nodeNotes.empty')}</div>
+                    )}
+                  </div>
+                </div>
               ) : is2DView ? (
                 <>
                   <ReactFlow
@@ -3172,6 +3270,7 @@ export default function App() {
                       onRemoveFromGroup={detachFromGroup}
                       onUngroupChildren={ungroupChildren}
                       onVisualizeNodeGraph={handleVisualizeNodeGraph}
+                      onOpenNodeNotes={handleOpenNodeNotes}
                       onToggleEdgeDirection={toggleEdgeDirection}
                       onDeleteEdge={removeEdgeById}
                       onClose={() => setContextMenu(null)}

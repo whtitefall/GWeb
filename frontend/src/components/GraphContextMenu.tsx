@@ -17,6 +17,7 @@ type GraphContextMenuProps = {
   onRemoveFromGroup: (id: string) => void
   onUngroupChildren: (id: string) => void
   onVisualizeNodeGraph: (id: string) => void
+  onOpenNodeNotes: (id: string) => void
   onToggleEdgeDirection: (id: string) => void
   onDeleteEdge: (id: string) => void
   onClose: () => void
@@ -32,6 +33,7 @@ export default function GraphContextMenu({
   onRemoveFromGroup,
   onUngroupChildren,
   onVisualizeNodeGraph,
+  onOpenNodeNotes,
   onToggleEdgeDirection,
   onDeleteEdge,
   onClose,
@@ -88,6 +90,15 @@ export default function GraphContextMenu({
             }}
           >
             {t('context.visualizeNodeGraph')}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onOpenNodeNotes(contextNode.id)
+              onClose()
+            }}
+          >
+            {t('context.notesToNode')}
           </button>
         </>
       ) : null}

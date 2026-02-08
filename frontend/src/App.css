@@ -1454,6 +1454,85 @@
   margin: 0;
 }
 
+.node-notes-view {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 24px 20px;
+}
+
+.node-notes-view__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.node-notes-view__eyebrow {
+  text-transform: none;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.node-notes-view__header h2 {
+  margin: 4px 0 0;
+  font-size: 1.25rem;
+  color: var(--ink);
+}
+
+.node-notes-view__header p {
+  margin: 6px 0 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.node-notes-view__editor {
+  flex: 1;
+  min-height: 0;
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  padding: 14px;
+  overflow: auto;
+}
+
+.node-notes-view__empty {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.editorjs-field {
+  width: 100%;
+  min-height: 100%;
+}
+
+.editorjs-field .codex-editor {
+  color: var(--ink);
+}
+
+.editorjs-field .ce-block__content,
+.editorjs-field .ce-toolbar__content {
+  max-width: 860px;
+}
+
+.editorjs-field .ce-paragraph {
+  line-height: 1.5;
+}
+
+.editorjs-field .ce-toolbar__plus,
+.editorjs-field .ce-toolbar__settings-btn {
+  color: var(--ink-soft);
+}
+
+.editorjs-field .ce-toolbar__plus:hover,
+.editorjs-field .ce-toolbar__settings-btn:hover {
+  background: var(--hover-surface);
+}
+
 .chat-panel {
   position: relative;
   width: min(420px, 38vw);
