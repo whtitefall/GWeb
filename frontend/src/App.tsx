@@ -24,7 +24,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import './App.css'
 import { createGraph, deleteGraph, fetchGraph, generateGraph, listGraphs, saveGraph } from './api'
-import type { GraphEdge, GraphKind, GraphNode, GraphPayload, GraphSummary, NodeData } from './graphTypes'
+import type { GraphEdge, GraphKind, GraphNode, GraphPayload, GraphSummary, Item, NodeData } from './graphTypes'
 import ActionsWidget from './components/ActionsWidget'
 import AuthModal from './components/AuthModal'
 import ChatPanel from './components/ChatPanel'
@@ -117,20 +117,16 @@ type visualItemNode = {
 const ITEM_GRAPH_H_GAP = 220
 const ITEM_GRAPH_V_GAP = 130
 
+const buildVisualItemSubtree = (item: Item): visualItemNode => ({
+  id: generateId(),
+  label: item.title,
+  children: (item.children ?? []).map((child) => buildVisualItemSubtree(child)),
+})
+
 const buildVisualItemTree = (label: string, items: NodeData['items']): visualItemNode => ({
   id: generateId(),
   label,
-  children: items.map((item) => ({
-    id: generateId(),
-    label: item.title,
-    children: (item.children ?? []).map(function mapChild(child): visualItemNode {
-      return {
-        id: generateId(),
-        label: child.title,
-        children: (child.children ?? []).map(mapChild),
-      }
-    }),
-  })),
+  children: items.map((item) => buildVisualItemSubtree(item)),
 })
 
 const layoutVisualTree = (root: visualItemNode) => {
@@ -152,8 +148,7 @@ const layoutVisualTree = (root: visualItemNode) => {
   return positions
 }
 
-const buildTemporaryGraphFromNode = (node: GraphNode, fallbackName: string): GraphPayload => {
-  const root = buildVisualItemTree(node.data.label, node.data.items)
+const buildTemporaryGraphFromRoot = (root: visualItemNode, name: string): GraphPayload => {
   const positions = layoutVisualTree(root)
   const allPositions = Array.from(positions.values())
   const minX = Math.min(...allPositions.map((position) => position.x))
@@ -197,11 +192,16 @@ const buildTemporaryGraphFromNode = (node: GraphNode, fallbackName: string): Gra
   }
   visit(root)
   return {
-    name: `${fallbackName} - ${node.data.label}`,
+    name,
     nodes,
     edges,
     kind: 'note',
   }
+}
+
+const buildTemporaryGraphFromNode = (node: GraphNode, fallbackName: string): GraphPayload => {
+  const root = buildVisualItemTree(node.data.label, node.data.items)
+  return buildTemporaryGraphFromRoot(root, `${fallbackName} - ${node.data.label}`)
 }
 
 const isEditableTarget = (target: EventTarget | null) => {
@@ -374,6 +374,7 @@ export default function App() {
   const toolbarOffsetRef = useRef({ x: 0, y: 0 })
   const toolbarMovedRef = useRef(false)
   const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number } | null>(null)
+  const [actionsMinimized, setActionsMinimized] = useState(false)
   const seeded3dGraphsRef = useRef<Set<string>>(new Set())
   const didMountRef = useRef(false)
   // Autosave queue: one in-flight request with dedupe by payload hash.
@@ -2205,6 +2206,14 @@ export default function App() {
     },
     [toolbarDefaultPosition, toolbarPos],
   )
+  const toolbarMiniStyle = useMemo(
+    () =>
+      ({
+        left: `${toolbarDefaultPosition.x}px`,
+        top: `${toolbarDefaultPosition.y}px`,
+      } as CSSProperties),
+    [toolbarDefaultPosition],
+  )
   const effectiveDrawerWidth = useDockedNodeDrawer
     ? Math.max(drawerWidth, NODE_DOCK_WIDTH)
     : isReadOnlyCanvas
@@ -2221,6 +2230,8 @@ export default function App() {
   )
   const showChatMini = is2DView && !isReadOnlyCanvas && chatOpen && chatMinimized
   const showMiniTray = is2DView && (minimizedNodes.length > 0 || showChatMini)
+  const showActionsWidget = is2DView && !isReadOnlyCanvas && !actionsMinimized
+  const showActionsMini = is2DView && !isReadOnlyCanvas && actionsMinimized
   const drawerMiniTrayStyle = useMemo(() => {
     // Keep minimized cards clear of right-side docked panels.
     const drawerVisible = is2DView && Boolean(activeNode)
@@ -2678,6 +2689,39 @@ export default function App() {
     [activeGraphId, nodes, setEdges, setNodes, t],
   )
 
+  const handleVisualizeItemGraph = useCallback(
+    (nodeId: string, itemId: string) => {
+      const sourceNode = nodes.find((node) => node.id === nodeId)
+      if (!sourceNode) {
+        return
+      }
+      const sourceItem = findItemById(sourceNode.data.items, itemId)
+      if (!sourceItem) {
+        return
+      }
+      const root = buildVisualItemSubtree(sourceItem)
+      const payload = buildTemporaryGraphFromRoot(
+        root,
+        `${t('graphs.tempGraphPrefix')} - ${sourceItem.title}`,
+      )
+      setTemporaryGraph({
+        sourceNodeId: sourceNode.id,
+        sourceGraphId: activeGraphId,
+        name: payload.name,
+      })
+      setGraphKind('note')
+      setViewMode('graph')
+      setGraphName(payload.name)
+      setNodes(payload.nodes)
+      setEdges(payload.edges)
+      setSelectedNodeId(null)
+      setContextMenu(null)
+      setHydrated(true)
+      pendingViewportFocusRef.current = true
+    },
+    [activeGraphId, nodes, setEdges, setNodes, t],
+  )
+
   const handleSaveTemporaryGraph = useCallback(async () => {
     if (!temporaryGraph) {
       return
@@ -2974,6 +3018,7 @@ export default function App() {
                 onAddItem={addItem}
                 onRemoveItem={removeItem}
                 onMoveItemIntoItem={moveItemIntoItem}
+                onVisualizeItemGraph={handleVisualizeItemGraph}
                 onOpenItemModal={handleOpenItemModal}
               />
             ) : null}
@@ -3150,11 +3195,12 @@ export default function App() {
                 <QuickFactsView activeFactKey={activeFactKey} onSelectFact={setActiveFactKey} />
               )}
 
-              {is2DView && !isReadOnlyCanvas ? (
+              {showActionsWidget ? (
                 <ActionsWidget
                   style={toolbarStyle}
                   toolbarRef={toolbarRef}
                   onDragStart={handleToolbarDragStart}
+                  onMinimize={() => setActionsMinimized(true)}
                   onAddNode={addNode}
                   onAddGroup={addGroup}
                   onGroupSelected={groupSelected}
@@ -3173,6 +3219,19 @@ export default function App() {
                     )
                   }
                 />
+              ) : null}
+              {showActionsMini ? (
+                <button
+                  className="toolbar-mini"
+                  type="button"
+                  style={toolbarMiniStyle}
+                  onClick={() => setActionsMinimized(false)}
+                  title={t('actions.restore')}
+                  aria-label={t('actions.restore')}
+                >
+                  <span className="toolbar-mini__icon">⌃</span>
+                  <span className="toolbar-mini__label">{t('actions.title')}</span>
+                </button>
               ) : null}
 
               {isGraphNoteView && !useDockedNodeDrawer ? (
@@ -3198,6 +3257,7 @@ export default function App() {
                   onAddItem={addItem}
                   onRemoveItem={removeItem}
                   onMoveItemIntoItem={moveItemIntoItem}
+                  onVisualizeItemGraph={handleVisualizeItemGraph}
                   onOpenItemModal={handleOpenItemModal}
                 />
               ) : null}

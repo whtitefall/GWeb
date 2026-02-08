@@ -1,5 +1,5 @@
 // Right-side drawer for editing a node's title, items, and notes.
-import { useEffect, useState, type CSSProperties, type MouseEvent, type RefObject } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
 import type { GraphNode, Item } from '../graphTypes'
 import { useI18n } from '../i18n'
 
@@ -11,8 +11,8 @@ type NoteDrawerProps = {
   docked?: boolean
   showResizer?: boolean
   showHeightResizer?: boolean
-  onResizeStart: (event: MouseEvent<HTMLDivElement>) => void
-  onResizeHeightStart?: (event: MouseEvent<HTMLDivElement>) => void
+  onResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void
+  onResizeHeightStart?: (event: ReactMouseEvent<HTMLDivElement>) => void
   onClose: () => void
   onDetachFromGroup: (nodeId: string) => void
   onUpdateLabel: (nodeId: string, value: string) => void
@@ -21,6 +21,7 @@ type NoteDrawerProps = {
   onAddItem: (nodeId: string, title: string) => void
   onRemoveItem: (nodeId: string, itemId: string) => void
   onMoveItemIntoItem: (nodeId: string, itemId: string, targetItemId: string) => void
+  onVisualizeItemGraph: (nodeId: string, itemId: string) => void
   onOpenItemModal: (nodeId: string, itemId: string) => void
 }
 
@@ -42,16 +43,51 @@ export default function NoteDrawer({
   onAddItem,
   onRemoveItem,
   onMoveItemIntoItem,
+  onVisualizeItemGraph,
   onOpenItemModal,
 }: NoteDrawerProps) {
   const { t } = useI18n()
   const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(new Set())
   const [draggingItemId, setDraggingItemId] = useState<string | null>(null)
+  const [itemContextMenu, setItemContextMenu] = useState<{
+    nodeId: string
+    itemId: string
+    x: number
+    y: number
+  } | null>(null)
+  const itemContextMenuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     setExpandedItemIds(new Set())
     setDraggingItemId(null)
+    setItemContextMenu(null)
   }, [activeNode?.id])
+
+  useEffect(() => {
+    if (!itemContextMenu) {
+      return
+    }
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) {
+        return
+      }
+      if (!itemContextMenuRef.current?.contains(target)) {
+        setItemContextMenu(null)
+      }
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setItemContextMenu(null)
+      }
+    }
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [itemContextMenu])
 
   const toggleItemExpanded = (itemId: string) => {
     setExpandedItemIds((current) => {
@@ -84,6 +120,18 @@ export default function NoteDrawer({
           className={`items__item ${draggingItemId === item.id ? 'is-dragging' : ''}`}
           style={{ marginLeft: `${depth * 14}px` }}
           draggable={!readOnly}
+          onContextMenu={(event) => {
+            if (readOnly) {
+              return
+            }
+            event.preventDefault()
+            setItemContextMenu({
+              nodeId,
+              itemId: item.id,
+              x: event.clientX,
+              y: event.clientY,
+            })
+          }}
           onDragStart={() => setDraggingItemId(item.id)}
           onDragEnd={() => setDraggingItemId(null)}
           onDragOver={(event) => {
@@ -212,6 +260,23 @@ export default function NoteDrawer({
             </div>
           </div>
         </>
+      ) : null}
+      {itemContextMenu && !readOnly ? (
+        <div
+          className="context-menu item-context-menu"
+          style={{ left: `${itemContextMenu.x}px`, top: `${itemContextMenu.y}px` }}
+          ref={itemContextMenuRef}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              onVisualizeItemGraph(itemContextMenu.nodeId, itemContextMenu.itemId)
+              setItemContextMenu(null)
+            }}
+          >
+            {t('drawer.visualizeItem')}
+          </button>
+        </div>
       ) : null}
     </aside>
   )

@@ -47,6 +47,8 @@ const messages: Record<Language, Record<string, string>> = {
     'actions.groupSelected': 'Group Selected',
     'actions.deleteSelected': 'Delete Selected',
     'actions.console': 'Console',
+    'actions.minimize': 'Minimize',
+    'actions.restore': 'Restore Actions',
 
     'auth.register': 'Register',
     'auth.login': 'Login',
@@ -139,6 +141,7 @@ const messages: Record<Language, Record<string, string>> = {
     'drawer.addItemPlaceholder': 'Add an item...',
     'drawer.addItem': 'Add Item',
     'drawer.openItem': 'Open',
+    'drawer.visualizeItem': 'Visualize this item',
     'drawer.toggleChildren': 'Expand or collapse subitems',
     'drawer.noSubitems': 'No subitems',
     'drawer.minimizedLabel': 'Minimized node details',
@@ -313,6 +316,8 @@ const messages: Record<Language, Record<string, string>> = {
     'actions.groupSelected': '分组选中节点',
     'actions.deleteSelected': '删除选中项',
     'actions.console': '控制台',
+    'actions.minimize': '最小化',
+    'actions.restore': '恢复操作面板',
 
     'auth.register': '注册',
     'auth.login': '登录',
@@ -405,6 +410,7 @@ const messages: Record<Language, Record<string, string>> = {
     'drawer.addItemPlaceholder': '添加条目...',
     'drawer.addItem': '添加条目',
     'drawer.openItem': '打开',
+    'drawer.visualizeItem': '可视化该条目',
     'drawer.toggleChildren': '展开或收起子条目',
     'drawer.noSubitems': '没有子条目',
     'drawer.minimizedLabel': '最小化节点详情',

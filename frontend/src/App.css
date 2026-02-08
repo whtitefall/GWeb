@@ -695,6 +695,8 @@
   left: 12px;
   bottom: auto;
   width: auto;
+  height: auto;
+  min-height: 0;
   max-width: calc(100vw - 24px);
   padding: 6px;
   border-right: 0;
@@ -961,6 +963,13 @@
   box-shadow: var(--shadow);
 }
 
+.toolbar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 :root[data-theme='light'] .toolbar {
   background: var(--panel);
 }
@@ -972,6 +981,7 @@
   color: var(--muted);
   cursor: grab;
   user-select: none;
+  flex: 1;
 }
 
 .toolbar__label:active {
@@ -981,6 +991,43 @@
 .toolbar__hint {
   font-size: 0.7rem;
   color: var(--muted);
+}
+
+.toolbar__minimize {
+  width: 24px;
+  height: 24px;
+  font-size: 0.9rem;
+}
+
+.toolbar-mini {
+  position: absolute;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--stroke);
+  background: var(--panel);
+  color: var(--ink-soft);
+  box-shadow: var(--shadow);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.toolbar-mini:hover {
+  background: var(--hover-surface);
+  border-color: var(--stroke);
+  color: var(--ink);
+}
+
+.toolbar-mini__icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.toolbar-mini__label {
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .btn {
@@ -1629,6 +1676,11 @@
   flex-direction: column;
   gap: 4px;
   z-index: 10;
+}
+
+.item-context-menu {
+  position: fixed;
+  z-index: 30;
 }
 
 .context-menu button {

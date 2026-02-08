@@ -6,6 +6,7 @@ type ActionsWidgetProps = {
   style: CSSProperties
   toolbarRef: RefObject<HTMLDivElement | null>
   onDragStart: (event: MouseEvent<HTMLDivElement>) => void
+  onMinimize: () => void
   onAddNode: () => void
   onAddGroup: () => void
   onGroupSelected: () => void
@@ -25,6 +26,7 @@ export default function ActionsWidget({
   style,
   toolbarRef,
   onDragStart,
+  onMinimize,
   onAddNode,
   onAddGroup,
   onGroupSelected,
@@ -43,8 +45,19 @@ export default function ActionsWidget({
   const edgeModeLabel = edgeMode === 'directed' ? t('actions.modeDirected') : t('actions.modeUndirected')
   return (
     <div className="toolbar" style={style} ref={toolbarRef}>
-      <div className="toolbar__label" onMouseDown={onDragStart}>
-        {t('actions.title')}
+      <div className="toolbar__header">
+        <div className="toolbar__label" onMouseDown={onDragStart}>
+          {t('actions.title')}
+        </div>
+        <button
+          className="icon-btn toolbar__minimize"
+          type="button"
+          onClick={onMinimize}
+          title={t('actions.minimize')}
+          aria-label={t('actions.minimize')}
+        >
+          ⌃
+        </button>
       </div>
       <button className="btn btn--primary" type="button" onClick={onAddNode}>
         {t('actions.addNode')}
