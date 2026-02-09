@@ -10,6 +10,7 @@ export type Item = {
   id: string
   title: string
   notes: Note[]
+  itemNotes?: string
   children: Item[]
 }
 

@@ -30,6 +30,7 @@ export const ensureItems = (value: unknown, fallbackNotes: unknown): Item[] => {
         id: typeof (item as Item).id === 'string' ? (item as Item).id : generateId(),
         title: String((item as Item).title),
         notes: ensureNotes((item as Item).notes),
+        itemNotes: typeof (item as Item).itemNotes === 'string' ? (item as Item).itemNotes : '',
         children: ensureItems((item as Item).children, []),
       }))
     if (items.length > 0) {
@@ -44,6 +45,7 @@ export const ensureItems = (value: unknown, fallbackNotes: unknown): Item[] => {
         id: typeof (note as Note).id === 'string' ? (note as Note).id : generateId(),
         title: String((note as Note).title),
         notes: [],
+        itemNotes: '',
         children: [],
       }))
   }

@@ -9,6 +9,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type RefObject,
 } from 'react'
+import { createPortal } from 'react-dom'
 import type { GraphNode, Item } from '../graphTypes'
 import { useI18n } from '../i18n'
 
@@ -30,6 +31,7 @@ type NoteDrawerProps = {
   onMoveItemIntoItem: (nodeId: string, itemId: string, targetItemId: string) => void
   onVisualizeItemGraph: (nodeId: string, itemId: string) => void
   onOpenItemModal: (nodeId: string, itemId: string) => void
+  onOpenItemNotes: (nodeId: string, itemId: string) => void
 }
 
 export default function NoteDrawer({
@@ -50,6 +52,7 @@ export default function NoteDrawer({
   onMoveItemIntoItem,
   onVisualizeItemGraph,
   onOpenItemModal,
+  onOpenItemNotes,
 }: NoteDrawerProps) {
   const { t } = useI18n()
   const ITEM_CONTEXT_MENU_WIDTH = 220
@@ -303,7 +306,7 @@ export default function NoteDrawer({
                   <button
                     type="button"
                     onClick={() => {
-                      onOpenItemModal(nodeId, item.id)
+                      onOpenItemNotes(nodeId, item.id)
                       setItemActionMenu(null)
                     }}
                   >
@@ -335,134 +338,139 @@ export default function NoteDrawer({
     )
   }
 
-  return (
-    <aside
-      className={`drawer ${activeNode ? 'drawer--open' : ''} ${
-        docked ? 'drawer--dock drawer--dock-right' : 'drawer--panel'
-      }`}
-      aria-hidden={!activeNode}
-      ref={drawerRef}
-      style={drawerStyle}
-    >
-      {activeNode ? (
-        <>
-          {showResizer ? <div className="drawer__resizer" onMouseDown={onResizeStart} /> : null}
-          {showHeightResizer && onResizeHeightStart ? (
-            <div className="drawer__resizer-y" onMouseDown={onResizeHeightStart} />
-          ) : null}
-          <div className="drawer__content">
-            <div className="drawer__header">
-              <div>
-                <div className="drawer__eyebrow">
-                  {readOnly ? t('drawer.nodeDetails') : t('drawer.nodeSettings')}
-                </div>
-                <h2>{activeNode.data.label}</h2>
-              </div>
-              <div className="drawer__actions">
-                {!readOnly ? (
-                  <button className="btn btn--ghost drawer__add-item" type="button" onClick={openCreateItemModal}>
-                    <span aria-hidden>+</span>
-                    <span>{t('drawer.addItem')}</span>
-                  </button>
-                ) : null}
-                <button className="btn btn--ghost" type="button" onClick={onClose}>
-                  {t('drawer.minimize')}
-                </button>
-                {!readOnly && activeNode.parentNode ? (
-                  <button className="btn btn--ghost" type="button" onClick={() => onDetachFromGroup(activeNode.id)}>
-                    {t('drawer.removeFromGroup')}
-                  </button>
-                ) : null}
-                <button className="btn btn--ghost" type="button" onClick={onClose}>
-                  {t('drawer.close')}
-                </button>
-              </div>
-            </div>
-
+  const createItemModal =
+    createItemModalOpen && activeNode && !readOnly ? (
+      <div className="modal-overlay" onClick={closeCreateItemModal}>
+        <div className="modal modal--compact" onClick={(event) => event.stopPropagation()}>
+          <h2>{t('drawer.addItem')}</h2>
+          <p className="modal__subtitle">{t('drawer.addItemModalSubtitle')}</p>
+          <form className="modal__form" onSubmit={handleCreateItemSubmit}>
             <label className="field">
               <span>{t('drawer.title')}</span>
               <input
+                className="modal__input"
                 type="text"
-                value={activeNode.data.label}
-                onChange={(event) => onUpdateLabel(activeNode.id, event.target.value)}
-                readOnly={readOnly}
-                disabled={readOnly}
+                placeholder={t('drawer.addItemPlaceholder')}
+                value={createItemTitle}
+                onChange={(event) => setCreateItemTitle(event.target.value)}
+                autoFocus
               />
             </label>
-
-            <div className="items">
-              <div className="items__header">
-                <h3>{t('drawer.items')}</h3>
-                <span>{t('drawer.itemsCount', { count: activeNode.data.items.length })}</span>
-              </div>
-              <ul className="items__list items__tree">
-                {activeNode.data.items.map((item) => renderItemTree(activeNode.id, item, 0))}
-              </ul>
+            <label className="field">
+              <span>{t('drawer.itemParentLabel')}</span>
+              <select
+                className="modal__input"
+                value={createItemParentId}
+                onChange={(event) => setCreateItemParentId(event.target.value)}
+              >
+                <option value="">{t('drawer.itemParentRoot')}</option>
+                {itemDirectoryOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="modal__actions">
+              <button className="btn btn--ghost" type="button" onClick={closeCreateItemModal}>
+                {t('modal.cancel')}
+              </button>
+              <button className="btn btn--primary" type="submit" disabled={!createItemTitle.trim()}>
+                {t('drawer.addItem')}
+              </button>
             </div>
-          </div>
-        </>
-      ) : null}
-      {createItemModalOpen && activeNode && !readOnly ? (
-        <div className="modal-overlay" onClick={closeCreateItemModal}>
-          <div className="modal modal--compact" onClick={(event) => event.stopPropagation()}>
-            <h2>{t('drawer.addItem')}</h2>
-            <p className="modal__subtitle">{t('drawer.addItemModalSubtitle')}</p>
-            <form className="modal__form" onSubmit={handleCreateItemSubmit}>
+          </form>
+        </div>
+      </div>
+    ) : null
+
+  return (
+    <>
+      <aside
+        className={`drawer ${activeNode ? 'drawer--open' : ''} ${
+          docked ? 'drawer--dock drawer--dock-right' : 'drawer--panel'
+        }`}
+        aria-hidden={!activeNode}
+        ref={drawerRef}
+        style={drawerStyle}
+      >
+        {activeNode ? (
+          <>
+            {showResizer ? <div className="drawer__resizer" onMouseDown={onResizeStart} /> : null}
+            {showHeightResizer && onResizeHeightStart ? (
+              <div className="drawer__resizer-y" onMouseDown={onResizeHeightStart} />
+            ) : null}
+            <div className="drawer__content">
+              <div className="drawer__header">
+                <div>
+                  <div className="drawer__eyebrow">
+                    {readOnly ? t('drawer.nodeDetails') : t('drawer.nodeSettings')}
+                  </div>
+                  <h2>{activeNode.data.label}</h2>
+                </div>
+                <div className="drawer__actions">
+                  {!readOnly ? (
+                    <button className="btn btn--ghost drawer__add-item" type="button" onClick={openCreateItemModal}>
+                      <span aria-hidden>+</span>
+                      <span>{t('drawer.addItem')}</span>
+                    </button>
+                  ) : null}
+                  <button className="btn btn--ghost" type="button" onClick={onClose}>
+                    {t('drawer.minimize')}
+                  </button>
+                  {!readOnly && activeNode.parentNode ? (
+                    <button className="btn btn--ghost" type="button" onClick={() => onDetachFromGroup(activeNode.id)}>
+                      {t('drawer.removeFromGroup')}
+                    </button>
+                  ) : null}
+                  <button className="btn btn--ghost" type="button" onClick={onClose}>
+                    {t('drawer.close')}
+                  </button>
+                </div>
+              </div>
+
               <label className="field">
                 <span>{t('drawer.title')}</span>
                 <input
-                  className="modal__input"
                   type="text"
-                  placeholder={t('drawer.addItemPlaceholder')}
-                  value={createItemTitle}
-                  onChange={(event) => setCreateItemTitle(event.target.value)}
-                  autoFocus
+                  value={activeNode.data.label}
+                  onChange={(event) => onUpdateLabel(activeNode.id, event.target.value)}
+                  readOnly={readOnly}
+                  disabled={readOnly}
                 />
               </label>
-              <label className="field">
-                <span>{t('drawer.itemParentLabel')}</span>
-                <select
-                  className="modal__input"
-                  value={createItemParentId}
-                  onChange={(event) => setCreateItemParentId(event.target.value)}
-                >
-                  <option value="">{t('drawer.itemParentRoot')}</option>
-                  {itemDirectoryOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="modal__actions">
-                <button className="btn btn--ghost" type="button" onClick={closeCreateItemModal}>
-                  {t('modal.cancel')}
-                </button>
-                <button className="btn btn--primary" type="submit" disabled={!createItemTitle.trim()}>
-                  {t('drawer.addItem')}
-                </button>
+
+              <div className="items">
+                <div className="items__header">
+                  <h3>{t('drawer.items')}</h3>
+                  <span>{t('drawer.itemsCount', { count: activeNode.data.items.length })}</span>
+                </div>
+                <ul className="items__list items__tree">
+                  {activeNode.data.items.map((item) => renderItemTree(activeNode.id, item, 0))}
+                </ul>
               </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
-      {itemContextMenu && !readOnly ? (
-        <div
-          className="context-menu item-context-menu"
-          style={{ left: `${itemContextMenu.x}px`, top: `${itemContextMenu.y}px` }}
-          ref={itemContextMenuRef}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              onVisualizeItemGraph(itemContextMenu.nodeId, itemContextMenu.itemId)
-              setItemContextMenu(null)
-            }}
+            </div>
+          </>
+        ) : null}
+        {itemContextMenu && !readOnly ? (
+          <div
+            className="context-menu item-context-menu"
+            style={{ left: `${itemContextMenu.x}px`, top: `${itemContextMenu.y}px` }}
+            ref={itemContextMenuRef}
           >
-            {t('drawer.visualizeItem')}
-          </button>
-        </div>
-      ) : null}
-    </aside>
+            <button
+              type="button"
+              onClick={() => {
+                onVisualizeItemGraph(itemContextMenu.nodeId, itemContextMenu.itemId)
+                setItemContextMenu(null)
+              }}
+            >
+              {t('drawer.visualizeItem')}
+            </button>
+          </div>
+        ) : null}
+      </aside>
+      {createItemModal && typeof document !== 'undefined' ? createPortal(createItemModal, document.body) : null}
+    </>
   )
 }

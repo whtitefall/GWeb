@@ -13,12 +13,20 @@ import { formatUpdatedAt } from '../utils/time'
 import { useI18n } from '../i18n'
 import type { ViewMode } from '../types/ui'
 
+export type GraphSubgraphNode = {
+  id: string
+  label: string
+  children: GraphSubgraphNode[]
+}
+
 type GraphListWidgetProps = {
   userName: string
   collapsed: boolean
   viewMode: ViewMode
   showBetaTabs: boolean
   graphList: GraphSummary[]
+  graphSubgraphsById: Record<string, GraphSubgraphNode[] | null | undefined>
+  showGraphExpandOption: boolean
   pinnedGraphIds: string[]
   maxPinnedGraphs: number
   activeGraphId: string | null
@@ -50,6 +58,8 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
       viewMode,
       showBetaTabs,
       graphList,
+      graphSubgraphsById,
+      showGraphExpandOption,
       pinnedGraphIds,
       maxPinnedGraphs,
       activeGraphId,
@@ -78,6 +88,7 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
     const fileInputRef = useRef<HTMLInputElement | null>(null)
     const menuRef = useRef<HTMLDivElement | null>(null)
     const [openGraphMenuId, setOpenGraphMenuId] = useState<string | null>(null)
+    const [expandedGraphIds, setExpandedGraphIds] = useState<Set<string>>(new Set())
 
     useEffect(() => {
       if (!openGraphMenuId) {
@@ -105,6 +116,14 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
       }
     }, [openGraphMenuId])
 
+    useEffect(() => {
+      setExpandedGraphIds((current) => {
+        const availableIds = new Set(graphList.map((graph) => graph.id))
+        const next = new Set(Array.from(current).filter((graphId) => availableIds.has(graphId)))
+        return next.size === current.size ? current : next
+      })
+    }, [graphList])
+
     const handleImportChange = (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0]
       if (file) {
@@ -121,6 +140,34 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
         onCancelRename()
       }
     }
+
+    const toggleGraphExpanded = (graphId: string) => {
+      setExpandedGraphIds((current) => {
+        const next = new Set(current)
+        if (next.has(graphId)) {
+          next.delete(graphId)
+        } else {
+          next.add(graphId)
+        }
+        return next
+      })
+    }
+
+    const renderSubgraphTree = (entries: GraphSubgraphNode[], depth = 0) => (
+      <ul className="graph-list__subgraph-tree">
+        {entries.map((entry) => (
+          <li key={entry.id} className="graph-list__subgraph-node">
+            <div className="graph-list__subgraph-row" style={{ paddingLeft: `${depth * 12}px` }}>
+              <span className="graph-list__subgraph-marker" aria-hidden>
+                {entry.children.length > 0 ? '▸' : '•'}
+              </span>
+              <span className="graph-list__subgraph-label">{entry.label}</span>
+            </div>
+            {entry.children.length > 0 ? renderSubgraphTree(entry.children, depth + 1) : null}
+          </li>
+        ))}
+      </ul>
+    )
 
     return (
       <aside className={`graph-list ${collapsed ? 'graph-list--collapsed' : ''}`} ref={ref}>
@@ -207,6 +254,10 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
                     {(() => {
                       const isPinned = pinnedGraphIds.includes(graph.id)
                       const pinLimitReached = !isPinned && pinnedGraphIds.length >= maxPinnedGraphs
+                      const isExpanded = expandedGraphIds.has(graph.id)
+                      const subgraphs = graphSubgraphsById[graph.id]
+                      const isSubgraphsLoading = subgraphs === null
+                      const hasSubgraphs = Array.isArray(subgraphs) && subgraphs.length > 0
                       return isRenaming && renameTargetGraphId === graph.id ? (
                         <div className="graph-list__item-edit">
                           <input
@@ -229,74 +280,98 @@ const GraphListWidget = forwardRef<HTMLElement, GraphListWidgetProps>(
                         </div>
                       ) : (
                         <>
-                          <button
-                            type="button"
-                            className="graph-list__item-main"
-                            onClick={() => {
-                              onSelectGraph(graph.id)
-                              setOpenGraphMenuId(null)
-                            }}
-                          >
-                            <div className="graph-list__name-row">
-                              <div className="graph-list__name">{graph.name}</div>
-                              {isPinned ? (
-                                <span className="graph-list__pin" title={t('graphs.pinned')} aria-label={t('graphs.pinned')}>
-                                  {'\u{1F4CC}'}
-                                </span>
-                              ) : null}
-                            </div>
-                            <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
-                          </button>
-                          <div
-                            className={`graph-list__item-menu-wrap ${openGraphMenuId === graph.id ? 'is-open' : ''}`}
-                            ref={openGraphMenuId === graph.id ? menuRef : null}
-                          >
+                          <div className="graph-list__item-top">
                             <button
-                              className="icon-btn graph-list__item-menu-btn"
                               type="button"
-                              aria-expanded={openGraphMenuId === graph.id}
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                setOpenGraphMenuId((current) => (current === graph.id ? null : graph.id))
+                              className="graph-list__item-main"
+                              onClick={() => {
+                                onSelectGraph(graph.id)
+                                setOpenGraphMenuId(null)
                               }}
                             >
-                              ⋯
-                            </button>
-                            {openGraphMenuId === graph.id ? (
-                              <div className="graph-list__item-menu">
-                                <button
-                                  type="button"
-                                  disabled={pinLimitReached}
-                                  title={pinLimitReached ? t('graphs.error.pinLimit', { count: maxPinnedGraphs }) : undefined}
-                                  onClick={() => {
-                                    onTogglePinGraph(graph.id)
-                                    setOpenGraphMenuId(null)
-                                  }}
-                                >
-                                  {isPinned ? t('graphs.unpinTitle') : t('graphs.pinTitle')}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    onStartRenameGraph(graph.id, graph.name)
-                                    setOpenGraphMenuId(null)
-                                  }}
-                                >
-                                  {t('graphs.renameTitle')}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="graph-list__item-menu-danger"
-                                  onClick={() => {
-                                    onDeleteGraph(graph.id)
-                                    setOpenGraphMenuId(null)
-                                  }}
-                                >
-                                  {t('graphs.deleteTitle')}
-                                </button>
+                              <div className="graph-list__name-row">
+                                <div className="graph-list__name">{graph.name}</div>
+                                {isPinned ? (
+                                  <span className="graph-list__pin" title={t('graphs.pinned')} aria-label={t('graphs.pinned')}>
+                                    {'\u{1F4CC}'}
+                                  </span>
+                                ) : null}
                               </div>
-                            ) : null}
+                              <div className="graph-list__meta">{formatUpdatedAt(graph.updatedAt)}</div>
+                            </button>
+                            <div
+                              className={`graph-list__item-menu-wrap ${openGraphMenuId === graph.id ? 'is-open' : ''}`}
+                              ref={openGraphMenuId === graph.id ? menuRef : null}
+                            >
+                              <button
+                                className="icon-btn graph-list__item-menu-btn"
+                                type="button"
+                                aria-expanded={openGraphMenuId === graph.id}
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  setOpenGraphMenuId((current) => (current === graph.id ? null : graph.id))
+                                }}
+                              >
+                                ⋯
+                              </button>
+                              {openGraphMenuId === graph.id ? (
+                                <div className="graph-list__item-menu">
+                                  <button
+                                    type="button"
+                                    disabled={pinLimitReached}
+                                    title={pinLimitReached ? t('graphs.error.pinLimit', { count: maxPinnedGraphs }) : undefined}
+                                    onClick={() => {
+                                      onTogglePinGraph(graph.id)
+                                      setOpenGraphMenuId(null)
+                                    }}
+                                  >
+                                    {isPinned ? t('graphs.unpinTitle') : t('graphs.pinTitle')}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onStartRenameGraph(graph.id, graph.name)
+                                      setOpenGraphMenuId(null)
+                                    }}
+                                  >
+                                    {t('graphs.renameTitle')}
+                                  </button>
+                                  {showGraphExpandOption ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        toggleGraphExpanded(graph.id)
+                                        setOpenGraphMenuId(null)
+                                      }}
+                                    >
+                                      {isExpanded ? t('graphs.collapseTitle') : t('graphs.expandTitle')}
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    className="graph-list__item-menu-danger"
+                                    onClick={() => {
+                                      onDeleteGraph(graph.id)
+                                      setOpenGraphMenuId(null)
+                                    }}
+                                  >
+                                    {t('graphs.deleteTitle')}
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
+                          {showGraphExpandOption && isExpanded ? (
+                            <div className="graph-list__subgraphs">
+                              {isSubgraphsLoading ? (
+                                <div className="graph-list__subgraphs-empty">{t('graphs.subgraphsLoading')}</div>
+                              ) : hasSubgraphs ? (
+                                renderSubgraphTree(subgraphs ?? [])
+                              ) : (
+                                <div className="graph-list__subgraphs-empty">{t('graphs.subgraphsEmpty')}</div>
+                              )}
+                            </div>
+                          ) : null}
                         </>
                       )
                     })()}
