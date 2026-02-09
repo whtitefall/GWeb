@@ -22,6 +22,11 @@ export default function EditorJsField({
   const editorRef = useRef<EditorJS | null>(null)
   const currentValueRef = useRef(value)
   const changingRef = useRef(false)
+  const onChangeRef = useRef(onChange)
+
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
 
   useEffect(() => {
     let disposed = false
@@ -36,6 +41,11 @@ export default function EditorJsField({
         ])
       if (disposed) {
         return
+      }
+
+      const holderElement = document.getElementById(holderIdRef.current)
+      if (holderElement) {
+        holderElement.innerHTML = ''
       }
 
       const initialData = parseEditorContent(currentValueRef.current)
@@ -58,7 +68,7 @@ export default function EditorJsField({
           const saved = await api.saver.save()
           const serialized = serializeEditorContent(saved)
           currentValueRef.current = serialized
-          onChange(serialized)
+          onChangeRef.current(serialized)
         },
       })
       editorRef.current = editor
@@ -73,9 +83,13 @@ export default function EditorJsField({
           .then(() => editorRef.current?.destroy())
           .catch(() => undefined)
       }
+      const holderElement = document.getElementById(holderIdRef.current)
+      if (holderElement) {
+        holderElement.innerHTML = ''
+      }
       editorRef.current = null
     }
-  }, [onChange, placeholder, readOnly])
+  }, [placeholder, readOnly])
 
   useEffect(() => {
     if (value === currentValueRef.current) {
@@ -97,5 +111,13 @@ export default function EditorJsField({
       })
   }, [value])
 
-  return <div className="editorjs-field" id={holderIdRef.current} />
+  return (
+    <div
+      className="editorjs-field"
+      id={holderIdRef.current}
+      data-gramm="false"
+      data-gramm_editor="false"
+      data-enable-grammarly="false"
+    />
+  )
 }

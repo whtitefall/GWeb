@@ -103,10 +103,18 @@ type nodeClipboardPayload = {
   absolutePositions: Record<string, { x: number; y: number }>
 }
 
+type temporaryGraphSnapshot = {
+  name: string
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+}
+
 type temporaryGraphState = {
   sourceNodeId: string
   sourceGraphId: string | null
   name: string
+  parentTemporaryGraph: temporaryGraphState | null
+  parentSnapshot: temporaryGraphSnapshot | null
 }
 
 type nodeNotesState = {
@@ -254,7 +262,6 @@ export default function App() {
   // Selected node/item state for the drawer + item modal.
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [minimizedNodeIds, setMinimizedNodeIds] = useState<string[]>([])
-  const [itemTitle, setItemTitle] = useState('')
   const [itemModal, setItemModal] = useState<{ nodeId: string; itemId: string } | null>(null)
   const [itemTipTitle, setItemTipTitle] = useState('')
   const [saveState, setSaveState] = useState<keyof typeof statusLabels>('idle')
@@ -311,6 +318,7 @@ export default function App() {
     return ''
   })
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
   // Beta toggle controls optional Graph Application + 3D tabs.
   const [betaFeaturesEnabled, setBetaFeaturesEnabled] = useState(() => {
     if (typeof window === 'undefined') {
@@ -649,7 +657,6 @@ export default function App() {
     setTemporaryGraph(null)
     setNodeNotesState(null)
     setItemModal(null)
-    setItemTitle('')
     setItemTipTitle('')
     setHomeThumbnails({})
   }, [graphKind])
@@ -864,7 +871,6 @@ export default function App() {
     }
     setHydrated(false)
     setSelectedNodeId(null)
-    setItemTitle('')
     setItemModal(null)
     setItemTipTitle('')
     let isMounted = true
@@ -1451,26 +1457,43 @@ export default function App() {
 
   const handleUpdateNodeNotes = useCallback(
     (value: string) => {
-      if (!nodeNotesNode) {
+      const nodeId = nodeNotesState?.sourceNodeId
+      if (!nodeId) {
         return
       }
-      updateNodeData(nodeNotesNode.id, (data) => ({
+      updateNodeData(nodeId, (data) => ({
         ...data,
         nodeNotes: value,
       }))
     },
-    [nodeNotesNode, updateNodeData],
+    [nodeNotesState, updateNodeData],
   )
 
   const addItem = useCallback(
-    (nodeId: string, title: string) => {
+    (nodeId: string, title: string, parentItemId: string | null = null) => {
       const trimmed = title.trim()
       if (!trimmed) return
 
-      updateNodeData(nodeId, (data) => ({
-        ...data,
-        items: [...data.items, { id: generateId(), title: trimmed, notes: [], children: [] }],
-      }))
+      const newItem: Item = { id: generateId(), title: trimmed, notes: [], children: [] }
+      updateNodeData(nodeId, (data) => {
+        if (parentItemId) {
+          const next = updateItemById(data.items, parentItemId, (item) => ({
+            ...item,
+            children: [...(item.children ?? []), newItem],
+          }))
+          if (next.found) {
+            return {
+              ...data,
+              items: next.items,
+            }
+          }
+        }
+
+        return {
+          ...data,
+          items: [...data.items, newItem],
+        }
+      })
     },
     [updateNodeData],
   )
@@ -2712,11 +2735,17 @@ export default function App() {
         return
       }
       const payload = buildTemporaryGraphFromNode(sourceNode, t('graphs.tempGraphPrefix'))
-      setTemporaryGraph({
+      setTemporaryGraph((currentTemporary) => ({
         sourceNodeId: sourceNode.id,
         sourceGraphId: activeGraphId,
         name: payload.name,
-      })
+        parentTemporaryGraph: currentTemporary,
+        parentSnapshot: {
+          name: graphName,
+          nodes,
+          edges,
+        },
+      }))
       setGraphKind('note')
       setViewMode('graph')
       setGraphName(payload.name)
@@ -2728,7 +2757,7 @@ export default function App() {
       setHydrated(true)
       pendingViewportFocusRef.current = true
     },
-    [activeGraphId, nodes, setEdges, setNodes, t],
+    [activeGraphId, edges, graphName, nodes, setEdges, setNodes, t],
   )
 
   const handleVisualizeItemGraph = useCallback(
@@ -2746,11 +2775,17 @@ export default function App() {
         root,
         `${t('graphs.tempGraphPrefix')} - ${sourceItem.title}`,
       )
-      setTemporaryGraph({
+      setTemporaryGraph((currentTemporary) => ({
         sourceNodeId: sourceNode.id,
         sourceGraphId: activeGraphId,
         name: payload.name,
-      })
+        parentTemporaryGraph: currentTemporary,
+        parentSnapshot: {
+          name: graphName,
+          nodes,
+          edges,
+        },
+      }))
       setGraphKind('note')
       setViewMode('graph')
       setGraphName(payload.name)
@@ -2762,7 +2797,7 @@ export default function App() {
       setHydrated(true)
       pendingViewportFocusRef.current = true
     },
-    [activeGraphId, nodes, setEdges, setNodes, t],
+    [activeGraphId, edges, graphName, nodes, setEdges, setNodes, t],
   )
 
   const handleOpenNodeNotes = useCallback(
@@ -2847,10 +2882,23 @@ export default function App() {
       return
     }
     setNodeNotesState(null)
-    const targetGraphId = temporaryGraph.sourceGraphId ?? activeGraphId
-    setTemporaryGraph(null)
     setContextMenu(null)
     setSelectedNodeId(null)
+
+    if (temporaryGraph.parentSnapshot) {
+      setTemporaryGraph(temporaryGraph.parentTemporaryGraph)
+      setGraphName(temporaryGraph.parentSnapshot.name)
+      setNodes(temporaryGraph.parentSnapshot.nodes)
+      setEdges(temporaryGraph.parentSnapshot.edges)
+      setGraphKind('note')
+      setViewMode('graph')
+      setHydrated(true)
+      pendingViewportFocusRef.current = true
+      return
+    }
+
+    const targetGraphId = temporaryGraph.sourceGraphId ?? activeGraphId
+    setTemporaryGraph(null)
     if (!targetGraphId) {
       setViewMode('home')
       return
@@ -3054,6 +3102,16 @@ export default function App() {
                       {t('topbar.settings')}
                     </button>
                     <button
+                      className="app-menu__item"
+                      type="button"
+                      onClick={() => {
+                        setAboutOpen(true)
+                        setAppMenuOpen(false)
+                      }}
+                    >
+                      {`? ${t('topbar.about')}`}
+                    </button>
+                    <button
                       className="app-menu__item app-menu__item--ai"
                       type="button"
                       onClick={() => {
@@ -3097,8 +3155,6 @@ export default function App() {
                     label: value,
                   }))
                 }
-                itemTitle={itemTitle}
-                onItemTitleChange={setItemTitle}
                 onAddItem={addItem}
                 onRemoveItem={removeItem}
                 onMoveItemIntoItem={moveItemIntoItem}
@@ -3358,8 +3414,6 @@ export default function App() {
                       label: value,
                     }))
                   }
-                  itemTitle={itemTitle}
-                  onItemTitleChange={setItemTitle}
                   onAddItem={addItem}
                   onRemoveItem={removeItem}
                   onMoveItemIntoItem={moveItemIntoItem}
@@ -3594,6 +3648,27 @@ export default function App() {
                 }}
               >
                 {t('modal.delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {aboutOpen ? (
+        <div className="modal-overlay" onClick={() => setAboutOpen(false)}>
+          <div className="modal modal--compact" onClick={(event) => event.stopPropagation()}>
+            <h2>{t('about.title')}</h2>
+            <p className="modal__subtitle">{t('about.subtitle')}</p>
+            <div className="modal__section">
+              <div className="modal__label">{t('about.contactLabel')}</div>
+              <a className="about-modal__email" href="mailto:yuanzheng.hu.brad@gmail.com">
+                yuanzheng.hu.brad@gmail.com
+              </a>
+            </div>
+            <div className="modal__hint">{t('about.credit')}</div>
+            <div className="modal__actions">
+              <button className="btn btn--ghost" type="button" onClick={() => setAboutOpen(false)}>
+                {t('modal.cancel')}
               </button>
             </div>
           </div>
